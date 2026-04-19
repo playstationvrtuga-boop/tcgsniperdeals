@@ -15,7 +15,7 @@
     </div>
     <div class="hero-actions">
       {% if apk_available %}
-      <a class="primary-button" href="{{ apk_url }}">Download Android app</a>
+      <a class="primary-button" href="{{ url_for('main.download_android_apk') }}">Download Android app</a>
       {% endif %}
       <a class="ghost-button" href="{{ url_for('main.index') }}">Open web app</a>
     </div>
@@ -86,7 +86,7 @@
 
     <div class="download-actions">
       {% if apk_available %}
-      <a class="primary-button" href="{{ apk_url }}">Download Android app</a>
+      <a class="primary-button" href="{{ url_for('main.download_android_apk') }}">Download Android app</a>
       {% else %}
       <button class="ghost-button" type="button" disabled>Android build unavailable</button>
       {% endif %}
