@@ -1,4 +1,5 @@
 import os
+import secrets
 from pathlib import Path
 
 
@@ -32,10 +33,10 @@ def _database_uri() -> str:
 
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
+    SECRET_KEY = os.getenv("SECRET_KEY") or secrets.token_urlsafe(32)
     SQLALCHEMY_DATABASE_URI = _database_uri()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    BOT_API_KEY = os.getenv("BOT_API_KEY", os.getenv("APP_API_KEY", "dev-bot-key-change-me"))
+    BOT_API_KEY = os.environ.get("BOT_API_KEY") or os.environ.get("APP_API_KEY", "")
     VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
     VAPID_PRIVATE_KEY = _normalize_multiline_env(os.getenv("VAPID_PRIVATE_KEY", ""))
     VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")

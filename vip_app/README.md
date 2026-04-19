@@ -44,7 +44,7 @@ The bot sends listings with:
 Set the same value in:
 
 - `BOT_API_KEY`
-- or `APP_API_KEY`
+- `APP_API_KEY` only as legacy fallback if needed
 
 inside:
 

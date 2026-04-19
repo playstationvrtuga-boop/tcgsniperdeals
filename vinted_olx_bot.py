@@ -6,7 +6,7 @@ from config import (
     FREE_CHAT_ID,
     APP_API_ENABLED,
     APP_API_URL,
-    APP_API_KEY,
+    BOT_API_KEY,
     APP_API_TIMEOUT,
 )
 from core.listing_logger import log_listing_event
@@ -314,7 +314,7 @@ def enviar_anuncio_app(anuncio):
     if not APP_API_ENABLED:
         return {"status": "disabled"}
 
-    if not APP_API_URL or not APP_API_KEY:
+    if not APP_API_URL or not BOT_API_KEY:
         print("[APP API] disabled because URL or API key is missing")
         return {"status": "disabled_missing_config"}
 
@@ -329,7 +329,7 @@ def enviar_anuncio_app(anuncio):
             json=payload,
             headers={
                 "Content-Type": "application/json",
-                "X-API-Key": APP_API_KEY,
+                "X-API-Key": BOT_API_KEY,
             },
             timeout=APP_API_TIMEOUT,
         )
@@ -351,7 +351,7 @@ def enviar_anuncio_app(anuncio):
     elif resposta.status_code == 200 and status == "duplicate":
         print(f"[APP API] duplicate {payload.get('external_id')} already in VIP app")
     elif resposta.status_code == 401:
-        print("[APP API] unauthorized - check APP_API_KEY / BOT_API_KEY")
+        print("[APP API] unauthorized - check BOT_API_KEY")
     else:
         print(f"[APP API] unexpected response for {payload.get('external_id')}: {resposta.status_code} {dados}")
 

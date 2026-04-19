@@ -34,7 +34,8 @@ def _get_flag(name: str, default=False):
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
-TOKEN = _get_setting("TOKEN", "8734676998:AAF-Ari5Kfrbuhj3HzTbG3llaxCo0vSnADs")
+# Telegram bot token must come from environment, never from source code.
+TOKEN = _get_setting("TELEGRAM_BOT_TOKEN", _get_setting("TOKEN", ""))
 VIP_CHAT_ID = _get_setting("VIP_CHAT_ID", "-1003793745882")
 FREE_CHAT_ID = _get_setting("FREE_CHAT_ID", "-1003921330386")
 
@@ -42,6 +43,7 @@ APP_API_URL = _get_setting(
     "APP_API_URL",
     f"{str(_get_setting('SITE_URL', 'http://127.0.0.1:5000')).rstrip('/')}/api/listings",
 )
-APP_API_KEY = _get_setting("APP_API_KEY", _get_setting("BOT_API_KEY", "change-me-bot-api-key"))
+BOT_API_KEY = os.environ.get("BOT_API_KEY") or LOCAL_ENV.get("BOT_API_KEY", "")
+APP_API_KEY = BOT_API_KEY or os.environ.get("APP_API_KEY") or LOCAL_ENV.get("APP_API_KEY", "")
 APP_API_TIMEOUT = float(_get_setting("APP_API_TIMEOUT", "8"))
-APP_API_ENABLED = _get_flag("APP_API_ENABLED", default=bool(APP_API_URL and APP_API_KEY))
+APP_API_ENABLED = _get_flag("APP_API_ENABLED", default=bool(APP_API_URL and BOT_API_KEY))

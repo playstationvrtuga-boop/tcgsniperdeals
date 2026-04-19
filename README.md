@@ -45,14 +45,15 @@ App config lives in:
 
 Use the same key in:
 
-- `BOT_API_KEY` or `APP_API_KEY` inside `vip_app\.env`
-- `APP_API_KEY` for the bot
+- `BOT_API_KEY` inside `vip_app\.env`
+- `BOT_API_KEY` for the bot
+- `APP_API_KEY` only as legacy fallback if needed
 
 Example app env values:
 
 ```env
 BOT_API_KEY=change-me-bot-api-key
-APP_API_KEY=change-me-bot-api-key
+# APP_API_KEY=change-me-bot-api-key
 SITE_URL=http://127.0.0.1:5000
 ```
 
