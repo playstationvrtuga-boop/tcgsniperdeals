@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}VIP Pending - TCG Sniper Deals{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <span class="pill">VIP pending</span>
+  <h1>Your account is in. VIP activation is next.</h1>
+  <p>Your login is ready, but the live deal stream is still locked.</p>
+  <p>The second payment is confirmed, your VIP access can be switched on instantly.</p>
+  <div class="listing-actions">
+    <a class="ghost-button" href="{{ url_for('main.profile') }}">View VIP status</a>
+  </div>
+</section>
+{% endblock %}

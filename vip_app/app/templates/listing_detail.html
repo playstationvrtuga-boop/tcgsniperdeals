@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Deal Detail - TCG Sniper Deals{% endblock %}
+{% block content %}
+<a class="ghost-link back-link" href="{{ url_for('main.feed') }}">Back to live feed</a>
+
+<section class="detail-card">
+  <div class="detail-image-wrap">
+    {% if listing.image_url %}
+    <img src="{{ listing.image_url }}" alt="{{ listing.title }}" class="detail-image">
+    {% else %}
+    <div class="listing-image placeholder detail-image-placeholder">No image</div>
+    {% endif %}
+  </div>
+  <div class="detail-content">
+    <div class="listing-meta">
+      <span class="badge badge-platform badge-platform-{{ listing.platform|lower|replace(' ', '-') }}">{{ listing.platform }}</span>
+      <span class="badge badge-score badge-{{ listing.badge_label|lower|replace(' ', '-') }}">{{ listing.badge_label }}</span>
+      {% if listing.score_label %}
+      <span class="badge">{{ listing.score_label }}</span>
+      {% endif %}
+    </div>
+
+    <h1>{{ listing.title }}</h1>
+
+    <div class="detail-price-row">
+      <p class="detail-price">{{ listing.price_display }}</p>
+      <span class="detail-urgency">{{ listing.feed_timestamp|urgency_hint }}</span>
+    </div>
+
+    <div class="detail-meta-grid">
+      <div class="meta-tile">
+        <span class="label">Detected</span>
+        <strong>{{ listing.feed_timestamp|relative_time }}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Timestamp</span>
+        <strong>{{ listing.feed_timestamp|datetime_format }}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Platform</span>
+        <strong>{{ listing.platform }}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Signal</span>
+        <strong>{{ listing.badge_label }}</strong>
+      </div>
+    </div>
+
+    <div class="listing-actions detail-actions">
+      <a class="primary-button" href="{{ listing.external_url }}" target="_blank" rel="noopener">Open listing</a>
+      <button class="ghost-button favorite-toggle {% if favorite %}is-saved{% endif %}" data-listing-id="{{ listing.id }}">
+        {% if favorite %}Saved{% else %}Save{% endif %}
+      </button>
+    </div>
+  </div>
+</section>
+{% endblock %}

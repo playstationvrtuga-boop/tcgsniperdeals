@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Download TCG Sniper Deals</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050b14;
+      --surface: rgba(12, 20, 36, 0.94);
+      --surface-strong: rgba(16, 28, 46, 0.98);
+      --text: #f8fbff;
+      --muted: #90a4c0;
+      --line: rgba(143, 160, 187, 0.16);
+      --primary: #5ed0ff;
+      --primary-strong: #1fb6ff;
+      --radius: 24px;
+      --shadow: 0 24px 60px rgba(2, 8, 23, 0.42);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top, rgba(32, 58, 97, 0.5), transparent 32%),
+        linear-gradient(180deg, #08111d 0%, #050b14 100%);
+    }
+
+    .wrap {
+      width: min(980px, calc(100% - 24px));
+      margin: 0 auto;
+      padding: 28px 0 48px;
+    }
+
+    .hero,
+    .card {
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(18, 29, 49, 0.97), rgba(11, 20, 35, 0.96));
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      display: grid;
+      gap: 24px;
+      padding: 28px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      background: rgba(94, 208, 255, 0.08);
+      color: #def6ff;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.88rem;
+    }
+
+    h1 {
+      margin: 12px 0 0;
+      font-size: clamp(2rem, 8vw, 3.2rem);
+      line-height: 1.02;
+      max-width: 12ch;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.6;
+      margin: 12px 0 0;
+      max-width: 38rem;
+    }
+
+    .actions,
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .actions {
+      margin-top: 22px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 14px;
+      text-decoration: none;
+      font-weight: 800;
+      transition: transform 0.18s ease, opacity 0.18s ease;
+    }
+
+    .button:hover { transform: translateY(-1px); }
+
+    .button-primary {
+      color: #031018;
+      background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+      box-shadow: 0 14px 30px rgba(31, 182, 255, 0.22);
+    }
+
+    .button-ghost {
+      color: var(--text);
+      border: 1px solid var(--line);
+      background: rgba(143, 160, 187, 0.08);
+    }
+
+    .hero-grid {
+      display: grid;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .device {
+      width: min(100%, 320px);
+      margin: 0 auto;
+      padding: 14px;
+      border-radius: 34px;
+      border: 1px solid rgba(94, 208, 255, 0.24);
+      background: linear-gradient(180deg, rgba(16, 28, 46, 0.98), rgba(8, 15, 27, 0.98));
+      box-shadow: 0 24px 60px rgba(2, 8, 23, 0.48);
+    }
+
+    .device-screen {
+      border-radius: 24px;
+      padding: 16px;
+      min-height: 520px;
+      background:
+        radial-gradient(circle at top, rgba(94, 208, 255, 0.12), transparent 22%),
+        linear-gradient(180deg, rgba(8, 15, 27, 1), rgba(4, 10, 18, 1));
+      border: 1px solid rgba(143, 160, 187, 0.12);
+    }
+
+    .preview-logo {
+      width: 54px;
+      height: 54px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      box-shadow: 0 16px 28px rgba(0, 0, 0, 0.28);
+    }
+
+    .preview-card {
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(143, 160, 187, 0.14);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .preview-card + .preview-card { margin-top: 12px; }
+
+    .preview-card strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 1rem;
+    }
+
+    .preview-card small {
+      color: var(--muted);
+    }
+
+    .preview-price {
+      margin-top: 10px;
+      font-size: 1.55rem;
+      font-weight: 800;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .card {
+      padding: 24px;
+    }
+
+    .meta {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .steps {
+      margin: 16px 0 0;
+      padding-left: 20px;
+      color: #dbe7f5;
+    }
+
+    .steps li + li {
+      margin-top: 10px;
+    }
+
+    @media (min-width: 760px) {
+      .hero-grid,
+      .grid {
+        grid-template-columns: 1.1fr 0.9fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div class="hero-grid">
+        <div>
+          <span class="pill">TCG Sniper Deals</span>
+          <h1>Download the Android app</h1>
+          <p>
+            Install the current TCG Sniper Deals build directly on your phone and keep the VIP flow one tap away.
+          </p>
+          <div class="actions">
+            <a class="button button-primary" href="/android/app/build/outputs/apk/debug/app-debug.apk">Download APK</a>
+          </div>
+          <div class="meta">
+            <span>Android direct install</span>
+            <span>•</span>
+            <span>Current debug build</span>
+          </div>
+        </div>
+
+        <div class="device" aria-hidden="true">
+          <div class="device-screen">
+            <img class="preview-logo" src="/resources/icon.png" alt="">
+            <div class="preview-card">
+              <small>Live deal stream</small>
+              <strong>Charizard ex 223/197</strong>
+              <small>Vinted • just added</small>
+              <div class="preview-price">38.00€</div>
+            </div>
+            <div class="preview-card">
+              <small>VIP status</small>
+              <strong>Alerts active</strong>
+              <small>You are seeing this before the market</small>
+            </div>
+            <div class="preview-card">
+              <small>Favorites</small>
+              <strong>Saved targets ready</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <span class="pill">Install</span>
+        <h2>Android</h2>
+        <p>Tap the APK download button, open the file on your phone, and allow installation if Android asks for permission.</p>
+      </article>
+
+      <article class="card">
+        <span class="pill">iPhone</span>
+        <h2>Home Screen access</h2>
+        <p>Use the web app on iPhone and add it to your Home Screen for the cleanest app-like experience today.</p>
+        <ol class="steps">
+          <li>Open the app in Safari.</li>
+          <li>Tap Share.</li>
+          <li>Choose <strong>Add to Home Screen</strong>.</li>
+        </ol>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

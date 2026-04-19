@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: tcg-sniper-deals
+    env: python
+    plan: free
+    rootDir: vip_app
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT wsgi:app
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tcg-sniper-deals-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: BOT_API_KEY
+        generateValue: true
+      - key: SITE_URL
+        sync: false
+      - key: MOBILE_APP_URL
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+
+databases:
+  - name: tcg-sniper-deals-db
+    plan: free
+    databaseName: tcgsniperdeals
+    user: tcgsniper

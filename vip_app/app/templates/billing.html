@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}VIP Access - TCG Sniper Deals{% endblock %}
+{% block content %}
+<section class="billing-hero hero">
+  <div class="billing-hero-copy">
+    <span class="pill">{{ 'Renew VIP' if current_user.vip_active else 'VIP access' }}</span>
+    <h1>VIP Access - TCG Sniper Deals</h1>
+    <p>Get real-time Pokemon deals before they disappear.</p>
+    <div class="billing-hero-support">
+      Premium access built for fast decisions, cleaner signals and a better shot at the strongest opportunities before the market reacts.
+    </div>
+
+    {% if current_user.vip_active %}
+    <div class="billing-current-strip">
+      <div class="mini-stat">Current plan: {{ plans[current_plan_key].name }}</div>
+      <div class="mini-stat">Active until {{ current_user.vip_expires_at|datetime_format }}</div>
+      <div class="mini-stat">Renew early to keep your edge live</div>
+    </div>
+    {% elif latest_payment and latest_payment.status == 'pending_confirmation' %}
+    <div class="billing-current-strip">
+      <div class="mini-stat">Latest request: {{ latest_payment.plan|title }}</div>
+      <div class="mini-stat">Status: Pending confirmation</div>
+      <div class="mini-stat">Access is delivered shortly after review</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <aside class="billing-hero-side">
+    <div class="billing-value-card">
+      <span class="eyebrow">Why members stay</span>
+      <strong>You are paying for speed, timing and first look advantage.</strong>
+      <p>The best deals often move fast. This page keeps your renewal simple so access never slows you down.</p>
+      <div class="billing-value-meta">
+        <span class="mini-stat">Manual confirmation</span>
+        <span class="mini-stat">Fast renewal</span>
+      </div>
+    </div>
+  </aside>
+</section>
+
+<section class="billing-benefits">
+  <article class="billing-benefit-card">
+    <span class="badge badge-strong">Speed</span>
+    <h2>Faster than public listings</h2>
+    <p>See opportunities while the window is still open and before slower buyers catch up.</p>
+  </article>
+  <article class="billing-benefit-card">
+    <span class="badge badge-hot">Urgency</span>
+    <h2>Deals often gone in minutes</h2>
+    <p>Strong buys do not wait around. Fast access matters when the market moves quickly.</p>
+  </article>
+  <article class="billing-benefit-card">
+    <span class="badge badge-premium">Access</span>
+    <h2>Limited access</h2>
+    <p>Kept private and focused to preserve signal quality for active members.</p>
+  </article>
+</section>
+
+<section class="billing-section">
+  <div class="section-header">
+    <div>
+      <span class="eyebrow">Plans</span>
+      <h2>Choose your VIP access</h2>
+      <p>Select the plan that matches how consistently you want to stay ahead of the market.</p>
+    </div>
+  </div>
+
+  <div class="plan-grid">
+    {% for key, plan in plans.items() %}
+    <article
+      class="plan-card {% if key == selected_plan %}is-selected{% endif %} {% if plan.highlight %}is-highlighted{% endif %} {% if key == 'lifetime' %}is-exclusive{% endif %}"
+      data-plan-card
+      data-plan="{{ key }}"
+    >
+      <div class="plan-card-top">
+        <div>
+          <span class="plan-name">{{ plan.name }}</span>
+          <p class="plan-label">{{ plan.label }}</p>
+        </div>
+        {% if plan.tag %}
+        <span class="badge {% if key == 'yearly' %}badge-hot{% else %}badge-premium{% endif %}">{{ plan.tag }}</span>
+        {% endif %}
+      </div>
+      <div class="plan-price">{{ plan.price }}</div>
+      <p class="plan-description">{{ plan.description }}</p>
+      <button class="primary-button plan-select-button" type="button" data-plan-select="{{ key }}">
+        {% if key == selected_plan %}Selected{% else %}Select plan{% endif %}
+      </button>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="billing-section">
+  <div class="section-header">
+    <div>
+      <span class="eyebrow">Payment methods</span>
+      <h2>Complete payment in a few taps</h2>
+      <p>The payment links below update with your selected plan so checkout stays quick and frictionless.</p>
+    </div>
+    <div class="selected-plan-chip">
+      <span class="label">Selected plan</span>
+      <strong data-selected-plan-name>{{ plans[selected_plan].name }}</strong>
+      <small data-selected-plan-price>{{ plans[selected_plan].price }}</small>
+    </div>
+  </div>
+
+  <div class="payment-grid">
+    {% for method in payment_methods %}
+    <article
+      class="payment-card {% if method.recommended %}is-recommended{% endif %} {% if method.key == selected_method %}is-selected{% endif %}"
+      data-method-card
+      data-method="{{ method.key }}"
+    >
+      <div class="payment-card-header">
+        <div>
+          <h3>{{ method.name }}</h3>
+          <p>{{ method.description }}</p>
+        </div>
+        <div class="payment-card-flags">
+          {% if method.recommended %}
+          <span class="badge badge-fresh">Recommended</span>
+          {% endif %}
+          {% if method.key in ['skrill', 'neteller'] %}
+          <span class="badge">Plan-aware</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="payment-method-line">
+        <span class="label">Selected payment</span>
+        <div class="payment-plan-summary">
+          <strong data-payment-plan-name="{{ method.key }}">{{ plans[selected_plan].name }}</strong>
+          <span data-payment-plan-price="{{ method.key }}">{{ plans[selected_plan].price }}</span>
+        </div>
+        <span class="payment-plan-note" data-payment-plan-note="{{ method.key }}">
+          {% if method.key == 'revolut' %}
+          Open Revolut and send {{ plans[selected_plan].price }} with no fees.
+          {% elif method.key == 'paypal' %}
+          Open PayPal checkout for the selected access plan.
+          {% else %}
+          Opens the {{ plans[selected_plan].name|lower }} payment page automatically.
+          {% endif %}
+        </span>
+      </div>
+
+      <div class="payment-card-footer">
+        <a
+          class="primary-button payment-open-button"
+          href="{{ method.links[selected_plan] }}"
+          target="_blank"
+          rel="noopener"
+          data-payment-open
+          data-method="{{ method.key }}"
+          data-method-name="{{ method.name }}"
+          data-links='{{ method.links|tojson }}'
+        >
+          Open {{ method.name }}
+        </a>
+        <button
+          class="ghost-button copy-trigger"
+          type="button"
+          data-copy-text="{{ method.links[selected_plan] }}"
+          data-copy-source="payment-link"
+          data-method="{{ method.key }}"
+          data-method-name="{{ method.name }}"
+        >
+          Copy {{ method.name }} link
+        </button>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="billing-final-box">
+  <div>
+    <span class="eyebrow">Important</span>
+    <h2>Once payment is completed</h2>
+    <p>Send your Telegram username. Access is delivered shortly after confirmation.</p>
+  </div>
+  <button class="primary-button" type="button" data-confirm-toggle>
+    I have paid
+  </button>
+</section>
+
+<section class="billing-confirm-card is-hidden" id="payment-confirmation" data-confirm-panel>
+  <div class="section-header">
+    <div>
+      <span class="eyebrow">Confirmation</span>
+      <h2>Send payment confirmation</h2>
+      <p>This creates a pending confirmation request in the admin payments panel for manual review.</p>
+    </div>
+  </div>
+
+  <form method="post" class="stack-form billing-confirm-form">
+    <input type="hidden" name="plan" value="{{ selected_plan }}" data-plan-hidden>
+
+    <label>Selected plan
+      <div class="readonly-field" data-selected-plan-summary>{{ plans[selected_plan].name }} - {{ plans[selected_plan].price }}</div>
+    </label>
+
+    <label>Payment method
+      <select name="payment_method" data-payment-method-select>
+        {% for method in payment_methods %}
+        <option value="{{ method.key }}" {% if method.key == selected_method %}selected{% endif %}>{{ method.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Telegram username
+      <input type="text" name="telegram_username" value="{{ current_user.telegram_username or '' }}" placeholder="@yourtelegram">
+    </label>
+
+    <label>Optional note
+      <input type="text" name="note" placeholder="Example: payment sent from Revolut under Sergio C.">
+    </label>
+
+    <button class="primary-button" type="submit">Send for confirmation</button>
+  </form>
+</section>
+{% endblock %}

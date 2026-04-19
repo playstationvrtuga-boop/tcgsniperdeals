@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Saved Opportunities - TCG Sniper Deals{% endblock %}
+{% block content %}
+<section class="section-header">
+  <div>
+    <span class="pill">Saved edge</span>
+    <h1>Your highest-priority opportunities</h1>
+    <p>Keep your strongest targets close so you can act the second timing matters.</p>
+  </div>
+  <div class="section-header-actions">
+    <div class="mini-stat">{{ saved_count }} saved</div>
+    <a class="ghost-button" href="{{ url_for('main.feed') }}">Back to live feed</a>
+  </div>
+</section>
+<section class="listing-grid">
+  {% for listing in listings %}
+    {% include "partials/listing_card.html" %}
+  {% else %}
+    <div class="empty-state">
+      <h2>No saved opportunities yet</h2>
+      <p>Tap Save on any live listing to keep it close.</p>
+    </div>
+  {% endfor %}
+</section>
+{% endblock %}

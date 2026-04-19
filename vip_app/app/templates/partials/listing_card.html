@@ -1,0 +1,37 @@
+<article class="listing-card" data-listing-id="{{ listing.id }}">
+  <div class="listing-image-wrap">
+    {% if listing.image_url %}
+      <img class="listing-image" src="{{ listing.image_url }}" alt="{{ listing.title }}" loading="lazy">
+    {% else %}
+      <div class="listing-image placeholder">Preview incoming</div>
+    {% endif %}
+
+    <div class="listing-overlay-top">
+      <span class="badge badge-platform badge-platform-{{ listing.platform|lower|replace(' ', '-') }}">{{ listing.platform }}</span>
+      <span class="badge badge-score badge-{{ listing.badge_label|lower|replace(' ', '-') }}">{{ listing.badge_label }}</span>
+    </div>
+
+    <div class="listing-overlay-bottom">
+      <span class="listing-age">{{ listing.feed_timestamp|relative_time }}</span>
+    </div>
+  </div>
+
+  <div class="listing-body">
+    <h2 title="{{ listing.title }}">{{ listing.title }}</h2>
+
+    <div class="listing-price-row">
+      <strong class="listing-price">{{ listing.price_display }}</strong>
+      <span class="listing-time">{{ listing.feed_timestamp|datetime_format }}</span>
+    </div>
+
+    <p class="listing-urgency">{{ listing.feed_timestamp|urgency_hint }}</p>
+
+    <div class="listing-actions">
+      <a class="primary-button" href="{{ listing.external_url }}" target="_blank" rel="noopener">Open listing</a>
+      <button class="ghost-button favorite-toggle {% if listing.id in favorite_ids %}is-saved{% endif %}" data-listing-id="{{ listing.id }}">
+        {% if listing.id in favorite_ids %}Saved{% else %}Save{% endif %}
+      </button>
+      <a class="ghost-button" href="{{ url_for('main.listing_detail', listing_id=listing.id) }}">Details</a>
+    </div>
+  </div>
+</article>

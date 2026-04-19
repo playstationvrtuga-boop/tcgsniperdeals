@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TCG Sniper Deals - Download</title>
+  <meta name="theme-color" content="#08111d">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050b14;
+      --surface: rgba(12, 20, 36, 0.94);
+      --line: rgba(143, 160, 187, 0.16);
+      --text: #f8fbff;
+      --muted: #8ea2bd;
+      --primary: #5ed0ff;
+      --primary-strong: #1fb6ff;
+      --shadow: 0 24px 60px rgba(2, 8, 23, 0.42);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top, rgba(32, 58, 97, 0.5), transparent 32%),
+        linear-gradient(180deg, #08111d 0%, #050b14 100%);
+      color: var(--text);
+      font-family: Inter, system-ui, sans-serif;
+    }
+
+    .card {
+      width: min(560px, 100%);
+      padding: 32px 28px;
+      border-radius: 28px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(18, 29, 49, 0.97), rgba(11, 20, 35, 0.96));
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+
+    .logo {
+      width: 88px;
+      height: 88px;
+      margin: 0 auto 18px;
+      border-radius: 22px;
+      display: block;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(94, 208, 255, 0.08);
+      color: #def6ff;
+      font-size: 0.88rem;
+    }
+
+    h1 {
+      margin: 16px 0 10px;
+      font-size: clamp(2rem, 7vw, 3rem);
+      line-height: 1.04;
+    }
+
+    p {
+      margin: 0 auto;
+      max-width: 34rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      margin-top: 24px;
+      padding: 0 22px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+      color: #031018;
+      text-decoration: none;
+      font-weight: 800;
+      box-shadow: 0 14px 30px rgba(31, 182, 255, 0.22);
+      transition: transform 0.18s ease, opacity 0.18s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .meta {
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <img class="logo" src="vip_app/app/static/icons/app-icon-192.png" alt="TCG Sniper Deals logo">
+    <span class="pill">Android download</span>
+    <h1>Download TCG Sniper Deals</h1>
+    <p>
+      Install the current Android build and open the VIP deal flow directly from your phone.
+    </p>
+    <a class="button" href="release/TCG-Sniper-Deals-Android.apk">Download APK</a>
+    <div class="meta">Direct APK download for Android devices</div>
+  </main>
+</body>
+</html>

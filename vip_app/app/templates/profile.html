@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}VIP Access - TCG Sniper Deals{% endblock %}
+{% block content %}
+<section class="profile-hero profile-card">
+  <div>
+    <span class="pill">{% if current_user.vip_active %}VIP live{% else %}VIP inactive{% endif %}</span>
+    <h1>Your VIP access</h1>
+    <p>Keep your access status, renewal timing and Telegram handle ready at a glance.</p>
+  </div>
+  <div class="profile-status-box {% if current_user.vip_active %}is-live{% endif %}">
+    <span class="label">Status</span>
+    <strong>{{ 'Active' if current_user.vip_active else 'Inactive' }}</strong>
+    <small>Ends {{ current_user.vip_expires_at|datetime_format }}</small>
+  </div>
+</section>
+
+<section class="profile-grid">
+  <div>
+    <span class="label">Email</span>
+    <strong>{{ current_user.email }}</strong>
+  </div>
+  <div>
+    <span class="label">Telegram handle</span>
+    <strong>{{ current_user.telegram_username or '-' }}</strong>
+  </div>
+  <div>
+    <span class="label">Saved opportunities</span>
+    <strong>{{ saved_count }}</strong>
+  </div>
+  <div>
+    <span class="label">Last sign-in</span>
+    <strong>{{ current_user.last_login_at|datetime_format }}</strong>
+  </div>
+</section>
+
+<div class="listing-actions">
+  <a class="primary-button" href="{{ url_for('main.billing') }}">{{ 'Renew access' if current_user.vip_active else 'Get access' }}</a>
+  <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
+  <a class="ghost-button" href="{{ url_for('main.feed') }}">Back to live feed</a>
+</div>
+
+<footer class="profile-footer-credit">
+  Crafted by S&eacute;rgio Nunes &amp; S&eacute;rgio Cardoso
+</footer>
+{% endblock %}

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <script>
+    try {
+      if (sessionStorage.getItem("tcgSplashSeen") === "1") {
+        document.documentElement.classList.add("splash-skipped");
+      }
+    } catch (error) {}
+
+    (function () {
+      const isLocalDev = ["127.0.0.1", "localhost"].includes(window.location.hostname);
+      if (!isLocalDev || !("serviceWorker" in navigator)) return;
+
+      const resetKey = "tcgLocalServiceWorkerReset";
+      let alreadyReset = false;
+      try {
+        alreadyReset = sessionStorage.getItem(resetKey) === "1";
+      } catch (error) {}
+
+      if (alreadyReset) return;
+
+      Promise.all([
+        navigator.serviceWorker.getRegistrations().then((registrations) =>
+          Promise.all(registrations.map((registration) => registration.unregister()))
+        ),
+        ("caches" in window)
+          ? caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+          : Promise.resolve(),
+      ]).finally(() => {
+        try {
+          sessionStorage.setItem(resetKey, "1");
+        } catch (error) {}
+        window.location.reload();
+      });
+    })();
+  </script>
+  <link rel="manifest" href="{{ url_for('main.manifest') }}">
+  <link rel="icon" href="{{ url_for('static', filename='icons/app-icon-192.png') }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/app-icon-180.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <title>{% block title %}TCG Sniper Deals{% endblock %}</title>
+</head>
+<body class="{% if current_user.is_authenticated %}is-authed{% endif %}">
+  <div class="app-splash" aria-hidden="true">
+    <div class="app-splash-center">
+      <img class="app-splash-logo" src="{{ url_for('static', filename='icons/app-splash.png') }}" alt="TCG Sniper Deals logo">
+    </div>
+    <p class="app-splash-credit">Crafted by S&eacute;rgio Nunes &amp; S&eacute;rgio Cardoso</p>
+  </div>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topbar-brand">
+        <a class="brand" href="{{ url_for('main.feed' if current_user.is_authenticated else 'main.index') }}">TCG Sniper Deals</a>
+        <p class="brand-subtitle">Private VIP deal flow - first look advantage</p>
+      </div>
+      {% if current_user.is_authenticated %}
+      <div class="topbar-actions">
+        <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
+        <a class="ghost-button" href="{{ url_for('main.billing') }}">Billing</a>
+        <a class="ghost-button" href="{{ url_for('main.profile') }}">My VIP access</a>
+        {% if current_user.is_admin %}
+        <a class="ghost-button" href="{{ url_for('admin.dashboard') }}">Control room</a>
+        {% endif %}
+        <form action="{{ url_for('auth.logout') }}" method="post">
+          <button class="ghost-button" type="submit">Sign out</button>
+        </form>
+      </div>
+      {% else %}
+      <div class="topbar-actions">
+        <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
+        <a class="ghost-button" href="{{ url_for('auth.login') }}">Sign in</a>
+      </div>
+      {% endif %}
+    </header>
+
+    <main class="page">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-stack">
+            {% for category, message in messages %}
+              <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+
+    {% if current_user.is_authenticated %}
+    <nav class="bottom-nav" aria-label="Mobile">
+      <a class="bottom-nav-item {% if request.endpoint == 'main.feed' and not request.args.get('q') %}is-active{% endif %}" href="{{ url_for('main.feed') }}">Feed</a>
+      <a class="bottom-nav-item {% if request.endpoint == 'main.feed' and request.args.get('q') %}is-active{% endif %}" href="{{ url_for('main.feed') }}#feed-filters">Search</a>
+      <a class="bottom-nav-item {% if request.endpoint == 'main.favorites' %}is-active{% endif %}" href="{{ url_for('main.favorites') }}">Favorites</a>
+      <a class="bottom-nav-item {% if request.endpoint == 'main.profile' %}is-active{% endif %}" href="{{ url_for('main.profile') }}">Profile</a>
+    </nav>
+    {% endif %}
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}TCG Sniper Deals{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="hero-copy">
+    <span class="pill">Private VIP access</span>
+    <h1>See the strongest TCG deals before the market reacts.</h1>
+    <p>
+      A private mobile command center for collectors, flippers and serious buyers who win on speed, timing and early access.
+    </p>
+    <div class="hero-points">
+      <div class="hero-point">New deals dropping in real time</div>
+      <div class="hero-point">Spot the edge before everyone else</div>
+      <div class="hero-point">Save your highest-priority targets in one tap</div>
+      <div class="hero-point">Install in seconds on iPhone and Android</div>
+    </div>
+    <div class="hero-actions">
+      <a class="primary-button" href="{{ url_for('auth.register') }}">Unlock VIP access</a>
+      <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
+      <a class="ghost-button" href="{{ url_for('auth.login') }}">Enter the live feed</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

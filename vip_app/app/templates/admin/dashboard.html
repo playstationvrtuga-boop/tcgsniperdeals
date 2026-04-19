@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Admin - TCG Sniper Deals{% endblock %}
+{% block content %}
+<section class="section-header">
+  <div>
+    <span class="pill">Admin</span>
+    <h1>VIP control room</h1>
+    <p>Manage access, payments and live opportunity flow with a cleaner operator view.</p>
+  </div>
+</section>
+
+<section class="stats-strip admin-stats">
+  <article class="stat-card">
+    <span class="stat-label">Members</span>
+    <strong>{{ overview.total_users }}</strong>
+    <small>accounts in the system</small>
+  </article>
+  <article class="stat-card">
+    <span class="stat-label">VIP live</span>
+    <strong>{{ overview.vip_live }}</strong>
+    <small>currently active members</small>
+  </article>
+  <article class="stat-card">
+    <span class="stat-label">Pending payments</span>
+    <strong>{{ overview.pending_payments }}</strong>
+    <small>waiting for confirmation</small>
+  </article>
+  <article class="stat-card">
+    <span class="stat-label">Listings in 24h</span>
+    <strong>{{ overview.listings_24h }}</strong>
+    <small>recent opportunity flow</small>
+  </article>
+</section>
+
+<div class="admin-layout">
+  <section class="admin-card admin-card-wide">
+    <div class="admin-card-header">
+      <div>
+        <span class="eyebrow">Overview</span>
+        <h2>Manage access</h2>
+      </div>
+      <form method="get" class="inline-search">
+        <input type="hidden" name="payment_status" value="{{ payment_status }}">
+        <input type="hidden" name="payment_method" value="{{ payment_method }}">
+        <input type="search" name="q" placeholder="Search email or Telegram..." value="{{ search }}">
+        <button class="ghost-button" type="submit">Search</button>
+      </form>
+    </div>
+    <div class="admin-user-list">
+      {% for user in users %}
+      <article class="admin-user-item">
+        <div class="admin-user-summary">
+          <div class="admin-user-main">
+            <strong>{{ user.email }}</strong>
+            <span>{{ user.telegram_username or 'No Telegram linked' }}</span>
+          </div>
+          <div class="admin-user-badges">
+            <span class="badge {% if user.is_admin %}badge-premium{% endif %}">{{ 'Admin' if user.is_admin else 'Member' }}</span>
+            <span class="badge {% if user.vip_active %}badge-fresh{% else %}badge-off-market{% endif %}">{{ 'VIP active' if user.vip_active else 'VIP inactive' }}</span>
+          </div>
+        </div>
+        <form method="post" action="{{ url_for('admin.update_vip', user_id=user.id) }}" class="admin-user-form">
+          <label class="checkbox-line">
+            <input type="checkbox" name="is_vip" {% if user.is_vip %}checked{% endif %}>
+            VIP access live
+          </label>
+          <label>
+            Telegram
+            <input type="text" name="telegram_username" value="{{ user.telegram_username or '' }}">
+          </label>
+          <label>
+            VIP access ends
+            <input type="datetime-local" name="vip_expires_at" value="{{ user.vip_expires_at.strftime('%Y-%m-%dT%H:%M') if user.vip_expires_at else '' }}">
+          </label>
+          <button class="primary-button" type="submit">Save access</button>
+        </form>
+      </article>
+      {% else %}
+      <p class="muted">No matching users.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="admin-card">
+    <div class="admin-card-header">
+      <div>
+        <span class="eyebrow">Payments</span>
+        <h2>Add payment</h2>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('admin.add_payment') }}" class="stack-form">
+      <label>Member
+        <select name="user_id" required>
+          {% for user in users %}
+          <option value="{{ user.id }}">{{ user.email }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Plan
+        <select name="plan">
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+          <option value="lifetime">Lifetime</option>
+        </select>
+      </label>
+      <label>Amount
+        <input type="number" min="0" step="0.01" name="amount" value="3.90" required>
+      </label>
+      <label>Method
+        <select name="method">
+          <option>PayPal</option>
+          <option>Skrill</option>
+          <option>Revolut</option>
+          <option>Neteller</option>
+          <option>MB Way</option>
+          <option>Manual</option>
+        </select>
+      </label>
+      <label>Status
+        <select name="status">
+          <option value="paid">Paid</option>
+          <option value="pending">Pending</option>
+          <option value="pending_confirmation">Pending confirmation</option>
+          <option value="failed">Failed</option>
+        </select>
+      </label>
+      <label>Notes
+        <input type="text" name="notes" placeholder="Optional internal note">
+      </label>
+      <button class="primary-button" type="submit">Record payment</button>
+    </form>
+  </section>
+
+  <section class="admin-card">
+    <div class="admin-card-header">
+      <div>
+        <span class="eyebrow">Payments</span>
+        <h2>Recent payments</h2>
+      </div>
+      <form method="get" class="payment-filter-row">
+        <input type="hidden" name="q" value="{{ search }}">
+        <select name="payment_status">
+          <option value="">All statuses</option>
+          <option value="paid" {% if payment_status == 'paid' %}selected{% endif %}>Paid</option>
+          <option value="pending" {% if payment_status == 'pending' %}selected{% endif %}>Pending</option>
+          <option value="pending_confirmation" {% if payment_status == 'pending_confirmation' %}selected{% endif %}>Pending confirmation</option>
+          <option value="failed" {% if payment_status == 'failed' %}selected{% endif %}>Failed</option>
+        </select>
+        <select name="payment_method">
+          <option value="">All methods</option>
+          {% for method in payment_methods %}
+          <option value="{{ method }}" {% if payment_method == method %}selected{% endif %}>{{ method }}</option>
+          {% endfor %}
+        </select>
+        <button class="ghost-button" type="submit">Apply</button>
+      </form>
+    </div>
+    <div class="admin-list">
+      {% for payment in payments %}
+      <div class="admin-list-item">
+        <div class="admin-list-main">
+          <strong>{{ payment.user.email }}</strong>
+          <span>{{ payment.plan|title }} plan | {{ payment.method }}</span>
+          {% if payment.notes %}
+          <small>{{ payment.notes }}</small>
+          {% endif %}
+        </div>
+        <div class="admin-list-side">
+          <strong>{{ payment.amount }}</strong>
+          <span class="status-pill status-{{ payment.status|replace('_', '-') }}">{{ payment.status|replace('_', ' ')|title }}</span>
+          <small>{{ payment.created_at|datetime_format }}</small>
+          {% if payment.status != 'paid' %}
+          <div class="admin-inline-actions">
+            <form method="post" action="{{ url_for('admin.update_payment_status', payment_id=payment.id, payment_status=payment_status, payment_method=payment_method, q=search) }}">
+              <input type="hidden" name="status" value="paid">
+              <button class="ghost-button" type="submit">Mark paid</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.update_payment_status', payment_id=payment.id, payment_status=payment_status, payment_method=payment_method, q=search) }}">
+              <input type="hidden" name="status" value="failed">
+              <button class="ghost-button" type="submit">Mark failed</button>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+      <p class="muted">No payments recorded yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="admin-card admin-card-wide">
+    <div class="admin-card-header">
+      <div>
+        <span class="eyebrow">Listings</span>
+        <h2>Recent opportunity flow</h2>
+      </div>
+    </div>
+    <div class="admin-list">
+      {% for listing in listings %}
+      <div class="admin-list-item">
+        <div class="admin-list-main">
+          <strong>{{ listing.title }}</strong>
+          <span>{{ listing.platform }} | {{ listing.badge_label }}</span>
+        </div>
+        <div class="admin-list-side">
+          <strong>{{ listing.price_display }}</strong>
+          <small>{{ listing.feed_timestamp|relative_time }}</small>
+          <small>{{ listing.feed_timestamp|datetime_format }}</small>
+        </div>
+      </div>
+      {% else %}
+      <p class="muted">No live opportunities yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

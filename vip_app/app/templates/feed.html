@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Live VIP Feed - TCG Sniper Deals{% endblock %}
+{% block content %}
+<section class="section-header section-header-feed">
+  <div>
+    <span class="pill">VIP live edge</span>
+    <h1>Live deal flow - move before the market</h1>
+    <p>Fresh opportunities are landing in real time. You are seeing them while the window is still open.</p>
+  </div>
+  <div class="section-header-actions">
+    <button class="ghost-button install-button" hidden>Install app</button>
+    <button class="primary-button push-enable-button" {% if not push_enabled %}disabled{% endif %}>
+      {% if live_stats.alerts_active %}Alerts active{% elif push_enabled %}Get instant alerts{% else %}Instant alerts unavailable{% endif %}
+    </button>
+  </div>
+</section>
+
+<section class="stats-strip">
+  <article class="stat-card">
+    <span class="stat-label">Live now</span>
+    <strong>{{ live_stats.count }}</strong>
+    <small>opportunities on your board</small>
+  </article>
+  <article class="stat-card">
+    <span class="stat-label">Last detected</span>
+    <strong>{{ live_stats.last_detected_at|relative_time }}</strong>
+    <small>{% if live_stats.last_detected_at %}{{ live_stats.last_detected_at|datetime_format }}{% else %}Waiting for the next drop{% endif %}</small>
+  </article>
+  <article class="stat-card">
+    <span class="stat-label">Alert status</span>
+    <strong>{% if live_stats.alerts_active %}Live{% elif push_enabled %}Ready{% else %}Offline{% endif %}</strong>
+    <small>{% if live_stats.alerts_active %}Instant alerts are active{% elif push_enabled %}Turn them on for faster moves{% else %}Push setup still unavailable{% endif %}</small>
+  </article>
+</section>
+
+<section class="toolbar-card" id="feed-filters">
+  <div class="toolbar-top">
+    <div>
+      <span class="eyebrow">Search and filters</span>
+      <h2>Sharpen the board</h2>
+      <p>Dial in your next move by keyword, platform or quality signal.</p>
+    </div>
+    <a class="ghost-button" href="{{ url_for('main.favorites') }}">Saved opportunities</a>
+  </div>
+  <form class="filter-grid" method="get">
+    <input type="search" name="q" placeholder="Search a card, set or opportunity..." value="{{ search }}">
+    <select name="platform">
+      <option value="">All platforms</option>
+      {% for item in platforms %}
+      <option value="{{ item }}" {% if selected_platform == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <select name="badge">
+      <option value="">All badges</option>
+      {% for item in badges %}
+      <option value="{{ item }}" {% if selected_badge == item %}selected{% endif %}>{{ item }}</option>
+      {% endfor %}
+    </select>
+    <button class="primary-button" type="submit">Apply filters</button>
+  </form>
+</section>
+
+<section class="listing-grid">
+  {% for listing in listings %}
+    {% include "partials/listing_card.html" %}
+  {% else %}
+    <div class="empty-state">
+      <h2>No fresh edge just yet</h2>
+      <p>The next high-speed opportunity will land here the second your bot catches it.</p>
+    </div>
+  {% endfor %}
+</section>
+{% endblock %}

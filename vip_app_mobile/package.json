@@ -1,0 +1,25 @@
+{
+  "name": "tcg-sniper-deals-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor wrapper for the existing TCG Sniper Deals Flask + PWA app.",
+  "scripts": {
+    "sync:config": "node scripts/sync-capacitor-config.mjs",
+    "cap:sync": "npm run sync:config && npx cap sync",
+    "android:add": "npm run sync:config && npx cap add android",
+    "ios:add": "npm run sync:config && npx cap add ios",
+    "android:open": "npm run sync:config && npx cap open android",
+    "ios:open": "npm run sync:config && npx cap open ios",
+    "assets:generate": "npx @capacitor/assets generate --android --ios",
+    "doctor": "npx cap doctor"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/ios": "^8.3.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2"
+  }
+}

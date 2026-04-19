@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Create Account - TCG Sniper Deals{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>Claim your place inside VIP.</h1>
+  <p>Create your account now so you are ready to move the second your VIP access goes live.</p>
+  <form method="post" class="stack-form">
+    <label>Email
+      <input type="email" name="email" required autocomplete="email">
+    </label>
+    <label>Telegram username
+      <input type="text" name="telegram_username" placeholder="@yourusername">
+    </label>
+    <label>Password
+      <input type="password" name="password" required minlength="8" autocomplete="new-password">
+    </label>
+    <label>Confirm password
+      <input type="password" name="confirm_password" required minlength="8" autocomplete="new-password">
+    </label>
+    <button class="primary-button" type="submit">Create VIP account</button>
+  </form>
+</section>
+{% endblock %}

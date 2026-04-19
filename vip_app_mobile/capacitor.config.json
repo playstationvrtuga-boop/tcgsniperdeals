@@ -1,0 +1,28 @@
+{
+  "appId": "com.tcgsniper.deals",
+  "appName": "TCG Sniper Deals",
+  "webDir": "web",
+  "server": {
+    "url": "http://127.0.0.1:5000",
+    "cleartext": true,
+    "allowNavigation": [
+      "127.0.0.1"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1400,
+      "backgroundColor": "#08111d",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#08111d",
+      "overlaysWebView": false
+    }
+  }
+}

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Download App - TCG Sniper Deals{% endblock %}
+{% block content %}
+<section class="download-hero download-hero-shell hero">
+  <div class="hero-copy download-hero-copy">
+    <span class="pill">Mobile access</span>
+    <h1>Install TCG Sniper Deals on your phone</h1>
+    <p>
+      Take the VIP feed with you, react faster, and keep new opportunities one tap away.
+    </p>
+    <div class="download-bullets">
+      <div class="hero-point">Live VIP feed in a cleaner mobile view</div>
+      <div class="hero-point">Faster access to fresh deals and saved targets</div>
+      <div class="hero-point">Direct Android install with no store required</div>
+    </div>
+    <div class="hero-actions">
+      {% if apk_available %}
+      <a class="primary-button" href="{{ url_for('main.download_android_apk') }}">Download Android app</a>
+      {% endif %}
+      <a class="ghost-button" href="{{ url_for('main.index') }}">Open web app</a>
+    </div>
+  </div>
+
+  <div class="download-preview" aria-hidden="true">
+    <div class="device-frame">
+      <div class="device-notch"></div>
+      <div class="device-screen">
+        <div class="preview-topbar">
+          <span>TCG Sniper Deals</span>
+          <span class="preview-topbar-badge">VIP</span>
+        </div>
+        <div class="preview-card preview-card-featured">
+          <span class="preview-pill">Just added</span>
+          <strong>Charizard ex 223/197</strong>
+          <small>Vinted • 2 min ago</small>
+          <div class="preview-price">38.00€</div>
+        </div>
+        <div class="preview-card">
+          <span class="preview-muted">Alerts active</span>
+          <strong>Live deal stream</strong>
+          <small>You are seeing this before the market</small>
+        </div>
+        <div class="preview-card preview-card-row">
+          <div>
+            <span class="preview-muted">Favorites</span>
+            <strong>12 saved</strong>
+          </div>
+          <div>
+            <span class="preview-muted">Status</span>
+            <strong>VIP live</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="download-grid">
+  <article class="download-card download-card-primary">
+    <span class="eyebrow">Android app</span>
+    <h2>Direct APK download</h2>
+    <p>Install the latest Android build directly on your phone in one step.</p>
+
+    <div class="download-meta">
+      <div>
+        <span class="label">Status</span>
+        <strong>{{ "Ready to install" if apk_available else "Build unavailable" }}</strong>
+      </div>
+      <div>
+        <span class="label">Package</span>
+        <strong>{% if apk_available %}{{ apk_size_mb }} MB{% else %}-{% endif %}</strong>
+      </div>
+      <div>
+        <span class="label">Updated</span>
+        <strong>{% if apk_available %}{{ apk_updated_at|datetime_format }}{% else %}-{% endif %}</strong>
+      </div>
+    </div>
+
+    <div class="download-actions">
+      {% if apk_available %}
+      <a class="primary-button" href="{{ url_for('main.download_android_apk') }}">Download Android app</a>
+      {% else %}
+      <button class="ghost-button" type="button" disabled>Android build unavailable</button>
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="download-card">
+    <span class="eyebrow">iPhone access</span>
+    <h2>Use the web app on iPhone</h2>
+    <p>Open TCG Sniper Deals in Safari and add it to your Home Screen for a clean app-like experience.</p>
+
+    <ol class="download-steps">
+      <li>Open TCG Sniper Deals in Safari.</li>
+      <li>Tap the share button.</li>
+      <li>Choose <strong>Add to Home Screen</strong>.</li>
+    </ol>
+
+    <div class="download-actions">
+      <a class="ghost-button" href="{{ url_for('main.index') }}">Open web app</a>
+    </div>
+  </article>
+</section>
+{% endblock %}

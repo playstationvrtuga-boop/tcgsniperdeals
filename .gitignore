@@ -1,0 +1,48 @@
+__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+
+# Local editor/runtime state
+.vscode/
+instance/
+
+# Secrets / local env
+.env
+vip_app/.env
+
+# Python local caches / databases / runtime data
+*.db
+*.sqlite
+*.sqlite3
+vip_app/data/
+logs/
+
+# Bot runtime state
+free_queue.json
+metrics_state.json
+tracked_listings.json
+vistos.txt
+vistos_ebay_debug.txt
+cardmarket_cache.json
+ebay_sold_cache.json
+
+# Release artifacts
+release/
+
+# Local Android/iOS wrapper build/runtime artifacts
+vip_app_mobile/.android-local/
+vip_app_mobile/.gradle-home/
+vip_app_mobile/.jdk/
+vip_app_mobile/.jdk21/
+vip_app_mobile/node_modules/
+vip_app_mobile/tools/
+vip_app_mobile/temurin17.zip
+vip_app_mobile/temurin21.zip
+vip_app_mobile/public-share-*.log
+vip_app_mobile/public-share-*.err.log
+vip_app_mobile/android/.gradle/
+vip_app_mobile/android/app/build/
+vip_app_mobile/android/build/
+vip_app_mobile/ios/App/Pods/
+vip_app_mobile/ios/App/build/
