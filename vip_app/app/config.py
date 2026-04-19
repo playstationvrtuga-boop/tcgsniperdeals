@@ -16,9 +16,9 @@ def _database_uri() -> str:
         return f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
     if raw.startswith("postgres://"):
-        raw = raw.replace("postgres://", "postgresql+psycopg://", 1)
+        raw = raw.replace("postgres://", "postgresql+psycopg2://", 1)
     elif raw.startswith("postgresql://"):
-        raw = raw.replace("postgresql://", "postgresql+psycopg://", 1)
+        raw = raw.replace("postgresql://", "postgresql+psycopg2://", 1)
 
     if raw.startswith("sqlite:///"):
         db_path = raw.replace("sqlite:///", "", 1)
