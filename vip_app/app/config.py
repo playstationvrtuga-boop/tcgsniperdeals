@@ -42,4 +42,5 @@ class Config:
     VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
     SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:5000")
     MOBILE_APP_URL = os.getenv("MOBILE_APP_URL", SITE_URL)
+    ANDROID_APK_URL = os.getenv("ANDROID_APK_URL", "").strip()
     SEND_FILE_MAX_AGE_DEFAULT = 60

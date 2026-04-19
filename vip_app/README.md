@@ -50,6 +50,23 @@ inside:
 
 `C:\Users\Trabalho\Desktop\bot_pokemon\vip_app\.env`
 
+## Android download page in production
+
+The `/download-app` page can use a public APK link in production.
+
+Set:
+
+- `ANDROID_APK_URL`
+
+Example:
+
+```env
+ANDROID_APK_URL=https://your-public-host/TCG-Sniper-Deals-Android.apk
+```
+
+If `ANDROID_APK_URL` is set, the download page uses that public link on Render.
+If it is empty, the app falls back to the local debug APK path for local development.
+
 ## Incoming listings API
 
 Route:

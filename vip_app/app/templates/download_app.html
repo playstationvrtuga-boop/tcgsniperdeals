@@ -15,7 +15,7 @@
     </div>
     <div class="hero-actions">
       {% if apk_available %}
-      <a class="primary-button" href="{{ url_for('main.download_android_apk') }}">Download Android app</a>
+      <a class="primary-button" href="{{ apk_url }}">Download Android app</a>
       {% endif %}
       <a class="ghost-button" href="{{ url_for('main.index') }}">Open web app</a>
     </div>
@@ -68,17 +68,25 @@
       </div>
       <div>
         <span class="label">Package</span>
-        <strong>{% if apk_available %}{{ apk_size_mb }} MB{% else %}-{% endif %}</strong>
+        <strong>
+          {% if apk_available and apk_size_mb %}
+            {{ apk_size_mb }} MB
+          {% elif apk_available and apk_is_external %}
+            External link
+          {% else %}
+            -
+          {% endif %}
+        </strong>
       </div>
       <div>
         <span class="label">Updated</span>
-        <strong>{% if apk_available %}{{ apk_updated_at|datetime_format }}{% else %}-{% endif %}</strong>
+        <strong>{% if apk_available and apk_updated_at %}{{ apk_updated_at|datetime_format }}{% elif apk_available and apk_is_external %}Managed externally{% else %}-{% endif %}</strong>
       </div>
     </div>
 
     <div class="download-actions">
       {% if apk_available %}
-      <a class="primary-button" href="{{ url_for('main.download_android_apk') }}">Download Android app</a>
+      <a class="primary-button" href="{{ apk_url }}">Download Android app</a>
       {% else %}
       <button class="ghost-button" type="button" disabled>Android build unavailable</button>
       {% endif %}

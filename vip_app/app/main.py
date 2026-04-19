@@ -119,6 +119,37 @@ def get_android_apk_path():
     return project_root / "vip_app_mobile" / "android" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
 
 
+def get_android_apk_download():
+    external_url = (current_app.config.get("ANDROID_APK_URL") or "").strip()
+    if external_url:
+        return {
+            "available": True,
+            "url": external_url,
+            "is_external": True,
+            "size_mb": None,
+            "updated_at": None,
+        }
+
+    apk_path = get_android_apk_path()
+    if not apk_path.exists():
+        return {
+            "available": False,
+            "url": None,
+            "is_external": False,
+            "size_mb": None,
+            "updated_at": None,
+        }
+
+    stat = apk_path.stat()
+    return {
+        "available": True,
+        "url": url_for("main.download_android_apk"),
+        "is_external": False,
+        "size_mb": round(stat.st_size / (1024 * 1024), 1),
+        "updated_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+    }
+
+
 @main_bp.route("/")
 def index():
     if current_user.is_authenticated:
@@ -128,26 +159,24 @@ def index():
 
 @main_bp.route("/download-app")
 def download_app():
-    apk_path = get_android_apk_path()
-    apk_available = apk_path.exists()
-    apk_size_mb = None
-    apk_updated_at = None
-
-    if apk_available:
-        stat = apk_path.stat()
-        apk_size_mb = round(stat.st_size / (1024 * 1024), 1)
-        apk_updated_at = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+    apk_download = get_android_apk_download()
 
     return render_template(
         "download_app.html",
-        apk_available=apk_available,
-        apk_size_mb=apk_size_mb,
-        apk_updated_at=apk_updated_at,
+        apk_available=apk_download["available"],
+        apk_size_mb=apk_download["size_mb"],
+        apk_updated_at=apk_download["updated_at"],
+        apk_url=apk_download["url"],
+        apk_is_external=apk_download["is_external"],
     )
 
 
 @main_bp.route("/download-app/android")
 def download_android_apk():
+    external_url = (current_app.config.get("ANDROID_APK_URL") or "").strip()
+    if external_url:
+        return redirect(external_url)
+
     apk_path = get_android_apk_path()
     if not apk_path.exists():
         return redirect(url_for("main.download_app"))
