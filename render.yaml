@@ -29,6 +29,49 @@ services:
         sync: false
       - key: VAPID_PRIVATE_KEY
         sync: false
+  - type: worker
+    name: tcg-sniper-deals-worker
+    env: python
+    plan: starter
+    rootDir: vip_app
+    buildCommand: pip install -r requirements.txt
+    startCommand: python pricing_worker_entry.py
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tcg-sniper-deals-db
+          property: connectionString
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: FREE_CHAT_ID
+        sync: false
+      - key: VIP_CHAT_ID
+        sync: false
+      - key: SITE_URL
+        sync: false
+      - key: MOBILE_APP_URL
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: PRICING_DEAL_MIN_DISCOUNT
+        sync: false
+      - key: PRICING_DEAL_MIN_MARGIN
+        sync: false
+      - key: PRICING_DEAL_MIN_SCORE
+        sync: false
+      - key: PRICING_WORKER_MIN_SLEEP
+        sync: false
+      - key: PRICING_WORKER_MAX_SLEEP
+        sync: false
+      - key: FREE_ALERT_DELAY_MIN_MINUTES
+        sync: false
+      - key: FREE_ALERT_DELAY_MAX_MINUTES
+        sync: false
 
 databases:
   - name: tcg-sniper-deals-db

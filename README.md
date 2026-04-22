@@ -8,6 +8,11 @@ This project has two connected parts:
 2. VIP app (Flask + PWA)  
    Path: `C:\Users\Trabalho\Desktop\bot_pokemon\vip_app`
 
+There is now also a lightweight pricing layer for production testing:
+
+3. Pricing worker  
+   Path: `C:\Users\Trabalho\Desktop\bot_pokemon\pricing_worker.py`
+
 The bot now sends accepted listings into the VIP app automatically through:
 
 `POST /api/listings`
@@ -85,6 +90,79 @@ When the bot accepts a valid listing, the flow is now:
 
 Telegram sending is still separate and optional.
 
+## 3.1 Online production flow (Render)
+
+Desired live flow:
+
+`bot -> Render app API -> Render database -> Render pricing worker -> VIP app now + FREE Telegram after delay`
+
+This means:
+
+- the bot can keep running on your PC
+- the bot sends listings to the online app API
+- the Render worker reads those pending listings from the same online database
+- if a listing is a real deal, it appears in the app feed in real time
+- the same deal is sent later to FREE Telegram with a 5 to 10 minute delay
+- the FREE Telegram message hides the direct link and uses a softened title
+
+To make that work online, Render must have:
+
+- the `tcg-sniper-deals` web service
+- the `tcg-sniper-deals-worker` background worker
+- the same `DATABASE_URL` on both
+- `TELEGRAM_BOT_TOKEN`
+- `FREE_CHAT_ID`
+- `VIP_CHAT_ID`
+- `SITE_URL`
+- `VAPID_SUBJECT`
+- `VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+
+Important:
+
+- app feed shows only listings already classified as `is_deal = true`
+- incoming listings enter as `pending`
+- the worker is what turns `pending` into visible live deals
+
+## 3.1 Configure lightweight pricing
+
+Add these values to:
+
+`C:\Users\Trabalho\Desktop\bot_pokemon\.env`
+
+```env
+PRICING_WORKER_MIN_SLEEP=1
+PRICING_WORKER_MAX_SLEEP=3
+PRICING_DEAL_MIN_DISCOUNT=20
+PRICING_DEAL_MIN_MARGIN=5
+PRICING_DEAL_MIN_SCORE=60
+```
+
+## 3.2 Run the pricing worker
+
+Run one listing only:
+
+```powershell
+python pricing_worker.py --once
+```
+
+Run continuously but still sequentially:
+
+```powershell
+python pricing_worker.py
+```
+
+The worker:
+
+- reads one pending listing at a time from the app database
+- checks lightweight `eBay sold` prices with `requests`
+- falls back to similar listings already stored in the local app database
+- uses a lightweight TTL cache in memory
+- stores `reference_price`, `discount_percent`, `gross_margin`, `pricing_score`, `is_deal`
+- sends a Telegram alert only when a priced listing qualifies as a deal
+- sleeps between loops to keep RAM and API load low
+- also sends delayed FREE Telegram alerts when `free_send_at` becomes due
+
 ## 4. Test one demo listing into the app
 
 You can test the app API directly with:
@@ -104,6 +182,14 @@ Then open:
 [http://127.0.0.1:5000/feed](http://127.0.0.1:5000/feed)
 
 Refresh the feed and the demo listing should appear near the top.
+
+After that, run:
+
+```powershell
+python pricing_worker.py --once
+```
+
+This processes the newest pending listing with the lightweight pricing worker.
 
 ## 5. How to verify the bot -> app pipeline
 
@@ -175,6 +261,23 @@ Responses:
 - the admin still marks payments as paid
 - production hosting / HTTPS is still not set up
 - Telegram remains optional and separate from the app feed
+
+## 7.1 Files added for lightweight pricing
+
+- `C:\Users\Trabalho\Desktop\bot_pokemon\services\ebay_sold_client.py`
+- `C:\Users\Trabalho\Desktop\bot_pokemon\services\local_history_client.py`
+- `C:\Users\Trabalho\Desktop\bot_pokemon\services\price_cache.py`
+- `C:\Users\Trabalho\Desktop\bot_pokemon\services\deal_detector.py`
+- `C:\Users\Trabalho\Desktop\bot_pokemon\services\telegram_alerts.py`
+- `C:\Users\Trabalho\Desktop\bot_pokemon\pricing_worker.py`
+
+## 7.2 Current pricing design
+
+- lightweight `eBay sold` lookup with `requests`
+- fallback to local historical listings already stored in the app database
+- reference price = median of collected comparable prices
+
+This keeps the integration lightweight and avoids browser automation completely.
 
 ## 8. Push notifications
 

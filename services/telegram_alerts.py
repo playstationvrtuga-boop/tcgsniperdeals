@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import requests
 
-from config import TOKEN, VIP_CHAT_ID
+from config import FREE_CHAT_ID, TOKEN, VIP_CHAT_ID
 
 
 def format_alert(listing, result) -> str:
@@ -27,15 +27,19 @@ def format_alert(listing, result) -> str:
     )
 
 
-def send_alert(message: str) -> bool:
-    if not TOKEN or not VIP_CHAT_ID:
+def send_message(message: str, chat_id: str, *, disable_preview: bool = False) -> bool:
+    if not TOKEN or not chat_id:
         return False
 
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     try:
         response = requests.post(
             url,
-            data={"chat_id": VIP_CHAT_ID, "text": message, "disable_web_page_preview": False},
+            data={
+                "chat_id": chat_id,
+                "text": message,
+                "disable_web_page_preview": disable_preview,
+            },
             timeout=15,
         )
         data = response.json()
@@ -43,3 +47,11 @@ def send_alert(message: str) -> bool:
         return False
 
     return bool(data.get("ok"))
+
+
+def send_alert(message: str) -> bool:
+    return send_message(message, VIP_CHAT_ID, disable_preview=False)
+
+
+def send_free_alert(message: str) -> bool:
+    return send_message(message, FREE_CHAT_ID, disable_preview=True)

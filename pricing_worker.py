@@ -3,14 +3,20 @@ from __future__ import annotations
 import argparse
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import or_
 
-from config import PRICING_WORKER_MAX_SLEEP, PRICING_WORKER_MIN_SLEEP
+from config import (
+    FREE_ALERT_DELAY_MAX_MINUTES,
+    FREE_ALERT_DELAY_MINUTES,
+    FREE_ALERT_DELAY_MIN_MINUTES,
+    PRICING_WORKER_MAX_SLEEP,
+    PRICING_WORKER_MIN_SLEEP,
+)
 from services.alert_formatter import classify_deal_level, format_free_alert_text, format_vip_alert, make_partial_product_name
 from services.deal_detector import EbaySoldError, EbaySoldRateLimitError, evaluate_listing
-from services.free_alert_queue import enqueue_free_alert
+from services.telegram_alerts import send_free_alert
 from vip_app.app import create_app
 from vip_app.app.extensions import db
 from vip_app.app.models import Listing, utcnow
@@ -48,6 +54,23 @@ def _pending_listing_query():
 
 def fetch_next_pending_listing() -> Listing | None:
     return _pending_listing_query().first()
+
+
+def _due_free_alert_query():
+    return (
+        Listing.query.filter(
+            Listing.is_deal.is_(True),
+            Listing.deal_alert_sent_at.isnot(None),
+            Listing.free_send_at.isnot(None),
+            Listing.free_send_at <= utcnow(),
+            or_(Listing.free_sent.is_(None), Listing.free_sent.is_(False)),
+        )
+        .order_by(Listing.free_send_at.asc(), Listing.detected_at.asc(), Listing.id.asc())
+    )
+
+
+def fetch_next_due_free_alert() -> Listing | None:
+    return _due_free_alert_query().first()
 
 
 def _mark_processed(listing: Listing, result) -> None:
@@ -110,6 +133,35 @@ def _describe_result(result) -> str:
     return f"{result.status.upper()} kind={kind} reason={result.reason or 'n/a'}"
 
 
+def _random_free_delay_minutes() -> int:
+    delay_min = min(FREE_ALERT_DELAY_MIN_MINUTES, FREE_ALERT_DELAY_MAX_MINUTES)
+    delay_max = max(FREE_ALERT_DELAY_MIN_MINUTES, FREE_ALERT_DELAY_MAX_MINUTES)
+    if delay_max <= 0:
+        return max(FREE_ALERT_DELAY_MINUTES, 1)
+    if delay_max > delay_min:
+        return random.randint(delay_min, delay_max)
+    return max(delay_min, 1)
+
+
+def _build_free_payload(listing: Listing) -> dict:
+    return {
+        "listing_id": listing.id,
+        "title": listing.title,
+        "full_name": listing.title,
+        "partial_title": listing.partial_title or make_partial_product_name(listing.title),
+        "platform": listing.platform,
+        "tcg_type": listing.tcg_type,
+        "listing_price": listing.price_display,
+        "listing_price_text": listing.price_display,
+        "market_price": listing.reference_price,
+        "discount_percent": listing.discount_percent,
+        "potential_profit": listing.gross_margin,
+        "score": listing.pricing_score,
+        "detected_at": (listing.detected_at or utcnow()).isoformat(),
+        "free_message_variant": listing.free_message_variant or "full",
+    }
+
+
 def process_listing(listing: Listing) -> str:
     try:
         result = evaluate_listing(listing)
@@ -155,32 +207,13 @@ def process_listing(listing: Listing) -> str:
                 print(f"[pricing_worker] app push failed for listing {listing.id}: {push_error}")
 
             if deal_meta:
-                free_payload = {
-                    "listing_id": listing.id,
-                    "title": listing.title,
-                    "full_name": listing.title,
-                    "partial_title": partial_title,
-                    "platform": listing.platform,
-                    "tcg_type": listing.tcg_type,
-                    "listing_price": result.listing_price,
-                    "listing_price_text": listing.price_display,
-                    "market_price": result.reference_price,
-                    "discount_percent": result.discount_percent,
-                    "potential_profit": result.gross_margin,
-                    "score": result.score,
-                    "detected_at": (listing.detected_at or utcnow()).isoformat(),
-                    "free_message_variant": free_variant,
-                }
-                free_payload["free_message_text"] = format_free_alert_text(free_payload)
-                eligible_at = enqueue_free_alert(free_payload)
-                if eligible_at:
-                    listing.free_send_at = datetime.fromisoformat(eligible_at)
-                    listing.free_sent = False
-                    wait_minutes = _minutes_until(eligible_at)
-                    print(
-                        f"[pricing_worker] FREE queued listing_id={listing.id} "
-                        f"delay={wait_minutes}min send_at={eligible_at}"
-                    )
+                delay_minutes = _random_free_delay_minutes()
+                listing.free_send_at = utcnow() + timedelta(minutes=delay_minutes)
+                listing.free_sent = False
+                print(
+                    f"[pricing_worker] FREE scheduled listing_id={listing.id} "
+                    f"delay={delay_minutes}min send_at={listing.free_send_at.isoformat(timespec='seconds')}"
+                )
 
             listing.deal_alert_sent_at = utcnow()
             print(f"[pricing_worker] VIP app alert ready for listing_id={listing.id}")
@@ -207,19 +240,55 @@ def process_listing(listing: Listing) -> str:
         return "worker_error"
 
 
+def process_due_free_alert(listing: Listing) -> str:
+    try:
+        payload = _build_free_payload(listing)
+        message = format_free_alert_text(payload)
+        sent = send_free_alert(message)
+        if sent:
+            listing.free_sent = True
+            db.session.commit()
+            print(f"[pricing_worker] FREE telegram sent for listing_id={listing.id}")
+            return "free_sent"
+
+        listing.free_send_at = utcnow() + timedelta(minutes=2)
+        db.session.commit()
+        print(
+            f"[pricing_worker] FREE telegram failed for listing_id={listing.id}; "
+            f"retry_at={listing.free_send_at.isoformat(timespec='seconds')}"
+        )
+        return "free_retry"
+    except Exception as error:
+        db.session.rollback()
+        listing.free_send_at = utcnow() + timedelta(minutes=2)
+        db.session.commit()
+        print(f"[pricing_worker] unexpected FREE telegram error on listing {listing.id}: {error}")
+        return "free_error"
+
+
 def run_worker(*, once: bool = False, limit: int | None = None) -> None:
     processed = 0
 
     with app.app_context():
+        print(f"[pricing_worker] database={app.config.get('SQLALCHEMY_DATABASE_URI')}")
         while True:
             listing = fetch_next_pending_listing()
-            if listing is None:
-                print("[pricing_worker] no pending listings")
-                break
-
-            status = process_listing(listing)
-            processed += 1
-            print(f"[pricing_worker] listing_id={listing.id} status={status}")
+            if listing is not None:
+                status = process_listing(listing)
+                processed += 1
+                print(f"[pricing_worker] listing_id={listing.id} status={status}")
+            else:
+                due_free = fetch_next_due_free_alert()
+                if due_free is not None:
+                    status = process_due_free_alert(due_free)
+                    processed += 1
+                    print(f"[pricing_worker] listing_id={due_free.id} status={status}")
+                else:
+                    print("[pricing_worker] idle - no pending listings and no due free alerts")
+                    if once:
+                        break
+                    time.sleep(random.uniform(PRICING_WORKER_MIN_SLEEP, PRICING_WORKER_MAX_SLEEP))
+                    continue
 
             if once:
                 break
