@@ -80,9 +80,9 @@ def ensure_runtime_schema(app):
         connection.execute(text("UPDATE listings SET normalized_url = external_url WHERE normalized_url IS NULL"))
         connection.execute(text("UPDATE listings SET available_status = 'available' WHERE available_status IS NULL"))
         connection.execute(text("UPDATE listings SET pricing_status = 'pending' WHERE pricing_status IS NULL"))
-        connection.execute(text("UPDATE listings SET is_deal = 0 WHERE is_deal IS NULL"))
-        connection.execute(text("UPDATE listings SET is_vip_only = 1 WHERE is_vip_only IS NULL"))
-        connection.execute(text("UPDATE listings SET free_sent = 0 WHERE free_sent IS NULL"))
+        connection.execute(text("UPDATE listings SET is_deal = false WHERE is_deal IS NULL"))
+        connection.execute(text("UPDATE listings SET is_vip_only = true WHERE is_vip_only IS NULL"))
+        connection.execute(text("UPDATE listings SET free_sent = false WHERE free_sent IS NULL"))
         connection.execute(text("UPDATE listings SET detected_at = posted_at WHERE detected_at IS NULL"))
 
 
