@@ -8,7 +8,7 @@
 
     <div class="listing-overlay-top">
       <span class="badge badge-platform badge-platform-{{ listing.platform|lower|replace(' ', '-') }}">{{ listing.platform }}</span>
-      <span class="badge badge-score badge-{{ listing.badge_label|lower|replace(' ', '-') }}">{{ listing.badge_label }}</span>
+      <span class="badge badge-score badge-{{ listing.display_badge|lower|replace(' ', '-') }}">{{ listing.display_badge }}</span>
     </div>
 
     <div class="listing-overlay-bottom">
@@ -23,9 +23,7 @@
   </div>
 
   <div class="listing-body">
-    {% if listing.alert_title %}
-    <p class="listing-kicker">{{ listing.alert_title }}</p>
-    {% endif %}
+    <p class="listing-kicker">{{ listing.display_alert_title }}</p>
     <h2 title="{{ listing.title }}">{{ listing.title }}</h2>
     <p class="listing-marketplace listing-marketplace-{{ listing.platform|lower|replace(' ', '-') }}">
       <span class="market-dot" aria-hidden="true"></span>
@@ -40,11 +38,11 @@
     <div class="listing-signal-grid">
       <div>
         <span class="signal-label">Market</span>
-        <strong>{% if listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Unknown{% endif %}</strong>
+        <strong>{% if listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div>
         <span class="signal-label">Potential profit</span>
-        <strong>{% if listing.gross_margin is not none %}+{{ "%.2f"|format(listing.gross_margin) }} EUR{% else %}Unknown{% endif %}</strong>
+        <strong>{% if listing.gross_margin is not none %}+{{ "%.2f"|format(listing.gross_margin) }} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div>
         <span class="signal-label">Platform</span>
@@ -52,11 +50,11 @@
       </div>
       <div>
         <span class="signal-label">Confidence</span>
-        <strong>{{ listing.confidence_label or listing.score_label or "Medium" }}</strong>
+        <strong>{{ listing.display_confidence }}</strong>
       </div>
       <div>
         <span class="signal-label">Signal</span>
-        <strong>{{ listing.deal_level or "good" }}</strong>
+        <strong>{{ listing.display_signal }}</strong>
       </div>
     </div>
 

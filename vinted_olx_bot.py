@@ -2329,83 +2329,14 @@ def should_send_to_free(anuncio):
             reason="free_landing_only",
         )
         return False
-
-    if anuncio.get("categoria") == "lot_collection":
-        marcar_free_block(anuncio.get("id"), "lot_collection")
-        record_metric_event(
-            "skipped_filtered",
-            item_id=anuncio.get("id"),
-            platform=anuncio.get("source"),
-            tcg_type=anuncio.get("tcg_type"),
-            score_label=obter_score_label(anuncio),
-            reason="lot_collection",
-        )
-        return False
-
-    tcg_type = anuncio.get("tcg_type")
-    score_label = obter_score_label(anuncio)
-    if score_label == "HIGH":
-        marcar_free_block(anuncio.get("id"), "high")
-        record_metric_event(
-            "free_block",
-            item_id=anuncio.get("id"),
-            platform=anuncio.get("source"),
-            tcg_type=tcg_type,
-            score_label=score_label,
-            reason="high",
-        )
-        return False
-
-    if tcg_type == "one_piece" and anuncio.get("prioritario"):
-        marcar_free_block(anuncio.get("id"), "one_piece_priority")
-        record_metric_event(
-            "free_block",
-            item_id=anuncio.get("id"),
-            platform=anuncio.get("source"),
-            tcg_type=tcg_type,
-            score_label=score_label,
-            reason="one_piece_priority",
-        )
-        return False
-
-    if score_label == "MEDIUM":
-        record_metric_event(
-            "free_eligible",
-            item_id=anuncio.get("id"),
-            platform=anuncio.get("source"),
-            tcg_type=tcg_type,
-            score_label=score_label,
-        )
-        threshold = 0.10 if tcg_type == "one_piece" else 0.25
-        if random.random() < threshold:
-            return True
-        block_reason = "one_piece_teaser_limit" if tcg_type == "one_piece" else "medium_probability"
-        marcar_free_block(anuncio.get("id"), block_reason)
-        record_metric_event(
-            "free_block",
-            item_id=anuncio.get("id"),
-            platform=anuncio.get("source"),
-            tcg_type=tcg_type,
-            score_label=score_label,
-            reason=block_reason,
-        )
-        return False
-
-    if tcg_type == "one_piece":
-        if random.random() < 0.15:
-            return anuncio.get("score", 0) >= 20
-        marcar_free_block(anuncio.get("id"), "one_piece_teaser_limit")
-        record_metric_event(
-            "free_block",
-            item_id=anuncio.get("id"),
-            platform=anuncio.get("source"),
-            tcg_type=tcg_type,
-            score_label=score_label,
-            reason="one_piece_teaser_limit",
-        )
-        return False
-
-    return anuncio.get("score", 0) >= 20
+    record_metric_event(
+        "free_eligible",
+        item_id=anuncio.get("id"),
+        platform=anuncio.get("source"),
+        tcg_type=anuncio.get("tcg_type"),
+        score_label=obter_score_label(anuncio),
+    )
+    return True
 
 
 def free_queue_sort_key(item):
@@ -4889,6 +4820,7 @@ def main():
             for anuncio in novos:
                 registar_tracking_anuncio(anuncio)
                 anuncio["app_sync"] = enviar_anuncio_app(anuncio)
+                enfileirar_anuncio_free(anuncio)
                 time.sleep(2)
             novos.clear()
             del novos

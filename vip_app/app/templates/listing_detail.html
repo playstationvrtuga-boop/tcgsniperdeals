@@ -14,15 +14,11 @@
   <div class="detail-content">
     <div class="listing-meta">
       <span class="badge badge-platform badge-platform-{{ listing.platform|lower|replace(' ', '-') }}">{{ listing.platform }}</span>
-      <span class="badge badge-score badge-{{ listing.badge_label|lower|replace(' ', '-') }}">{{ listing.badge_label }}</span>
-      {% if listing.confidence_label or listing.score_label %}
-      <span class="badge">{{ listing.confidence_label or listing.score_label }}</span>
-      {% endif %}
+      <span class="badge badge-score badge-{{ listing.display_badge|lower|replace(' ', '-') }}">{{ listing.display_badge }}</span>
+      <span class="badge">{{ listing.display_confidence }}</span>
     </div>
 
-    {% if listing.alert_title %}
-    <p class="listing-kicker">{{ listing.alert_title }}</p>
-    {% endif %}
+    <p class="listing-kicker">{{ listing.display_alert_title }}</p>
     <h1>{{ listing.title }}</h1>
     <p class="listing-marketplace listing-marketplace-{{ listing.platform|lower|replace(' ', '-') }}">
       <span class="market-dot" aria-hidden="true"></span>
@@ -49,27 +45,28 @@
       </div>
       <div class="meta-tile">
         <span class="label">Signal</span>
-        <strong>{{ listing.badge_label }}</strong>
+        <strong>{{ listing.display_badge }}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Market price</span>
-        <strong>{% if listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Unknown{% endif %}</strong>
+        <strong>{% if listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Potential profit</span>
-        <strong>{% if listing.gross_margin is not none %}+{{ "%.2f"|format(listing.gross_margin) }} EUR{% else %}Unknown{% endif %}</strong>
+        <strong>{% if listing.gross_margin is not none %}+{{ "%.2f"|format(listing.gross_margin) }} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Discount</span>
-        <strong>{% if listing.discount_percent is not none %}-{{ "%.1f"|format(listing.discount_percent) }}%{% else %}Unknown{% endif %}</strong>
+        <strong>{% if listing.discount_percent is not none %}-{{ "%.1f"|format(listing.discount_percent) }}%{% else %}Pending{% endif %}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Confidence</span>
-        <strong>{{ listing.confidence_label or listing.score_label or "Medium" }}</strong>
+        <strong>{{ listing.display_confidence }}</strong>
       </div>
     </div>
 
     <section class="detail-insight-block">
+      {% if listing.is_deal %}
       <h2>Why the bot flagged this</h2>
       <p>This listing is trading below the recent sold median and still has enough margin to justify a fast look.</p>
       <ul class="detail-insight-list">
@@ -77,6 +74,15 @@
         <li>Confidence reflects how clean the title match and price gap look right now.</li>
         <li>Always verify condition, language and seller quality before buying.</li>
       </ul>
+      {% else %}
+      <h2>Live listing status</h2>
+      <p>This listing is already in the live stream. The pricing worker is still checking whether it has a strong market edge.</p>
+      <ul class="detail-insight-list">
+        <li>Fresh listings appear in the app immediately.</li>
+        <li>Comparable eBay sold data is added only after the worker finishes the review.</li>
+        <li>Until then, treat this as a tracked listing rather than a confirmed deal.</li>
+      </ul>
+      {% endif %}
     </section>
 
     <div class="listing-actions detail-actions">

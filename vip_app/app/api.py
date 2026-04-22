@@ -156,7 +156,7 @@ def build_listing_from_payload(payload):
         title=title,
         price_display=price_display,
         platform=platform,
-        badge_label=str(pick_first(payload, "badge_label", default="Strong")).strip() or "Strong",
+        badge_label=str(pick_first(payload, "badge_label", default="Fresh")).strip() or "Fresh",
         score_label=str(pick_first(payload, "score_label", default="")).strip() or None,
         score=score_value,
         category=str(pick_first(payload, "category", default="")).strip() or None,

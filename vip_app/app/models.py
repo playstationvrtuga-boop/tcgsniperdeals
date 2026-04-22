@@ -131,6 +131,46 @@ class Listing(TimestampMixin, db.Model):
     def feed_timestamp(self):
         return self.detected_at or self.created_at or self.posted_at
 
+    @property
+    def is_pending_pricing(self):
+        return (self.pricing_status or "").strip().lower() in {"", "pending"}
+
+    @property
+    def display_badge(self):
+        if self.is_deal and self.badge_label:
+            return self.badge_label
+        return "Fresh"
+
+    @property
+    def display_alert_title(self):
+        if self.alert_title:
+            return self.alert_title
+        if self.is_pending_pricing:
+            return "Live listing"
+        if self.is_deal:
+            return "Deal ready"
+        return "Tracked listing"
+
+    @property
+    def display_confidence(self):
+        if self.confidence_label:
+            return self.confidence_label
+        if self.score_label:
+            return self.score_label
+        if self.is_pending_pricing:
+            return "Pending"
+        return "Tracked"
+
+    @property
+    def display_signal(self):
+        if self.deal_level:
+            return self.deal_level
+        if self.is_pending_pricing:
+            return "tracking"
+        if self.is_deal:
+            return "good"
+        return "watch"
+
 
 class Favorite(TimestampMixin, db.Model):
     __tablename__ = "favorites"

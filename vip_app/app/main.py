@@ -201,7 +201,7 @@ def download_android_apk():
 @main_bp.route("/feed")
 @vip_required
 def feed():
-    query = Listing.query.filter(Listing.is_deal.is_(True))
+    query = Listing.query
 
     search = request.args.get("q", "").strip()
     platform = request.args.get("platform", "").strip()
@@ -212,22 +212,34 @@ def feed():
     if platform:
         query = query.filter(Listing.platform == platform)
     if badge:
-        query = query.filter(Listing.badge_label == badge)
+        if badge == "Fresh":
+            query = query.filter(Listing.is_deal.is_(False))
+        else:
+            query = query.filter(Listing.is_deal.is_(True), Listing.badge_label == badge)
 
-    live_deals_count = query.count()
+    live_listings_count = query.count()
     listings = query.order_by(*newest_listing_order()).limit(60).all()
     favorite_ids = {
         favorite.listing_id
         for favorite in Favorite.query.filter_by(user_id=current_user.id).all()
     }
-    platforms = [row[0] for row in db.session.query(Listing.platform).filter(Listing.is_deal.is_(True)).distinct().all()]
-    badges = [row[0] for row in db.session.query(Listing.badge_label).filter(Listing.is_deal.is_(True)).distinct().all()]
+    platforms = [row[0] for row in db.session.query(Listing.platform).distinct().all()]
+    deal_badges = [
+        row[0]
+        for row in db.session.query(Listing.badge_label)
+        .filter(Listing.is_deal.is_(True), Listing.badge_label.isnot(None), Listing.badge_label != "")
+        .distinct()
+        .all()
+    ]
+    badges = ["Fresh"] + [badge_name for badge_name in deal_badges if badge_name != "Fresh"]
+    deal_count = Listing.query.filter(Listing.is_deal.is_(True)).count()
     alerts_active = False
     if push_enabled():
         alerts_active = PushSubscription.query.filter_by(user_id=current_user.id).first() is not None
 
     live_stats = {
-        "count": live_deals_count,
+        "count": live_listings_count,
+        "deal_count": deal_count,
         "last_detected_at": listings[0].feed_timestamp if listings else None,
         "alerts_active": alerts_active,
     }
