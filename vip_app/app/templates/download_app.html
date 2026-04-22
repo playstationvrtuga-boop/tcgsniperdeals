@@ -17,7 +17,7 @@
       {% if apk_available %}
       <a class="primary-button" href="{{ url_for('main.download_android_apk') }}">Download Android app</a>
       {% endif %}
-      <a class="ghost-button" href="{{ url_for('main.index') }}">Open web app</a>
+      <a class="ghost-button" href="{{ url_for('main.index') }}">IOS Web App</a>
     </div>
   </div>
 
@@ -31,9 +31,17 @@
         </div>
         <div class="preview-card preview-card-featured">
           <span class="preview-pill">Just added</span>
-          <strong>Charizard ex 223/197</strong>
-          <small>Vinted • 2 min ago</small>
-          <div class="preview-price">38.00€</div>
+          {% if preview_listing and preview_listing.image_url %}
+          <div class="preview-card-media">
+            <img src="{{ preview_listing.image_url }}" alt="{{ preview_listing.title }}" class="preview-card-image" loading="lazy">
+          </div>
+          {% endif %}
+          <strong>{{ preview_listing.title if preview_listing else "Latest VIP deal" }}</strong>
+          <small>
+            {{ preview_listing.platform if preview_listing else "VIP feed" }}
+            {% if preview_listing and preview_listing.feed_timestamp %} • {{ preview_listing.feed_timestamp|relative_time }}{% endif %}
+          </small>
+          <div class="preview-price">{{ preview_listing.price_display if preview_listing else "Live now" }}</div>
         </div>
         <div class="preview-card">
           <span class="preview-muted">Alerts active</span>
@@ -105,7 +113,7 @@
     </ol>
 
     <div class="download-actions">
-      <a class="ghost-button" href="{{ url_for('main.index') }}">Open web app</a>
+      <a class="ghost-button" href="{{ url_for('main.index') }}">IOS Web App</a>
     </div>
   </article>
 </section>

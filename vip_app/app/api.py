@@ -6,9 +6,6 @@ from flask import Blueprint, current_app, jsonify, request
 
 from .extensions import db
 from .models import Listing
-from .push import send_new_listing_push
-
-
 api_bp = Blueprint("api", __name__)
 
 
@@ -165,6 +162,14 @@ def build_listing_from_payload(payload):
         category=str(pick_first(payload, "category", default="")).strip() or None,
         tcg_type=str(pick_first(payload, "tcg_type", default="pokemon")).strip() or "pokemon",
         available_status=str(pick_first(payload, "available_status", default="available")).strip() or "available",
+        pricing_status="pending",
+        pricing_error=None,
+        reference_price=None,
+        discount_percent=None,
+        gross_margin=None,
+        pricing_score=None,
+        is_deal=False,
+        deal_alert_sent_at=None,
         detected_at=detected_at,
         posted_at=detected_at,
         source_published_at=source_published_at,
@@ -193,13 +198,7 @@ def create_listing():
         db.session.add(listing)
         db.session.commit()
 
-        push_result = {"sent": 0, "enabled": False}
-        try:
-            push_result = send_new_listing_push(listing)
-        except Exception as push_error:
-            current_app.logger.warning("Push notification failed for listing %s: %s", listing.id, push_error)
-
-        return api_response("inserted", 201, id=listing.id, push=push_result)
+        return api_response("inserted", 201, id=listing.id, push={"sent": 0, "enabled": False})
     except Exception as error:
         db.session.rollback()
         current_app.logger.exception("Failed to insert incoming listing")

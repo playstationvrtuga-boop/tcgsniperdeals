@@ -12,16 +12,52 @@
     </div>
 
     <div class="listing-overlay-bottom">
+      {% if listing.discount_percent is not none %}
+      <span class="listing-edge-pill">-{{ "%.1f"|format(listing.discount_percent) }}%</span>
+      {% endif %}
+      {% if listing.gross_margin is not none %}
+      <span class="listing-profit-pill">+{{ "%.2f"|format(listing.gross_margin) }} EUR</span>
+      {% endif %}
       <span class="listing-age">{{ listing.feed_timestamp|relative_time }}</span>
     </div>
   </div>
 
   <div class="listing-body">
+    {% if listing.alert_title %}
+    <p class="listing-kicker">{{ listing.alert_title }}</p>
+    {% endif %}
     <h2 title="{{ listing.title }}">{{ listing.title }}</h2>
+    <p class="listing-marketplace listing-marketplace-{{ listing.platform|lower|replace(' ', '-') }}">
+      <span class="market-dot" aria-hidden="true"></span>
+      <span>Marketplace: {{ listing.platform }}</span>
+    </p>
 
     <div class="listing-price-row">
       <strong class="listing-price">{{ listing.price_display }}</strong>
       <span class="listing-time">{{ listing.feed_timestamp|datetime_format }}</span>
+    </div>
+
+    <div class="listing-signal-grid">
+      <div>
+        <span class="signal-label">Market</span>
+        <strong>{% if listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Unknown{% endif %}</strong>
+      </div>
+      <div>
+        <span class="signal-label">Potential profit</span>
+        <strong>{% if listing.gross_margin is not none %}+{{ "%.2f"|format(listing.gross_margin) }} EUR{% else %}Unknown{% endif %}</strong>
+      </div>
+      <div>
+        <span class="signal-label">Platform</span>
+        <strong>{{ listing.platform }}</strong>
+      </div>
+      <div>
+        <span class="signal-label">Confidence</span>
+        <strong>{{ listing.confidence_label or listing.score_label or "Medium" }}</strong>
+      </div>
+      <div>
+        <span class="signal-label">Signal</span>
+        <strong>{{ listing.deal_level or "good" }}</strong>
+      </div>
     </div>
 
     <p class="listing-urgency">{{ listing.feed_timestamp|urgency_hint }}</p>

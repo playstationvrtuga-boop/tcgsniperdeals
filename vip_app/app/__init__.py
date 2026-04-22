@@ -10,22 +10,64 @@ from .filters import datetime_format, register_template_filters, relative_time, 
 
 
 def ensure_runtime_schema(app):
-    if not app.config.get("SQLALCHEMY_DATABASE_URI", "").startswith("sqlite"):
-        return
-
     inspector = inspect(db.engine)
     if "listings" not in inspector.get_table_names():
         return
 
     existing_columns = {column["name"] for column in inspector.get_columns("listings")}
-    alter_statements = {
-        "normalized_url": "ALTER TABLE listings ADD COLUMN normalized_url VARCHAR(1000)",
-        "score": "ALTER TABLE listings ADD COLUMN score FLOAT",
-        "category": "ALTER TABLE listings ADD COLUMN category VARCHAR(80)",
-        "available_status": "ALTER TABLE listings ADD COLUMN available_status VARCHAR(40)",
-        "detected_at": "ALTER TABLE listings ADD COLUMN detected_at DATETIME",
-        "source_published_at": "ALTER TABLE listings ADD COLUMN source_published_at DATETIME",
-    }
+    is_sqlite = db.engine.dialect.name == "sqlite"
+    if is_sqlite:
+        alter_statements = {
+            "normalized_url": "ALTER TABLE listings ADD COLUMN normalized_url VARCHAR(1000)",
+            "score": "ALTER TABLE listings ADD COLUMN score FLOAT",
+            "category": "ALTER TABLE listings ADD COLUMN category VARCHAR(80)",
+            "available_status": "ALTER TABLE listings ADD COLUMN available_status VARCHAR(40)",
+            "pricing_status": "ALTER TABLE listings ADD COLUMN pricing_status VARCHAR(40)",
+            "pricing_checked_at": "ALTER TABLE listings ADD COLUMN pricing_checked_at DATETIME",
+            "pricing_error": "ALTER TABLE listings ADD COLUMN pricing_error VARCHAR(255)",
+            "reference_price": "ALTER TABLE listings ADD COLUMN reference_price FLOAT",
+            "discount_percent": "ALTER TABLE listings ADD COLUMN discount_percent FLOAT",
+            "gross_margin": "ALTER TABLE listings ADD COLUMN gross_margin FLOAT",
+            "pricing_score": "ALTER TABLE listings ADD COLUMN pricing_score INTEGER",
+            "is_deal": "ALTER TABLE listings ADD COLUMN is_deal BOOLEAN",
+            "deal_alert_sent_at": "ALTER TABLE listings ADD COLUMN deal_alert_sent_at DATETIME",
+            "alert_title": "ALTER TABLE listings ADD COLUMN alert_title VARCHAR(80)",
+            "partial_title": "ALTER TABLE listings ADD COLUMN partial_title VARCHAR(255)",
+            "confidence_label": "ALTER TABLE listings ADD COLUMN confidence_label VARCHAR(40)",
+            "deal_level": "ALTER TABLE listings ADD COLUMN deal_level VARCHAR(40)",
+            "is_vip_only": "ALTER TABLE listings ADD COLUMN is_vip_only BOOLEAN",
+            "free_send_at": "ALTER TABLE listings ADD COLUMN free_send_at DATETIME",
+            "free_sent": "ALTER TABLE listings ADD COLUMN free_sent BOOLEAN",
+            "free_message_variant": "ALTER TABLE listings ADD COLUMN free_message_variant VARCHAR(16)",
+            "detected_at": "ALTER TABLE listings ADD COLUMN detected_at DATETIME",
+            "source_published_at": "ALTER TABLE listings ADD COLUMN source_published_at DATETIME",
+        }
+    else:
+        alter_statements = {
+            "normalized_url": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS normalized_url VARCHAR(1000)",
+            "score": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS score DOUBLE PRECISION",
+            "category": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS category VARCHAR(80)",
+            "available_status": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS available_status VARCHAR(40)",
+            "pricing_status": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_status VARCHAR(40)",
+            "pricing_checked_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_checked_at TIMESTAMP WITH TIME ZONE",
+            "pricing_error": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_error VARCHAR(255)",
+            "reference_price": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS reference_price DOUBLE PRECISION",
+            "discount_percent": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS discount_percent DOUBLE PRECISION",
+            "gross_margin": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS gross_margin DOUBLE PRECISION",
+            "pricing_score": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_score INTEGER",
+            "is_deal": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_deal BOOLEAN",
+            "deal_alert_sent_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_alert_sent_at TIMESTAMP WITH TIME ZONE",
+            "alert_title": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS alert_title VARCHAR(80)",
+            "partial_title": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS partial_title VARCHAR(255)",
+            "confidence_label": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS confidence_label VARCHAR(40)",
+            "deal_level": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_level VARCHAR(40)",
+            "is_vip_only": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_vip_only BOOLEAN",
+            "free_send_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS free_send_at TIMESTAMP WITH TIME ZONE",
+            "free_sent": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS free_sent BOOLEAN",
+            "free_message_variant": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS free_message_variant VARCHAR(16)",
+            "detected_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS detected_at TIMESTAMP WITH TIME ZONE",
+            "source_published_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS source_published_at TIMESTAMP WITH TIME ZONE",
+        }
 
     with db.engine.begin() as connection:
         for column_name, statement in alter_statements.items():
@@ -34,8 +76,13 @@ def ensure_runtime_schema(app):
 
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_normalized_url ON listings (normalized_url)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_detected_at ON listings (detected_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_pricing_status ON listings (pricing_status)"))
         connection.execute(text("UPDATE listings SET normalized_url = external_url WHERE normalized_url IS NULL"))
         connection.execute(text("UPDATE listings SET available_status = 'available' WHERE available_status IS NULL"))
+        connection.execute(text("UPDATE listings SET pricing_status = 'pending' WHERE pricing_status IS NULL"))
+        connection.execute(text("UPDATE listings SET is_deal = 0 WHERE is_deal IS NULL"))
+        connection.execute(text("UPDATE listings SET is_vip_only = 1 WHERE is_vip_only IS NULL"))
+        connection.execute(text("UPDATE listings SET free_sent = 0 WHERE free_sent IS NULL"))
         connection.execute(text("UPDATE listings SET detected_at = posted_at WHERE detected_at IS NULL"))
 
 

@@ -160,6 +160,15 @@ def index():
 @main_bp.route("/download-app")
 def download_app():
     apk_download = get_android_apk_download()
+    preview_listing = (
+        Listing.query.filter(
+            Listing.image_url.isnot(None),
+            Listing.image_url != "",
+            Listing.image_url.notlike("%example.com%"),
+        )
+        .order_by(*newest_listing_order())
+        .first()
+    )
 
     return render_template(
         "download_app.html",
@@ -168,6 +177,7 @@ def download_app():
         apk_updated_at=apk_download["updated_at"],
         apk_url=apk_download["url"],
         apk_is_external=apk_download["is_external"],
+        preview_listing=preview_listing,
     )
 
 
@@ -191,7 +201,7 @@ def download_android_apk():
 @main_bp.route("/feed")
 @vip_required
 def feed():
-    query = Listing.query
+    query = Listing.query.filter(Listing.is_deal.is_(True))
 
     search = request.args.get("q", "").strip()
     platform = request.args.get("platform", "").strip()
@@ -210,8 +220,8 @@ def feed():
         favorite.listing_id
         for favorite in Favorite.query.filter_by(user_id=current_user.id).all()
     }
-    platforms = [row[0] for row in db.session.query(Listing.platform).distinct().all()]
-    badges = [row[0] for row in db.session.query(Listing.badge_label).distinct().all()]
+    platforms = [row[0] for row in db.session.query(Listing.platform).filter(Listing.is_deal.is_(True)).distinct().all()]
+    badges = [row[0] for row in db.session.query(Listing.badge_label).filter(Listing.is_deal.is_(True)).distinct().all()]
     alerts_active = False
     if push_enabled():
         alerts_active = PushSubscription.query.filter_by(user_id=current_user.id).first() is not None

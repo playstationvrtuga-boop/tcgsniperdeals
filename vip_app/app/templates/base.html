@@ -60,7 +60,7 @@
       {% if current_user.is_authenticated %}
       <div class="topbar-actions">
         <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
-        <a class="ghost-button" href="{{ url_for('main.billing') }}">Billing</a>
+        <a class="ghost-button" href="{{ url_for('main.billing') }}">Buy Now!</a>
         <a class="ghost-button" href="{{ url_for('main.profile') }}">My VIP access</a>
         {% if current_user.is_admin %}
         <a class="ghost-button" href="{{ url_for('admin.dashboard') }}">Control room</a>

@@ -15,12 +15,19 @@
     <div class="listing-meta">
       <span class="badge badge-platform badge-platform-{{ listing.platform|lower|replace(' ', '-') }}">{{ listing.platform }}</span>
       <span class="badge badge-score badge-{{ listing.badge_label|lower|replace(' ', '-') }}">{{ listing.badge_label }}</span>
-      {% if listing.score_label %}
-      <span class="badge">{{ listing.score_label }}</span>
+      {% if listing.confidence_label or listing.score_label %}
+      <span class="badge">{{ listing.confidence_label or listing.score_label }}</span>
       {% endif %}
     </div>
 
+    {% if listing.alert_title %}
+    <p class="listing-kicker">{{ listing.alert_title }}</p>
+    {% endif %}
     <h1>{{ listing.title }}</h1>
+    <p class="listing-marketplace listing-marketplace-{{ listing.platform|lower|replace(' ', '-') }}">
+      <span class="market-dot" aria-hidden="true"></span>
+      <span>Marketplace: {{ listing.platform }}</span>
+    </p>
 
     <div class="detail-price-row">
       <p class="detail-price">{{ listing.price_display }}</p>
@@ -44,7 +51,33 @@
         <span class="label">Signal</span>
         <strong>{{ listing.badge_label }}</strong>
       </div>
+      <div class="meta-tile">
+        <span class="label">Market price</span>
+        <strong>{% if listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Unknown{% endif %}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Potential profit</span>
+        <strong>{% if listing.gross_margin is not none %}+{{ "%.2f"|format(listing.gross_margin) }} EUR{% else %}Unknown{% endif %}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Discount</span>
+        <strong>{% if listing.discount_percent is not none %}-{{ "%.1f"|format(listing.discount_percent) }}%{% else %}Unknown{% endif %}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Confidence</span>
+        <strong>{{ listing.confidence_label or listing.score_label or "Medium" }}</strong>
+      </div>
     </div>
+
+    <section class="detail-insight-block">
+      <h2>Why the bot flagged this</h2>
+      <p>This listing is trading below the recent sold median and still has enough margin to justify a fast look.</p>
+      <ul class="detail-insight-list">
+        <li>Recent sold reference is based on the latest comparable sales the worker accepted.</li>
+        <li>Confidence reflects how clean the title match and price gap look right now.</li>
+        <li>Always verify condition, language and seller quality before buying.</li>
+      </ul>
+    </section>
 
     <div class="listing-actions detail-actions">
       <a class="primary-button" href="{{ listing.external_url }}" target="_blank" rel="noopener">Open listing</a>

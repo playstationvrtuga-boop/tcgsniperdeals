@@ -3,6 +3,7 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent
+ROOT_ENV_PATH = BASE_DIR / ".env"
 VIP_APP_ENV_PATH = BASE_DIR / "vip_app" / ".env"
 
 
@@ -20,7 +21,11 @@ def _load_simple_env(path: Path):
     return values
 
 
-LOCAL_ENV = _load_simple_env(VIP_APP_ENV_PATH)
+# Support both the project root .env and vip_app/.env.
+# Root .env wins so local bot setup can stay in one obvious place.
+LOCAL_ENV = {}
+LOCAL_ENV.update(_load_simple_env(VIP_APP_ENV_PATH))
+LOCAL_ENV.update(_load_simple_env(ROOT_ENV_PATH))
 
 
 def _get_setting(name: str, default=None):
@@ -47,3 +52,21 @@ BOT_API_KEY = os.environ.get("BOT_API_KEY") or LOCAL_ENV.get("BOT_API_KEY", "")
 APP_API_KEY = BOT_API_KEY or os.environ.get("APP_API_KEY") or LOCAL_ENV.get("APP_API_KEY", "")
 APP_API_TIMEOUT = float(_get_setting("APP_API_TIMEOUT", "8"))
 APP_API_ENABLED = _get_flag("APP_API_ENABLED", default=bool(APP_API_URL and BOT_API_KEY))
+
+CARDMARKET_API_BASE = _get_setting("CARDMARKET_API_BASE", "https://apiv2.cardmarket.com/ws/v2.0/output.json")
+CARDMARKET_APP_TOKEN = _get_setting("CARDMARKET_APP_TOKEN", "")
+CARDMARKET_APP_SECRET = _get_setting("CARDMARKET_APP_SECRET", "")
+CARDMARKET_ACCESS_TOKEN = _get_setting("CARDMARKET_ACCESS_TOKEN", "")
+CARDMARKET_ACCESS_SECRET = _get_setting("CARDMARKET_ACCESS_SECRET", "")
+CARDMARKET_TIMEOUT = float(_get_setting("CARDMARKET_TIMEOUT", "15"))
+CARDMARKET_GAME_NAME = _get_setting("CARDMARKET_GAME_NAME", "Pokemon")
+
+PRICING_WORKER_MIN_SLEEP = float(_get_setting("PRICING_WORKER_MIN_SLEEP", "1"))
+PRICING_WORKER_MAX_SLEEP = float(_get_setting("PRICING_WORKER_MAX_SLEEP", "3"))
+PRICING_DEAL_MIN_DISCOUNT = float(_get_setting("PRICING_DEAL_MIN_DISCOUNT", "20"))
+PRICING_DEAL_MIN_MARGIN = float(_get_setting("PRICING_DEAL_MIN_MARGIN", "5"))
+PRICING_DEAL_MIN_SCORE = int(_get_setting("PRICING_DEAL_MIN_SCORE", "60"))
+FREE_ALERT_DELAY_MINUTES = int(_get_setting("FREE_ALERT_DELAY_MINUTES", "15"))
+FREE_ALERT_DELAY_MIN_MINUTES = int(_get_setting("FREE_ALERT_DELAY_MIN_MINUTES", "5"))
+FREE_ALERT_DELAY_MAX_MINUTES = int(_get_setting("FREE_ALERT_DELAY_MAX_MINUTES", "10"))
+FREE_MIN_DISCOUNT_PERCENT = float(_get_setting("FREE_MIN_DISCOUNT_PERCENT", "10"))
