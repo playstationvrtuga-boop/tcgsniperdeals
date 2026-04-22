@@ -3,7 +3,7 @@ import json
 from flask import current_app
 from pywebpush import WebPushException, webpush
 
-from services.alert_formatter import format_vip_alert
+from .alert_formatter import format_vip_alert
 from .extensions import db
 from .models import PushSubscription, User
 
