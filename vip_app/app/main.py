@@ -158,17 +158,27 @@ def get_android_apk_download():
 def index():
     if current_user.is_authenticated:
         return redirect(url_for("main.feed"))
-    preview_listing = (
-        Listing.query.options(defer(Listing.raw_payload))
-        .filter(
-            Listing.image_url.isnot(None),
-            Listing.image_url != "",
-            Listing.image_url.notlike("%example.com%"),
-        )
-        .order_by(*newest_listing_order())
-        .first()
+    query = Listing.query.options(defer(Listing.raw_payload))
+    listings = query.order_by(*newest_listing_order()).limit(12).all()
+    live_stats = {
+        "count": len(listings),
+        "deal_count": sum(1 for listing in listings if listing.is_deal),
+        "last_detected_at": listings[0].feed_timestamp if listings else None,
+        "alerts_active": False,
+    }
+    return render_template(
+        "landing.html",
+        listings=listings,
+        favorite_ids=set(),
+        live_stats=live_stats,
+        public_preview=True,
+        enable_live_radar=True,
+        enable_card_entry_animations=True,
+        enable_relative_time_updates=True,
+        relative_time_update_ms=current_app.config["RELATIVE_TIME_UPDATE_MS"],
+        feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
+        feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
     )
-    return render_template("landing.html", preview_listing=preview_listing)
 
 
 @main_bp.route("/download-app")

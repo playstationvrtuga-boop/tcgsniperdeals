@@ -1,153 +1,56 @@
 {% extends "base.html" %}
 {% block title %}TCG Sniper Deals{% endblock %}
 {% block content %}
-<section class="hero landing-hero-shell">
-  <div class="landing-hero-copy">
-    <span class="pill">Private VIP access</span>
-    <div class="landing-live-strip">
-      <span class="landing-live-chip is-live">LIVE</span>
-      <span class="landing-live-chip">Fresh drops</span>
-      <span class="landing-live-chip">First look</span>
-      <span class="landing-live-chip">Mobile ready</span>
-    </div>
-    <h1>See fresh deals first, before everyone else catches up.</h1>
-    <p>
-      TCG Sniper Deals is a live opportunity stream for collectors and flippers who want fresh listings,
-      instant alerts and a clean view of the strongest moves before slower buyers react.
-    </p>
-
-    <div class="hero-points landing-hero-points">
-      <div class="hero-point">Fresh listings land in the live stream in real time</div>
-      <div class="hero-point">See the edge fast, with less noise and more clarity</div>
-      <div class="hero-point">Open, save and act quickly from your phone</div>
-      <div class="hero-point">VIP members get the full feed and direct alerts</div>
-    </div>
-
-    <div class="hero-actions">
-      <a class="primary-button" href="{{ url_for('auth.register') }}">Unlock VIP access</a>
-      <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
-      <a class="ghost-button" href="{{ url_for('auth.login') }}">Enter the live feed</a>
-    </div>
-
-    <div class="landing-hero-note">
-      Built for speed. Designed for first-look advantage. Kept light enough for mobile and the Render.
-    </div>
-  </div>
-
-  <div class="landing-hero-preview" aria-hidden="true">
-    <div class="device-frame landing-device-frame">
-      <div class="device-notch"></div>
-      <div class="device-screen">
-        <div class="preview-topbar">
-          <span>VIP stream</span>
-          <span class="preview-topbar-badge">LIVE</span>
-        </div>
-
-        <div class="landing-preview-stats">
-          <span><strong>12</strong> fresh drops</span>
-          <span><strong>4</strong> flagged</span>
-          <span><strong>1m</strong> avg update</span>
-        </div>
-
-        <div class="preview-card preview-card-featured">
-          <span class="preview-pill">Just detected</span>
-          {% if preview_listing and preview_listing.image_url %}
-          <div class="preview-card-media">
-            <img
-              src="{{ preview_listing.image_url }}"
-              alt="{{ preview_listing.title }}"
-              class="preview-card-image"
-              loading="lazy">
-          </div>
-          {% endif %}
-          <strong>{{ preview_listing.title if preview_listing else "Fresh VIP listing" }}</strong>
-          <small>
-            {{ preview_listing.platform if preview_listing else "Live feed" }}
-            {% if preview_listing and preview_listing.feed_timestamp_iso %}
-              &bull; {{ preview_listing.feed_timestamp_iso|relative_time }}
-            {% endif %}
-          </small>
-          <div class="preview-price">
-            {{ preview_listing.price_display if preview_listing else "Detected now" }}
-          </div>
-        </div>
-
-        <div class="preview-card preview-card-signal">
-          <span class="preview-muted">Scanning now</span>
-          <strong>Live market intelligence</strong>
-          <small>New drops surface automatically as the feed updates.</small>
-        </div>
-
-        <div class="preview-card preview-card-row">
-          <div>
-            <span class="preview-muted">Alerts active</span>
-            <strong>Instant access</strong>
-          </div>
-          <div>
-            <span class="preview-muted">Edge</span>
-            <strong>First look</strong>
-          </div>
-        </div>
+<section class="feed-command-center public-dashboard-shell{% if not enable_live_radar %} is-radar-off{% endif %}">
+  <section class="section-header section-header-feed public-dashboard-header">
+    <div>
+      <span class="pill">LIVE</span>
+      <h1>Scanning marketplaces...</h1>
+      <p>Fresh opportunities appear here first. No landing page, just the product.</p>
+      <div class="feed-hero-meta">
+        <span class="mini-stat">LIVE</span>
+        <span class="mini-stat">{{ live_stats.count }} items</span>
+        <span class="mini-stat">{{ live_stats.deal_count }} flagged</span>
+        <span class="mini-stat">{{ live_stats.last_detected_at|relative_time }}</span>
       </div>
     </div>
-  </div>
-</section>
-
-<section class="landing-bottom-cta">
-  <div>
-    <span class="eyebrow">Why this feels different</span>
-    <h2>It is not a landing page. It is the entry point to the live stream.</h2>
-    <p>New users see the product before they even click in: real listings, live status, instant access and a clean preview of the edge.</p>
-  </div>
-  <div class="landing-bottom-cta-actions">
-    <a class="primary-button" href="{{ url_for('auth.register') }}">Unlock VIP access</a>
-    <a class="ghost-button" href="{{ url_for('main.download_app') }}">Install the app</a>
-  </div>
-</section>
-
-<section class="landing-proof-strip">
-  <article class="landing-proof-card">
-    <span class="eyebrow">Why members stay</span>
-    <strong>Speed, timing and visibility are what move inventory first.</strong>
-    <p>We keep the stream clean so the best opportunities are easy to spot before slower buyers react.</p>
-  </article>
-  <article class="landing-proof-card">
-    <span class="eyebrow">What you get</span>
-    <strong>Live feed, mobile install and saved targets in one place.</strong>
-    <p>Open the app, watch new listings land and act without needing to refresh manually.</p>
-  </article>
-  <article class="landing-proof-card">
-    <span class="eyebrow">Built for action</span>
-    <strong>Designed to feel fast, premium and focused on the edge.</strong>
-    <p>It looks like a command center because that is how the best opportunities are handled.</p>
-  </article>
-</section>
-
-<section class="landing-signals">
-  <div class="landing-signals-header">
-    <span class="pill">Live signals</span>
-    <div>
-      <h2>What VIP members see first</h2>
-      <p>Small, fast signals that show the stream is live and the edge is moving.</p>
+    <div class="section-header-actions">
+      <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
+      <a class="primary-button" href="{{ url_for('auth.login', next=url_for('main.feed')) }}">Login</a>
     </div>
-  </div>
+  </section>
 
-  <div class="landing-signals-grid">
-    <article class="landing-signal-card">
-      <span class="signal-dot"></span>
-      <strong>Fresh drop</strong>
-      <small>New listing just surfaced in the live stream.</small>
-    </article>
-    <article class="landing-signal-card">
-      <span class="signal-dot is-accent"></span>
-      <strong>Below market</strong>
-      <small>Target looks lighter than recent sales and worth a fast look.</small>
-    </article>
-    <article class="landing-signal-card">
-      <span class="signal-dot is-warm"></span>
-      <strong>Fast moving</strong>
-      <small>Signals that tend to disappear before slower buyers notice.</small>
-    </article>
-  </div>
+  <section class="live-radar-shell public-radar-shell{% if not enable_live_radar %} is-disabled{% endif %}" data-live-radar-shell>
+    <div class="live-radar-copy">
+      <span class="eyebrow">Live radar</span>
+      <h2>Scanning for market edge</h2>
+      <div class="live-status-row">
+        <span class="live-status-pill">
+          <span class="live-status-dot" aria-hidden="true"></span>
+          LIVE
+        </span>
+        <span class="live-status-text">Scanning marketplaces...</span>
+      </div>
+    </div>
+
+    <div class="live-radar" data-live-radar data-radar-enabled="{{ 1 if enable_live_radar else 0 }}" aria-hidden="true">
+      <span class="live-radar-ring"></span>
+      <span class="live-radar-ring live-radar-ring-2"></span>
+      <span class="live-radar-ring live-radar-ring-3"></span>
+      <span class="live-radar-sweep"></span>
+      <span class="live-radar-core"></span>
+    </div>
+  </section>
+</section>
+
+<section class="listing-grid public-dashboard-grid">
+  {% for listing in listings %}
+    {% include "partials/listing_card.html" %}
+  {% else %}
+    <div class="empty-state">
+      <h2>No fresh listings just yet</h2>
+      <p>The stream will fill as soon as the bot spots the next drop.</p>
+    </div>
+  {% endfor %}
 </section>
 {% endblock %}

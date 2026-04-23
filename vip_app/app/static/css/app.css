@@ -366,6 +366,18 @@ select { font: inherit; }
   gap: 12px;
 }
 
+.public-dashboard-shell {
+  margin-top: 0;
+}
+
+.public-dashboard-header p {
+  max-width: 42rem;
+}
+
+.public-dashboard-grid {
+  margin-top: 14px;
+}
+
 .feed-hero-meta {
   display: flex;
   flex-wrap: wrap;

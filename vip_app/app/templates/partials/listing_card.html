@@ -3,6 +3,7 @@
   data-listing-id="{{ listing.id }}"
   data-detected-at="{{ listing.feed_timestamp_iso }}"
 >
+  {% set public_preview = public_preview if public_preview is defined else false %}
   <div class="listing-image-wrap">
     {% if listing.image_url %}
       <img class="listing-image" src="{{ listing.image_url }}" alt="{{ listing.title }}" loading="lazy">
@@ -72,10 +73,15 @@
 
     <div class="listing-actions">
       <a class="primary-button" href="{{ listing.external_url }}" target="_blank" rel="noopener">Open listing</a>
+      {% if public_preview %}
+      <a class="ghost-button" href="{{ url_for('auth.login', next=url_for('main.feed')) }}">Unlock VIP</a>
+      <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
+      {% else %}
       <button class="ghost-button favorite-toggle {% if listing.id in favorite_ids %}is-saved{% endif %}" data-listing-id="{{ listing.id }}">
         {% if listing.id in favorite_ids %}Saved{% else %}Save{% endif %}
       </button>
       <a class="ghost-button" href="{{ url_for('main.listing_detail', listing_id=listing.id) }}">Details</a>
+      {% endif %}
     </div>
   </div>
 </article>
