@@ -368,6 +368,8 @@ def feed_updates():
             {
                 "id": listing.id,
                 "detected_at": listing.feed_timestamp_iso,
+                "platform": listing.platform,
+                "platform_key": listing.platform.lower().replace(" ", "-") if listing.platform else "",
                 "html": render_template("partials/listing_card.html", listing=listing, favorite_ids=set()),
             }
         )

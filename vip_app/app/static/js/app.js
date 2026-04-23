@@ -393,36 +393,60 @@ function createRadarController(radarRoot, enabled) {
     return { pulse: () => {} };
   }
 
-  const blips = [];
+  let pulseTimeout = null;
 
-  function pulse(count = 1) {
-    const size = radarRoot.getBoundingClientRect();
-    if (!size.width || !size.height) return;
-
-    const maxBlips = Math.min(3, Math.max(1, count));
-    for (let index = 0; index < maxBlips; index += 1) {
-      const blip = document.createElement("span");
-      blip.className = "live-radar-blip";
-
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 0.18 + Math.random() * 0.34;
-      const x = 50 + Math.cos(angle) * radius * 50;
-      const y = 50 + Math.sin(angle) * radius * 50;
-
-      blip.style.left = `${x}%`;
-      blip.style.top = `${y}%`;
-      radarRoot.appendChild(blip);
-
-      requestAnimationFrame(() => blip.classList.add("is-visible"));
-      blips.push(blip);
-
-      window.setTimeout(() => {
-        blip.remove();
-      }, 1250 + index * 120);
-    }
+  function pulse() {
+    if (pulseTimeout) window.clearTimeout(pulseTimeout);
+    radarRoot.classList.remove("is-pulsing");
+    void radarRoot.offsetWidth;
+    radarRoot.classList.add("is-pulsing");
+    pulseTimeout = window.setTimeout(() => {
+      radarRoot.classList.remove("is-pulsing");
+      pulseTimeout = null;
+    }, 260);
   }
 
   return { pulse };
+}
+
+function createSourceController(sourceRail, enabled) {
+  if (!sourceRail || !enabled) {
+    return { pulsePlatforms: () => {} };
+  }
+
+  const sourceLabels = new Map(
+    [...sourceRail.querySelectorAll("[data-source-label]")]
+      .map((node) => [node.dataset.sourceLabel || "", node])
+      .filter(([key, node]) => Boolean(key) && Boolean(node))
+  );
+  const activeTimers = new Map();
+
+  function pulsePlatform(platformKey) {
+    const pill = sourceLabels.get(platformKey);
+    if (!pill) return;
+
+    const existingTimer = activeTimers.get(platformKey);
+    if (existingTimer) window.clearTimeout(existingTimer);
+
+    pill.classList.remove("is-targeted");
+    void pill.offsetWidth;
+    pill.classList.add("is-targeted");
+
+    const timer = window.setTimeout(() => {
+      pill.classList.remove("is-targeted");
+      activeTimers.delete(platformKey);
+    }, 420);
+    activeTimers.set(platformKey, timer);
+  }
+
+  function pulsePlatforms(platformKeys) {
+    const uniqueKeys = [...new Set((platformKeys || []).filter(Boolean))];
+    uniqueKeys.forEach((platformKey, index) => {
+      window.setTimeout(() => pulsePlatform(platformKey), index * 70);
+    });
+  }
+
+  return { pulsePlatforms };
 }
 
 function initLiveFeed() {
@@ -433,6 +457,7 @@ function initLiveFeed() {
   const bannerCopy = banner?.querySelector("[data-feed-live-banner-copy]");
   const bannerButton = banner?.querySelector("[data-feed-live-banner-button]");
   const radarRoot = document.querySelector("[data-live-radar]");
+  const sourceRail = document.querySelector("[data-source-rail]");
   const updatesUrl = feedRoot.dataset.feedUpdatesUrl;
   const pollIntervalMs = Number(feedRoot.dataset.feedPollMs || 2500);
   const deltaLimit = Number(feedRoot.dataset.feedDeltaLimit || 12);
@@ -441,6 +466,7 @@ function initLiveFeed() {
   const relativeTimeEnabled = feedRoot.dataset.feedRelativeTimeUpdates === "1";
   const relativeTimeIntervalMs = Number(feedRoot.dataset.feedRelativeTimeIntervalMs || 15000);
   const radar = createRadarController(radarRoot, radarEnabled);
+  const sourceFeedback = createSourceController(sourceRail, radarEnabled);
 
   const seenIds = new Set(
     [...feedRoot.querySelectorAll(".listing-card[data-listing-id]")]
@@ -454,6 +480,26 @@ function initLiveFeed() {
   let pendingIds = new Set();
   let timer = null;
   let inFlight = false;
+
+  function normalizePlatformKey(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function playArrivalFeedback(items) {
+    if (!items.length) return;
+    const platformKeys = items
+      .map((item) => normalizePlatformKey(item?.platform_key || item?.platform))
+      .filter(Boolean);
+
+    radar.pulse();
+    window.setTimeout(() => {
+      sourceFeedback.pulsePlatforms(platformKeys);
+    }, 70);
+  }
 
   function updateCursor(cursor) {
     if (!cursor) return;
@@ -555,9 +601,9 @@ function initLiveFeed() {
 
       const items = Array.isArray(data.items) ? data.items : [];
       if (items.length) {
-        radar.pulse(items.length);
+        playArrivalFeedback(items);
         if (isNearTop()) {
-          insertItems(items);
+          window.setTimeout(() => insertItems(items), cardAnimationsEnabled ? 140 : 0);
         } else {
           queueItems(items);
         }
