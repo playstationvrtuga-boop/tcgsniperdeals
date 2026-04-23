@@ -4,6 +4,12 @@
 <section class="hero landing-hero-shell">
   <div class="landing-hero-copy">
     <span class="pill">Private VIP access</span>
+    <div class="landing-live-strip">
+      <span class="landing-live-chip is-live">LIVE</span>
+      <span class="landing-live-chip">Fresh drops</span>
+      <span class="landing-live-chip">First look</span>
+      <span class="landing-live-chip">Mobile ready</span>
+    </div>
     <h1>See fresh deals first, before everyone else catches up.</h1>
     <p>
       TCG Sniper Deals is a live opportunity stream for collectors and flippers who want fresh listings,
@@ -35,6 +41,12 @@
         <div class="preview-topbar">
           <span>VIP stream</span>
           <span class="preview-topbar-badge">LIVE</span>
+        </div>
+
+        <div class="landing-preview-stats">
+          <span><strong>12</strong> fresh drops</span>
+          <span><strong>4</strong> flagged</span>
+          <span><strong>1m</strong> avg update</span>
         </div>
 
         <div class="preview-card preview-card-featured">
@@ -78,6 +90,18 @@
         </div>
       </div>
     </div>
+  </div>
+</section>
+
+<section class="landing-bottom-cta">
+  <div>
+    <span class="eyebrow">Why this feels different</span>
+    <h2>It is not a landing page. It is the entry point to the live stream.</h2>
+    <p>New users see the product before they even click in: real listings, live status, instant access and a clean preview of the edge.</p>
+  </div>
+  <div class="landing-bottom-cta-actions">
+    <a class="primary-button" href="{{ url_for('auth.register') }}">Unlock VIP access</a>
+    <a class="ghost-button" href="{{ url_for('main.download_app') }}">Install the app</a>
   </div>
 </section>
 
