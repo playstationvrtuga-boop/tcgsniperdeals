@@ -462,11 +462,12 @@ function initLiveFeed() {
   const pollIntervalMs = Number(feedRoot.dataset.feedPollMs || 2500);
   const deltaLimit = Number(feedRoot.dataset.feedDeltaLimit || 12);
   const radarEnabled = feedRoot.dataset.feedLiveRadar === "1";
+  const targetFeedbackEnabled = feedRoot.dataset.feedTargetFeedback === "1";
   const cardAnimationsEnabled = feedRoot.dataset.feedCardAnimations === "1";
   const relativeTimeEnabled = feedRoot.dataset.feedRelativeTimeUpdates === "1";
   const relativeTimeIntervalMs = Number(feedRoot.dataset.feedRelativeTimeIntervalMs || 15000);
   const radar = createRadarController(radarRoot, radarEnabled);
-  const sourceFeedback = createSourceController(sourceRail, radarEnabled);
+  const sourceFeedback = createSourceController(sourceRail, radarEnabled && targetFeedbackEnabled);
 
   const seenIds = new Set(
     [...feedRoot.querySelectorAll(".listing-card[data-listing-id]")]
@@ -490,7 +491,7 @@ function initLiveFeed() {
   }
 
   function playArrivalFeedback(items) {
-    if (!items.length) return;
+    if (!items.length || !targetFeedbackEnabled) return;
     const platformKeys = items
       .map((item) => normalizePlatformKey(item?.platform_key || item?.platform))
       .filter(Boolean);

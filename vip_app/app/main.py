@@ -320,6 +320,7 @@ def feed():
         feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
         feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
         enable_live_radar=current_app.config["ENABLE_LIVE_RADAR"],
+        enable_target_feedback=current_app.config["ENABLE_TARGET_FEEDBACK"],
         enable_card_entry_animations=current_app.config["ENABLE_CARD_ENTRY_ANIMATIONS"],
         enable_relative_time_updates=current_app.config["ENABLE_RELATIVE_TIME_UPDATES"],
         relative_time_update_ms=current_app.config["RELATIVE_TIME_UPDATE_MS"],

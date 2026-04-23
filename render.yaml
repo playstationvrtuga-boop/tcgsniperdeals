@@ -43,6 +43,8 @@ services:
         value: "12"
       - key: ENABLE_LIVE_RADAR
         value: "true"
+      - key: ENABLE_TARGET_FEEDBACK
+        value: "true"
       - key: ENABLE_CARD_ENTRY_ANIMATIONS
         value: "true"
       - key: ENABLE_RELATIVE_TIME_UPDATES
