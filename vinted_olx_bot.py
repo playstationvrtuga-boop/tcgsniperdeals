@@ -6,6 +6,7 @@ from config import (
     FREE_CHAT_ID,
     APP_API_ENABLED,
     APP_API_URL,
+    APP_API_STATUS_URL,
     BOT_API_KEY,
     APP_API_TIMEOUT,
     FREE_ALERT_DELAY_MIN_MINUTES,
@@ -361,6 +362,55 @@ def enviar_anuncio_app(anuncio):
 
     return {
         "status": status,
+        "http_status": resposta.status_code,
+        "data": dados,
+    }
+
+
+def enviar_status_anuncio_app(anuncio, status):
+    if not APP_API_ENABLED:
+        return {"status": "disabled"}
+
+    if not APP_API_STATUS_URL or not BOT_API_KEY:
+        return {"status": "disabled_missing_config"}
+
+    payload = {
+        "source": (anuncio.get("source") or anuncio.get("origem") or "").strip().lower(),
+        "external_id": anuncio.get("id"),
+        "available_status": status,
+        "detected_at": anuncio.get("detected_at") or now_iso(),
+        "source_published_at": anuncio.get("source_published_at"),
+    }
+
+    try:
+        resposta = HTTP_SESSION.post(
+            APP_API_STATUS_URL,
+            json=payload,
+            headers={
+                "Content-Type": "application/json",
+                "X-API-Key": BOT_API_KEY,
+            },
+            timeout=APP_API_TIMEOUT,
+        )
+    except requests.RequestException as e:
+        print(f"[APP API] status request failed for {payload.get('external_id')}: {e}")
+        return {"status": "request_failed", "error": str(e)}
+
+    try:
+        dados = resposta.json()
+    except ValueError:
+        dados = {"status": "invalid_response", "body": resposta.text[:300]}
+
+    status_code = dados.get("status") or f"http_{resposta.status_code}"
+    if resposta.status_code == 200 and status_code == "updated":
+        print(f"[APP API] status updated for {payload.get('external_id')} -> {status}")
+    elif resposta.status_code == 404:
+        print(f"[APP API] status update missing listing for {payload.get('external_id')}")
+    else:
+        print(f"[APP API] unexpected status response for {payload.get('external_id')}: {resposta.status_code} {dados}")
+
+    return {
+        "status": status_code,
         "http_status": resposta.status_code,
         "data": dados,
     }
@@ -1605,6 +1655,8 @@ def update_listing_status(item_id, status):
                     sent_to_vip=item.get("sent_to_vip"),
                     sent_to_free=item.get("sent_to_free"),
                 )
+            sync_result = enviar_status_anuncio_app(item, "unavailable")
+            item["app_unavailable_sync"] = sync_result
 
     guardar_tracking(data)
 

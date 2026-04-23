@@ -1,0 +1,34 @@
+import unittest
+from datetime import date
+
+from services.alert_formatter import format_free_gone_alert_text
+from services.free_gone_alerts import build_daily_plan, parse_windows
+
+
+class FreeGoneAlertTests(unittest.TestCase):
+    def test_gone_alert_text_is_english_and_link_free(self):
+        text = format_free_gone_alert_text(
+            {
+                "title": "Charizard ex 223/197 Obsidian Flames",
+                "platform": "Vinted",
+                "listing_price_text": "75.00 EUR",
+                "updated_at": "2026-04-23T10:15:00+01:00",
+            }
+        )
+        self.assertIn("GONE ALERT", text)
+        self.assertIn("Last seen", text)
+        self.assertNotIn("Produto", text)
+        self.assertNotIn("http", text.lower())
+
+    def test_daily_plan_spreads_counts_across_windows(self):
+        windows = parse_windows("10:00-13:00,15:00-19:00,20:00-23:00")
+        plan = build_daily_plan(date(2026, 4, 23), windows)
+        self.assertGreaterEqual(plan["daily_target_count"], 3)
+        self.assertLessEqual(plan["daily_target_count"], 5)
+        self.assertEqual(sum(plan["window_plan"].values()), plan["daily_target_count"])
+        self.assertEqual(sum(plan["window_posted"].values()), 0)
+        self.assertEqual(set(plan["window_plan"].keys()), {window.key for window in windows})
+
+
+if __name__ == "__main__":
+    unittest.main()

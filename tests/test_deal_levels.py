@@ -34,8 +34,8 @@ class DealLevelTests(unittest.TestCase):
                 "free_message_variant": "short",
             }
         )
-        self.assertIn("You're seeing this late.", text)
-        self.assertIn("VIP", text)
+        self.assertIn("Real-time listing", text)
+        self.assertIn("Listing Price", text)
 
 
 if __name__ == "__main__":

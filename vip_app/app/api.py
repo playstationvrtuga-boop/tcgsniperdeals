@@ -179,6 +179,22 @@ def build_listing_from_payload(payload):
     return listing, None, None
 
 
+def find_listing_for_status_update(payload):
+    source = str(pick_first(payload, "source", default="")).strip().lower()
+    external_id = str(pick_first(payload, "external_id", "listing_id", default="")).strip()
+    normalized_url = normalize_listing_url(pick_first(payload, "external_url", "url", default=""))
+
+    query = Listing.query
+    if source and external_id:
+        query = query.filter(Listing.source == source, Listing.external_id == external_id)
+    elif normalized_url:
+        query = query.filter(Listing.normalized_url == normalized_url)
+    else:
+        return None
+
+    return query.order_by(Listing.id.desc()).first()
+
+
 @api_bp.route("/listings", methods=["POST"])
 def create_listing():
     if not check_api_key():
@@ -204,4 +220,45 @@ def create_listing():
     except Exception as error:
         db.session.rollback()
         current_app.logger.exception("Failed to insert incoming listing")
+        return api_response("server_error", 500, message=str(error))
+
+
+@api_bp.route("/listings/status", methods=["POST"])
+def update_listing_status():
+    if not check_api_key():
+        return api_response("unauthorized", 401, message="Invalid API key.")
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return api_response("validation_error", 400, message="Invalid JSON payload.")
+
+    status = str(pick_first(payload, "available_status", "status", default="")).strip().lower()
+    if not status:
+        return api_response("validation_error", 400, message="Missing fields: available_status")
+
+    try:
+        listing = find_listing_for_status_update(payload)
+        if not listing:
+            return api_response("not_found", 404, message="Listing not found.")
+
+        old_status = (listing.available_status or "").strip().lower()
+        listing.available_status = status
+        if payload.get("source_published_at"):
+            listing.source_published_at = parse_datetime(payload.get("source_published_at"), fallback=listing.source_published_at)
+        if payload.get("detected_at"):
+            listing.detected_at = parse_datetime(payload.get("detected_at"), fallback=listing.detected_at)
+
+        db.session.commit()
+        if old_status != status:
+            invalidate("feed:")
+
+        return api_response(
+            "updated",
+            200,
+            id=listing.id,
+            available_status=listing.available_status,
+        )
+    except Exception as error:
+        db.session.rollback()
+        current_app.logger.exception("Failed to update listing availability")
         return api_response("server_error", 500, message=str(error))

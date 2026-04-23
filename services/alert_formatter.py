@@ -34,6 +34,41 @@ CARD_CODE_PATTERNS = [
 ]
 
 GENERIC_FALLBACK = "Premium Pokemon card spotted"
+GONE_ALERT_VARIANTS = (
+    (
+        "⚠️ GONE ALERT",
+        [
+            "📦 {title}",
+            "🛒 {platform}",
+            "💰 Last seen at {price}",
+            "🕒 Went unavailable {time}",
+            "",
+            "This one disappeared fast.",
+        ],
+    ),
+    (
+        "⚠️ GONE ALERT",
+        [
+            "📦 {title}",
+            "💰 {price}",
+            "🕒 No longer available {time}",
+            "📍 {platform}",
+            "",
+            "A clean FOMO signal from the live stream.",
+        ],
+    ),
+    (
+        "⚠️ GONE ALERT",
+        [
+            "📦 {title}",
+            "🛒 {platform}",
+            "💰 Last seen at {price}",
+            "🕒 Gone {time}",
+            "",
+            "That one moved quickly.",
+        ],
+    ),
+)
 
 
 def _clean_text(value: str) -> str:
@@ -244,12 +279,37 @@ def format_free_alert_text(deal: dict) -> str:
         "Real-time listing",
         "",
         title,
-        listing_price,
+        f"Listing Price: {listing_price}",
     ]
 
     if direct_link:
         body_lines.extend(["", direct_link])
 
     return "\n".join(body_lines)
+
+
+def format_free_gone_alert_text(deal: dict, *, variant: int = 0) -> str:
+    title = _clean_text(deal.get("title") or deal.get("full_name") or deal.get("partial_title") or "")
+    if not title:
+        title = GENERIC_FALLBACK
+
+    platform = _pretty_platform(deal.get("platform") or deal.get("marketplace"))
+    price = deal.get("listing_price_text") or _format_eur(deal.get("listing_price"))
+    relative_label = _relative_time(deal.get("unavailable_at") or deal.get("updated_at") or deal.get("detected_at"))
+    variant_index = variant % len(GONE_ALERT_VARIANTS)
+    headline, lines = GONE_ALERT_VARIANTS[variant_index]
+
+    rendered = [headline]
+    for line in lines:
+        rendered.append(
+            line.format(
+                title=title,
+                platform=platform,
+                price=price,
+                time=relative_label,
+            )
+        )
+
+    return "\n".join(rendered)
 def prepare_free_preview_image(image_path: str) -> str:
     return image_path

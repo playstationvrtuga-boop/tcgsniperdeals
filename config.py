@@ -48,6 +48,10 @@ APP_API_URL = _get_setting(
     "APP_API_URL",
     f"{str(_get_setting('SITE_URL', 'http://127.0.0.1:5000')).rstrip('/')}/api/listings",
 )
+APP_API_STATUS_URL = _get_setting(
+    "APP_API_STATUS_URL",
+    f"{str(_get_setting('SITE_URL', 'http://127.0.0.1:5000')).rstrip('/')}/api/listings/status",
+)
 BOT_API_KEY = os.environ.get("BOT_API_KEY") or LOCAL_ENV.get("BOT_API_KEY", "")
 APP_API_KEY = BOT_API_KEY or os.environ.get("APP_API_KEY") or LOCAL_ENV.get("APP_API_KEY", "")
 APP_API_TIMEOUT = float(_get_setting("APP_API_TIMEOUT", "8"))
@@ -75,3 +79,13 @@ FREE_CTA_APP_LINK = _get_setting(
     "FREE_CTA_APP_LINK",
     _get_setting("MOBILE_APP_URL", _get_setting("SITE_URL", "")),
 )
+ENABLE_FREE_GONE_ALERTS = _get_flag("ENABLE_FREE_GONE_ALERTS", default=False)
+FREE_GONE_MIN_PER_DAY = int(_get_setting("FREE_GONE_MIN_PER_DAY", "3"))
+FREE_GONE_MAX_PER_DAY = int(_get_setting("FREE_GONE_MAX_PER_DAY", "5"))
+FREE_GONE_WINDOWS = _get_setting(
+    "FREE_GONE_WINDOWS",
+    "10:00-13:00,15:00-19:00,20:00-23:00",
+)
+FREE_GONE_WORKER_INTERVAL_MINUTES = int(_get_setting("FREE_GONE_WORKER_INTERVAL_MINUTES", "10"))
+FREE_GONE_MAX_AGE_HOURS = int(_get_setting("FREE_GONE_MAX_AGE_HOURS", "48"))
+FREE_GONE_PREFERRED_AGE_HOURS = int(_get_setting("FREE_GONE_PREFERRED_AGE_HOURS", "24"))

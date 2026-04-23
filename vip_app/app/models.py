@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from hashlib import sha1
+import json
 
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -242,3 +243,55 @@ class PushSubscription(TimestampMixin, db.Model):
     user_agent = db.Column(db.String(255))
 
     user = db.relationship("User", back_populates="push_subscriptions")
+
+
+class FreeGoneAlertState(TimestampMixin, db.Model):
+    __tablename__ = "free_gone_alert_state"
+
+    id = db.Column(db.Integer, primary_key=True)
+    state_date = db.Column(db.Date, nullable=False, unique=True, index=True)
+    daily_target_count = db.Column(db.Integer, nullable=False, default=0)
+    daily_posted_count = db.Column(db.Integer, nullable=False, default=0)
+    window_plan_json = db.Column(db.Text, nullable=False, default="{}")
+    window_posted_json = db.Column(db.Text, nullable=False, default="{}")
+    window_schedule_json = db.Column(db.Text, nullable=False, default="{}")
+    used_listing_ids_json = db.Column(db.Text, nullable=False, default="[]")
+    last_posted_at = db.Column(db.DateTime(timezone=True))
+    next_post_at = db.Column(db.DateTime(timezone=True))
+
+    def window_plan(self) -> dict:
+        try:
+            return json.loads(self.window_plan_json or "{}")
+        except Exception:
+            return {}
+
+    def window_posted(self) -> dict:
+        try:
+            return json.loads(self.window_posted_json or "{}")
+        except Exception:
+            return {}
+
+    def window_schedule(self) -> dict:
+        try:
+            return json.loads(self.window_schedule_json or "{}")
+        except Exception:
+            return {}
+
+    def used_listing_ids(self) -> list[int]:
+        try:
+            values = json.loads(self.used_listing_ids_json or "[]")
+            return [int(value) for value in values]
+        except Exception:
+            return []
+
+    def set_window_plan(self, value: dict) -> None:
+        self.window_plan_json = json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+    def set_window_posted(self, value: dict) -> None:
+        self.window_posted_json = json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+    def set_window_schedule(self, value: dict) -> None:
+        self.window_schedule_json = json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+    def set_used_listing_ids(self, values: list[int]) -> None:
+        self.used_listing_ids_json = json.dumps(sorted({int(value) for value in values}), ensure_ascii=False)

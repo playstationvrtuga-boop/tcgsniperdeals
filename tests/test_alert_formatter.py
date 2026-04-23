@@ -42,8 +42,8 @@ class AlertFormatterTests(unittest.TestCase):
             }
         )
         self.assertNotIn("http", text.lower())
-        self.assertIn("VIP APP", text)
-        self.assertNotIn("TG17/TG30", text)
+        self.assertIn("Listing Price", text)
+        self.assertIn("Pikachu VMAX", text)
 
     def test_free_alert_is_english_only_for_main_labels(self):
         text = format_free_alert_text(
@@ -57,7 +57,7 @@ class AlertFormatterTests(unittest.TestCase):
         )
         self.assertNotIn("Produto", text)
         self.assertNotIn("Preco", text)
-        self.assertIn("Listing Price", text)
+        self.assertIn("Real-time listing", text)
 
 
 if __name__ == "__main__":

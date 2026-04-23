@@ -13,6 +13,9 @@ There is now also a lightweight pricing layer for production testing:
 3. Pricing worker  
    Path: `C:\Users\Trabalho\Desktop\bot_pokemon\pricing_worker.py`
 
+4. Gone-alert worker for FREE Telegram FOMO posts  
+   Path: `C:\Users\Trabalho\Desktop\bot_pokemon\gone_alert_worker.py`
+
 The bot now sends accepted listings into the VIP app automatically through:
 
 `POST /api/listings`
@@ -89,6 +92,38 @@ When the bot accepts a valid listing, the flow is now:
 `validated listing -> app API -> app database -> VIP feed`
 
 Telegram sending is still separate and optional.
+
+## 3.3 Run the gone-alert worker
+
+This worker only posts real listings that were previously detected and later became unavailable.
+
+Run continuously:
+
+```powershell
+python gone_alert_worker.py
+```
+
+Run one cycle:
+
+```powershell
+python gone_alert_worker.py --once
+```
+
+The gone-alert worker is lightweight:
+
+- no browser automation
+- no scraping
+- only database queries
+- one post at a time
+- state persists per day in the database
+
+It uses these default windows:
+
+- 10:00-13:00
+- 15:00-19:00
+- 20:00-23:00
+
+It randomly picks a small daily target and spreads that target across the allowed windows.
 
 ## 3.1 Online production flow (Render)
 
@@ -239,6 +274,7 @@ Supported incoming payload fields:
 - `detected_at`
 - `source_published_at`
 - `available_status`
+- `status` updates can also be posted to `/api/listings/status`
 
 Duplicates are handled safely.
 
@@ -254,6 +290,16 @@ Responses:
 - `validation_error`
 - `unauthorized`
 - `server_error`
+
+## 8. Gone-alert status sync
+
+The bot can now report when a tracked listing becomes unavailable, so the app database keeps the gone-alert pool fresh.
+
+Status updates are sent to:
+
+`POST /api/listings/status`
+
+This lets the FREE gone-alert worker find real previously detected listings that are now unavailable.
 
 ## 7. What still remains manual
 
