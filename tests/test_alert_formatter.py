@@ -38,12 +38,14 @@ class AlertFormatterTests(unittest.TestCase):
                 "listing_price_text": "12.00 EUR",
                 "market_price": 25,
                 "discount_percent": 52,
+                "share_link": "https://example.com/share/123",
                 "free_message_variant": "full",
             }
         )
-        self.assertNotIn("http", text.lower())
+        self.assertIn("https://example.com/share/123", text)
         self.assertIn("Listing Price", text)
         self.assertIn("Pikachu VMAX", text)
+        self.assertNotIn("vinted.pt/items", text.lower())
 
     def test_free_alert_is_english_only_for_main_labels(self):
         text = format_free_alert_text(

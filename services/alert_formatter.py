@@ -269,7 +269,13 @@ def format_free_alert_text(deal: dict) -> str:
 
     platform = _pretty_platform(deal.get("platform") or deal.get("marketplace"))
     listing_price = deal.get("listing_price_text") or _format_eur(deal.get("listing_price"))
-    direct_link = _clean_text(deal.get("direct_link") or deal.get("url") or "")
+    direct_link = _clean_text(
+        deal.get("share_link")
+        or deal.get("public_link")
+        or deal.get("direct_link")
+        or deal.get("url")
+        or ""
+    )
     tcg_label = _clean_text(deal.get("tcg_label") or deal.get("tcg_type") or "Pokemon TCG")
 
     body_lines = [

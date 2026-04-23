@@ -16,6 +16,7 @@ from config import (
 )
 from services.alert_formatter import classify_deal_level, format_free_alert_text, format_vip_alert, make_partial_product_name
 from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
+from services.public_links import build_free_public_listing_url
 from services.deal_detector import EbaySoldError, EbaySoldRateLimitError, evaluate_listing
 from services.telegram_alerts import send_free_alert
 from vip_app.app import create_app
@@ -161,6 +162,7 @@ def _build_free_payload(listing: Listing) -> dict:
         "score": listing.pricing_score,
         "detected_at": (listing.detected_at or utcnow()).isoformat(),
         "free_message_variant": listing.free_message_variant or "full",
+        "share_link": build_free_public_listing_url(listing.id),
         "direct_link": listing.external_url,
     }
 

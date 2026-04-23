@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Shared Listing - TCG Sniper Deals{% endblock %}
+{% block content %}
+<a class="ghost-link back-link" href="{{ url_for('main.index') }}">Back</a>
+
+<section class="detail-card">
+  <div class="detail-image-wrap">
+    {% if listing.image_url %}
+    <img src="{{ listing.image_url }}" alt="{{ listing.title }}" class="detail-image">
+    {% else %}
+    <div class="listing-image placeholder detail-image-placeholder">No image</div>
+    {% endif %}
+  </div>
+  <div class="detail-content">
+    <div class="listing-meta">
+      <span class="badge badge-platform badge-platform-{{ listing.platform|lower|replace(' ', '-') }}">{{ listing.platform }}</span>
+      <span class="badge badge-score badge-{{ listing.display_badge|lower|replace(' ', '-') }}">{{ listing.display_badge }}</span>
+      <span class="badge">{{ listing.display_confidence }}</span>
+    </div>
+
+    <p class="listing-kicker">Shared live snapshot</p>
+    <h1>{{ listing.title }}</h1>
+    <p class="listing-marketplace listing-marketplace-{{ listing.platform|lower|replace(' ', '-') }}">
+      <span class="market-dot" aria-hidden="true"></span>
+      <span>Marketplace: {{ listing.platform }}</span>
+    </p>
+
+    <div class="detail-price-row">
+      <p class="detail-price">{{ listing.price_display }}</p>
+      <span class="detail-urgency">{{ listing.feed_timestamp|relative_time }}</span>
+    </div>
+
+    <div class="detail-meta-grid">
+      <div class="meta-tile">
+        <span class="label">Detected</span>
+        <strong>{{ listing.feed_timestamp|datetime_format }}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Platform</span>
+        <strong>{{ listing.platform }}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Signal</span>
+        <strong>{{ listing.display_badge }}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Status</span>
+        <strong>{{ listing.available_status|default("available")|replace("_", " ")|title }}</strong>
+      </div>
+    </div>
+
+    <section class="detail-insight-block">
+      <h2>Snapshot note</h2>
+      <p>This page mirrors the deal the moment it was captured, so the link stays usable even if the original marketplace page has already changed.</p>
+      <ul class="detail-insight-list">
+        <li>Use this page to review the deal snapshot first.</li>
+        <li>The original marketplace link is still available below when it is live.</li>
+      </ul>
+    </section>
+
+    <div class="listing-actions detail-actions">
+      {% if source_url %}
+      <a class="primary-button" href="{{ source_url }}" target="_blank" rel="noopener">Open original source</a>
+      {% endif %}
+      <a class="ghost-button" href="{{ public_url }}" target="_blank" rel="noopener">Open share page</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

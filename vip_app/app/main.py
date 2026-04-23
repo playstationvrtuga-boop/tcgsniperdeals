@@ -472,6 +472,20 @@ def listing_detail(listing_id):
     return render_template("listing_detail.html", listing=listing, favorite=favorite, push_enabled=push_enabled())
 
 
+@main_bp.route("/share/<int:listing_id>")
+def share_listing(listing_id):
+    listing = db.session.get(Listing, listing_id)
+    if not listing:
+        return redirect(url_for("main.index"))
+
+    return render_template(
+        "listing_share.html",
+        listing=listing,
+        source_url=listing.external_url,
+        public_url=url_for("main.share_listing", listing_id=listing.id, _external=True),
+    )
+
+
 @main_bp.route("/favorites", methods=["GET"])
 @vip_required
 def favorites():

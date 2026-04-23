@@ -52,6 +52,7 @@ APP_API_STATUS_URL = _get_setting(
     "APP_API_STATUS_URL",
     f"{str(_get_setting('SITE_URL', 'http://127.0.0.1:5000')).rstrip('/')}/api/listings/status",
 )
+SITE_URL = _get_setting("SITE_URL", "http://127.0.0.1:5000")
 BOT_API_KEY = os.environ.get("BOT_API_KEY") or LOCAL_ENV.get("BOT_API_KEY", "")
 APP_API_KEY = BOT_API_KEY or os.environ.get("APP_API_KEY") or LOCAL_ENV.get("APP_API_KEY", "")
 APP_API_TIMEOUT = float(_get_setting("APP_API_TIMEOUT", "8"))

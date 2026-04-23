@@ -18,6 +18,7 @@ from core.normalizer import normalize_text
 from core.scoring import ListingAssessment, assess_listing, is_priority
 from services.alert_formatter import make_partial_product_name
 from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
+from services.public_links import build_free_public_listing_url
 from urllib.parse import quote_plus, urljoin
 import requests
 import os
@@ -570,14 +571,16 @@ def cache_entry_fresh(updated_at, max_age_hours):
 
 
 def compactar_anuncio_para_fila_free(anuncio):
+    anuncio_id = anuncio.get("id")
     compacto = {
-        "id": anuncio.get("id"),
+        "id": anuncio_id,
         "source": anuncio.get("source"),
         "origem": anuncio.get("origem"),
         "tcg_type": anuncio.get("tcg_type"),
         "titulo": anuncio.get("titulo"),
         "preco": anuncio.get("preco"),
-        "link": anuncio.get("link"),
+        "link": build_free_public_listing_url(anuncio_id),
+        "share_link": build_free_public_listing_url(anuncio_id),
         "seller_feedback": anuncio.get("seller_feedback"),
     }
 
@@ -605,6 +608,7 @@ def cleanup_fila_free(fila):
         item["anuncio"] = compactar_anuncio_para_fila_free(anuncio)
         item["detected_at"] = item.get("detected_at") or item.get("anuncio", {}).get("detected_at") or now_iso()
         item["eligible_at"] = item.get("eligible_at") or item.get("enviar_em")
+        item["share_link"] = item.get("share_link") or build_free_public_listing_url(item.get("id"))
 
         detected_dt = parse_iso_or_none(item.get("detected_at"))
         if detected_dt and detected_dt < cutoff:
@@ -2448,7 +2452,8 @@ def enfileirar_anuncio_free(anuncio):
         "score_label": score_label,
         "platform": anuncio.get("source"),
         "tcg_type": anuncio.get("tcg_type"),
-        "url": anuncio.get("link"),
+        "url": build_free_public_listing_url(anuncio_id),
+        "share_link": build_free_public_listing_url(anuncio_id),
         "anuncio": compactar_anuncio_para_fila_free(anuncio),
     })
     fila.sort(key=free_queue_sort_key)
@@ -4190,7 +4195,7 @@ def build_message(anuncio, canal="vip"):
         mensagem += f"\n{linha_ebay_sold}"
 
     mensagem += (
-        f"\n\n{anuncio['link']}\n\n"
+        f"\n\n{(anuncio.get('share_link') or anuncio.get('link') or '')}\n\n"
         f"-----------------------\n"
         f"Pokemon Sniper Deals\n"
         f"-----------------------"
