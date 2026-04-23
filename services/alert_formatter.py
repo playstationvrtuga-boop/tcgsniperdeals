@@ -234,33 +234,22 @@ def format_free_alert_text(deal: dict) -> str:
 
     platform = _pretty_platform(deal.get("platform") or deal.get("marketplace"))
     listing_price = deal.get("listing_price_text") or _format_eur(deal.get("listing_price"))
-    market_price = deal.get("market_price_text") or _format_eur(deal.get("market_price"))
-    discount_percent = round(_coerce_float(deal.get("discount_percent")) or 0.0, 1)
-    potential_profit = round(_coerce_float(deal.get("potential_profit")) or 0.0, 2)
-    score = int(round(_coerce_float(deal.get("score")) or 0))
-    relative_time = _relative_time(deal.get("detected_at"))
     direct_link = _clean_text(deal.get("direct_link") or deal.get("url") or "")
-    variant = (deal.get("free_message_variant") or "full").strip().lower()
+    tcg_label = _clean_text(deal.get("tcg_label") or deal.get("tcg_type") or "Pokemon TCG")
 
-    header = "🚨 DEAL ALERT" if variant == "short" else "🚨 DEAL DETECTED"
     body_lines = [
-        header,
+        tcg_label,
+        platform,
+        "VIP listing",
+        "Real-time listing",
         "",
-        f"📦 {title}",
-        f"🛒 Platform: {platform}",
-        f"💰 Listing price: {listing_price}",
-        f"📊 Market price: {market_price}",
-        f"📉 Discount: -{discount_percent:.1f}%",
-        f"💵 Potential profit: +{potential_profit:.2f} EUR",
-        f"⭐ Score: {score}/100",
-        f"⏱ Detected {relative_time}",
+        f"{title}",
+        f"{listing_price}",
     ]
 
     if direct_link:
-        body_lines.extend(["", f"🔗 {direct_link}"])
+        body_lines.extend(["", direct_link])
 
     return "\n".join(body_lines)
-
-
 def prepare_free_preview_image(image_path: str) -> str:
     return image_path

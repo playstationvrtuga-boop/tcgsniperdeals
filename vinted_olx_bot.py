@@ -2414,7 +2414,7 @@ def enviar_anuncio_telegram(anuncio, chat_id, canal):
     mensagem = build_message(anuncio, canal)
     print(mensagem)
 
-    usar_imagem = bool(anuncio.get("imagem")) and canal == "vip"
+    usar_imagem = bool(anuncio.get("imagem")) and canal in {"vip", "free"}
 
     if usar_imagem:
         enviado = enviar_foto_telegram(anuncio["imagem"], mensagem, chat_id)
@@ -4077,44 +4077,21 @@ def build_message(anuncio, canal="vip"):
         return anuncio["free_message_text"]
 
     tcg_label = get_tcg_label(anuncio.get("tcg_type"))
-    linha_feedback = format_feedback_line(anuncio.get("seller_feedback"), anuncio.get("source"))
     linha_ebay_sold = linha_ebay_sold_alerta(anuncio.get("ebay_sold")) if canal == "vip" else ""
+    linha_feedback = format_feedback_line(anuncio.get("seller_feedback"), anuncio.get("source"))
 
     if canal == "free":
-        titulo = anuncio.get("titulo") or anuncio.get("partial_title") or make_partial_product_name(anuncio.get("titulo", ""))
-        origem = anuncio.get("origem") or get_tcg_label(anuncio.get("tcg_type"))
-        mensagem = (
-            f"{tcg_label}\n"
-            f"{origem}\n"
-            f"FREE listing\n"
-            f"Delayed delivery\n\n"
-            f"Title: {titulo}\n"
-            f"Price: {formatar_preco_com_eur(anuncio.get('preco', 'Unknown'))}"
-        )
-
-        if linha_feedback:
-            mensagem += f"\n{linha_feedback}"
-
-        if anuncio.get("ebay_sold") and ENABLE_EBAY_SOLD_REFERENCES:
-            mensagem += f"\n{linha_ebay_sold_alerta(anuncio.get('ebay_sold'))}"
-
-        mensagem += (
-            f"\n\nLink: {anuncio['link']}\n\n"
-            f"-----------------\n"
-            f"Pokemon Sniper Deals\n"
-            f"-----------------"
-        )
-        return mensagem
-
-    if canal == "vip":
-        header = "?? VIP listing"
-        linha_tempo = "? Real-time listing"
+        header = "VIP listing"
+        linha_tempo = "Real-time listing"
+    elif canal == "vip":
+        header = "VIP listing"
+        linha_tempo = "Real-time listing"
     else:
-        header = "?? SHARED OPPORTUNITY"
+        header = "SHARED OPPORTUNITY"
         linha_tempo = random.choice([
-            "? Detected earlier",
-            "?? It may no longer be available",
-            "?? Sent to VIP first",
+            "Detected earlier",
+            "It may no longer be available",
+            "Sent to VIP first",
         ])
 
     mensagem = (
@@ -4122,8 +4099,8 @@ def build_message(anuncio, canal="vip"):
         f"{anuncio['origem']}\n"
         f"{header}\n"
         f"{linha_tempo}\n\n"
-        f"?? {anuncio['titulo']}\n"
-        f"?? {formatar_preco_com_eur(anuncio['preco'])}"
+        f"{anuncio['titulo']}\n"
+        f"{formatar_preco_com_eur(anuncio['preco'])}"
     )
 
     if linha_feedback:
@@ -4133,14 +4110,13 @@ def build_message(anuncio, canal="vip"):
         mensagem += f"\n{linha_ebay_sold}"
 
     mensagem += (
-        f"\n\n?? {anuncio['link']}\n\n"
-        f"???????????????\n"
-        f"?? Pokemon Sniper Deals\n"
-        f"???????????????"
+        f"\n\n{anuncio['link']}\n\n"
+        f"-----------------------\n"
+        f"Pokemon Sniper Deals\n"
+        f"-----------------------"
     )
 
     return mensagem
-
 def obter_vinted_links(page):
     links = []
     for search_url in VINTED_SEARCH_URLS:
