@@ -4076,31 +4076,45 @@ def build_message(anuncio, canal="vip"):
     if canal == "free" and anuncio.get("free_message_text"):
         return anuncio["free_message_text"]
 
+    tcg_label = get_tcg_label(anuncio.get("tcg_type"))
+    linha_feedback = format_feedback_line(anuncio.get("seller_feedback"), anuncio.get("source"))
+    linha_ebay_sold = linha_ebay_sold_alerta(anuncio.get("ebay_sold")) if canal == "vip" else ""
+
     if canal == "free":
-        partial_name = anuncio.get("partial_title") or make_partial_product_name(anuncio.get("titulo", ""))
-        return (
-            "🚨 DEAL ALERT\n\n"
-            f"📦 {partial_name}\n"
-            f"💰 {formatar_preco_com_eur(anuncio.get('preco', 'Unknown'))}\n\n"
-            "⏳ You are seeing this with delay.\n"
-            "VIP users got the full alert in real time.\n\n"
-            "🔒 Direct link and full details are only inside the VIP APP.\n\n"
-            "➡️ Join VIP to get deals before everyone else"
+        titulo = anuncio.get("titulo") or anuncio.get("partial_title") or make_partial_product_name(anuncio.get("titulo", ""))
+        origem = anuncio.get("origem") or get_tcg_label(anuncio.get("tcg_type"))
+        mensagem = (
+            f"{tcg_label}\n"
+            f"{origem}\n"
+            f"FREE listing\n"
+            f"Delayed delivery\n\n"
+            f"Title: {titulo}\n"
+            f"Price: {formatar_preco_com_eur(anuncio.get('preco', 'Unknown'))}"
         )
 
-    tcg_label = get_tcg_label(anuncio.get("tcg_type"))
-    linha_ebay_sold = linha_ebay_sold_alerta(anuncio.get("ebay_sold")) if canal == "vip" else ""
-    linha_feedback = format_feedback_line(anuncio.get("seller_feedback"), anuncio.get("source"))
+        if linha_feedback:
+            mensagem += f"\n{linha_feedback}"
+
+        if anuncio.get("ebay_sold") and ENABLE_EBAY_SOLD_REFERENCES:
+            mensagem += f"\n{linha_ebay_sold_alerta(anuncio.get('ebay_sold'))}"
+
+        mensagem += (
+            f"\n\nLink: {anuncio['link']}\n\n"
+            f"-----------------\n"
+            f"Pokemon Sniper Deals\n"
+            f"-----------------"
+        )
+        return mensagem
 
     if canal == "vip":
-        header = "📍 VIP listing"
-        linha_tempo = "⏱ Real-time listing"
+        header = "?? VIP listing"
+        linha_tempo = "? Real-time listing"
     else:
-        header = "📣 SHARED OPPORTUNITY"
+        header = "?? SHARED OPPORTUNITY"
         linha_tempo = random.choice([
-            "⏳ Detected earlier",
-            "⚠️ It may no longer be available",
-            "🔥 Sent to VIP first",
+            "? Detected earlier",
+            "?? It may no longer be available",
+            "?? Sent to VIP first",
         ])
 
     mensagem = (
@@ -4108,8 +4122,8 @@ def build_message(anuncio, canal="vip"):
         f"{anuncio['origem']}\n"
         f"{header}\n"
         f"{linha_tempo}\n\n"
-        f"📌 {anuncio['titulo']}\n"
-        f"💰 {formatar_preco_com_eur(anuncio['preco'])}"
+        f"?? {anuncio['titulo']}\n"
+        f"?? {formatar_preco_com_eur(anuncio['preco'])}"
     )
 
     if linha_feedback:
@@ -4119,10 +4133,10 @@ def build_message(anuncio, canal="vip"):
         mensagem += f"\n{linha_ebay_sold}"
 
     mensagem += (
-        f"\n\n🔗 {anuncio['link']}\n\n"
-        f"━━━━━━━━━━━━━━━\n"
-        f"🎯 Pokemon Sniper Deals\n"
-        f"━━━━━━━━━━━━━━━"
+        f"\n\n?? {anuncio['link']}\n\n"
+        f"???????????????\n"
+        f"?? Pokemon Sniper Deals\n"
+        f"???????????????"
     )
 
     return mensagem

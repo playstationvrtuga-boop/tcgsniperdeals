@@ -154,11 +154,13 @@ def _build_free_payload(listing: Listing) -> dict:
         "listing_price": listing.price_display,
         "listing_price_text": listing.price_display,
         "market_price": listing.reference_price,
+        "market_price_text": f"{listing.reference_price:.2f} EUR" if listing.reference_price is not None else None,
         "discount_percent": listing.discount_percent,
         "potential_profit": listing.gross_margin,
         "score": listing.pricing_score,
         "detected_at": (listing.detected_at or utcnow()).isoformat(),
         "free_message_variant": listing.free_message_variant or "full",
+        "direct_link": listing.external_url,
     }
 
 

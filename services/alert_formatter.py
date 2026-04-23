@@ -102,6 +102,18 @@ def _format_eur(value) -> str:
     return f"{number:.2f} EUR"
 
 
+def _pretty_platform(value: str) -> str:
+    text = _clean_text(value)
+    lowered = text.lower()
+    if lowered == "ebay":
+        return "eBay"
+    if lowered == "vinted":
+        return "Vinted"
+    if not text:
+        return "Unknown"
+    return text
+
+
 def classify_deal_level(discount_percent, potential_profit):
     discount = _coerce_float(discount_percent) or 0.0
     profit = _coerce_float(potential_profit) or 0.0
@@ -216,40 +228,38 @@ def format_vip_alert(deal: dict) -> dict:
 
 
 def format_free_alert_text(deal: dict) -> str:
-    partial_name = make_partial_product_name(deal.get("title") or deal.get("full_name") or "")
+    title = _clean_text(deal.get("title") or deal.get("full_name") or deal.get("partial_title") or "")
+    if not title:
+        title = GENERIC_FALLBACK
+
+    platform = _pretty_platform(deal.get("platform") or deal.get("marketplace"))
     listing_price = deal.get("listing_price_text") or _format_eur(deal.get("listing_price"))
-    market_price = _format_eur(deal.get("market_price"))
+    market_price = deal.get("market_price_text") or _format_eur(deal.get("market_price"))
     discount_percent = round(_coerce_float(deal.get("discount_percent")) or 0.0, 1)
+    potential_profit = round(_coerce_float(deal.get("potential_profit")) or 0.0, 2)
+    score = int(round(_coerce_float(deal.get("score")) or 0))
+    relative_time = _relative_time(deal.get("detected_at"))
+    direct_link = _clean_text(deal.get("direct_link") or deal.get("url") or "")
     variant = (deal.get("free_message_variant") or "full").strip().lower()
 
-    if variant == "short":
-        return (
-            "🚨 DEAL ALERT\n\n"
-            f"📦 {partial_name}\n"
-            f"💰 {listing_price} -> ~{market_price}\n"
-            f"📉 -{discount_percent:.1f}%\n\n"
-            "⏳ You're seeing this late.\n"
-            "VIP users got this in real time.\n\n"
-            "🔒 Full access only inside VIP APP.\n\n"
-            "If it's still available, you're lucky.\n\n"
-            "➡️ Join VIP to get deals before everyone else"
-        )
+    header = "🚨 DEAL ALERT" if variant == "short" else "🚨 DEAL DETECTED"
+    body_lines = [
+        header,
+        "",
+        f"📦 {title}",
+        f"🛒 Platform: {platform}",
+        f"💰 Listing price: {listing_price}",
+        f"📊 Market price: {market_price}",
+        f"📉 Discount: -{discount_percent:.1f}%",
+        f"💵 Potential profit: +{potential_profit:.2f} EUR",
+        f"⭐ Score: {score}/100",
+        f"⏱ Detected {relative_time}",
+    ]
 
-    return (
-        "🚨 DEAL DETECTED\n\n"
-        f"📦 Product: {partial_name}\n"
-        f"💰 Listing Price: {listing_price}\n"
-        f"📊 Market (recent eBay): ~{market_price}\n"
-        f"📉 Estimated Difference: -{discount_percent:.1f}%\n\n"
-        "⏳ This deal was sent to VIP users in real time and is shared here with delay.\n\n"
-        "🔒 Direct link and full details are available only inside the VIP APP.\n\n"
-        "📲 VIP users get:\n"
-        "• real-time alerts\n"
-        "• direct listing links\n"
-        "• full deal breakdown\n"
-        "• priority access to the best opportunities\n\n"
-        "➡️ This full deal is available only inside the VIP APP"
-    )
+    if direct_link:
+        body_lines.extend(["", f"🔗 {direct_link}"])
+
+    return "\n".join(body_lines)
 
 
 def prepare_free_preview_image(image_path: str) -> str:
