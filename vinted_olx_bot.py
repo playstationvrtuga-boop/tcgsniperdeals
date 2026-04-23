@@ -9,6 +9,7 @@ from config import (
     APP_API_STATUS_URL,
     BOT_API_KEY,
     APP_API_TIMEOUT,
+    FREE_ALERT_MAX_AGE_MINUTES,
     FREE_ALERT_DELAY_MIN_MINUTES,
     FREE_ALERT_DELAY_MAX_MINUTES,
 )
@@ -590,6 +591,8 @@ def cleanup_fila_free(fila):
     if not isinstance(fila, list):
         return []
 
+    max_age_minutes = max(int(FREE_ALERT_MAX_AGE_MINUTES or 30), 1)
+    cutoff = datetime.now().astimezone() - timedelta(minutes=max_age_minutes)
     itens = []
     for item in fila:
         if not isinstance(item, dict):
@@ -602,6 +605,11 @@ def cleanup_fila_free(fila):
         item["anuncio"] = compactar_anuncio_para_fila_free(anuncio)
         item["detected_at"] = item.get("detected_at") or item.get("anuncio", {}).get("detected_at") or now_iso()
         item["eligible_at"] = item.get("eligible_at") or item.get("enviar_em")
+
+        detected_dt = parse_iso_or_none(item.get("detected_at"))
+        if detected_dt and detected_dt < cutoff:
+            continue
+
         itens.append(item)
 
     if len(itens) > MAX_FREE_QUEUE_ITEMS:
@@ -2423,6 +2431,14 @@ def enfileirar_anuncio_free(anuncio):
     )
     detected_at = anuncio.get("detected_at") or now_iso()
     detected_dt = parse_iso_or_none(detected_at) or datetime.now().astimezone()
+    max_age_minutes = max(int(FREE_ALERT_MAX_AGE_MINUTES or 30), 1)
+    if detected_dt < datetime.now().astimezone() - timedelta(minutes=max_age_minutes):
+        print(
+            f"[free_queue] stale skipped id={anuncio_id} "
+            f"detected_at={detected_dt.isoformat(timespec='seconds')} "
+            f"max_age={max_age_minutes}m"
+        )
+        return
     eligible_at = (detected_dt + timedelta(minutes=atraso_minutos)).isoformat(timespec="seconds")
 
     fila.append({
@@ -2518,11 +2534,20 @@ def processar_fila_free():
         return
 
     agora = datetime.now().astimezone()
+    max_age_minutes = max(int(FREE_ALERT_MAX_AGE_MINUTES or 30), 1)
     pendentes = []
     elegiveis = []
 
     for item in fila:
         eligible_at = parse_iso_or_none(item.get("eligible_at") or item.get("enviar_em"))
+        detected_dt = parse_iso_or_none(item.get("detected_at"))
+        if detected_dt and detected_dt < agora - timedelta(minutes=max_age_minutes):
+            print(
+                f"[free_queue] stale dropped id={item.get('id') or item.get('listing_id') or 'unknown'} "
+                f"detected_at={detected_dt.isoformat(timespec='seconds')} "
+                f"max_age={max_age_minutes}m"
+            )
+            continue
         if not eligible_at:
             pendentes.append(item)
             continue
