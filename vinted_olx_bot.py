@@ -2370,7 +2370,14 @@ def enfileirar_anuncio_free(anuncio):
     )
     detected_at = anuncio.get("detected_at") or now_iso()
     detected_dt = parse_iso_or_none(detected_at) or datetime.now().astimezone()
-    eligible_at = (detected_dt + timedelta(minutes=atraso_minutos)).isoformat(timespec="seconds")
+    now_dt = datetime.now().astimezone()
+    last_queue_dt = None
+    if fila:
+        last_item = max(fila, key=free_queue_sort_key)
+        last_queue_dt = parse_iso_or_none(last_item.get("eligible_at") or last_item.get("enviar_em"))
+
+    base_dt = max(dt for dt in (detected_dt, now_dt, last_queue_dt) if dt is not None)
+    eligible_at = (base_dt + timedelta(minutes=atraso_minutos)).isoformat(timespec="seconds")
 
     fila.append({
         "id": anuncio_id,
