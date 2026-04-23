@@ -4166,8 +4166,8 @@ def build_message(anuncio, canal="vip"):
     linha_feedback = format_feedback_line(anuncio.get("seller_feedback"), anuncio.get("source"))
 
     if canal == "free":
-        header = "VIP listing"
-        linha_tempo = "Real-time listing"
+        header = ""
+        linha_tempo = ""
     elif canal == "vip":
         header = "VIP listing"
         linha_tempo = "Real-time listing"
@@ -4182,8 +4182,8 @@ def build_message(anuncio, canal="vip"):
     mensagem = (
         f"{tcg_label}\n"
         f"{anuncio['origem']}\n"
-        f"{header}\n"
-        f"{linha_tempo}\n\n"
+        f"{(header + chr(10) if header else '')}"
+        f"{(linha_tempo + chr(10) if linha_tempo else '')}\n"
         f"{anuncio['titulo']}\n"
         f"{formatar_preco_com_eur(anuncio['preco'])}"
     )

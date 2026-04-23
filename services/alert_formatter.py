@@ -281,8 +281,6 @@ def format_free_alert_text(deal: dict) -> str:
     body_lines = [
         tcg_label,
         platform,
-        "VIP listing",
-        "Real-time listing",
         "",
         title,
         f"Listing Price: {listing_price}",
