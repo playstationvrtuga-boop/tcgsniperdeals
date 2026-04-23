@@ -477,8 +477,7 @@ function initLiveFeed() {
 
   let latestDetectedAt = feedRoot.dataset.feedCursorDetectedAt || "";
   let latestId = Number(feedRoot.dataset.feedCursorId || 0);
-  let pendingItems = [];
-  let pendingIds = new Set();
+  let unseenCount = 0;
   let timer = null;
   let inFlight = false;
 
@@ -513,6 +512,7 @@ function initLiveFeed() {
   function setBannerCount(count) {
     if (!banner || !bannerCopy || !bannerButton) return;
     if (!count) {
+      unseenCount = 0;
       banner.classList.add("is-hidden");
       banner.hidden = true;
       return;
@@ -521,25 +521,13 @@ function initLiveFeed() {
     banner.hidden = false;
     banner.classList.remove("is-hidden");
     bannerCopy.textContent = count === 1 ? "1 new deal ready" : `${count} new deals ready`;
-    bannerButton.textContent = count === 1 ? "See now" : "See now";
+    bannerButton.textContent = count === 1 ? "Jump to latest" : "Jump to latest";
   }
 
-  function queueItems(items) {
-    const nextItems = [];
-    for (const item of items) {
-      const itemId = Number(item?.id || 0);
-      if (!itemId || seenIds.has(itemId) || pendingIds.has(itemId)) continue;
-      nextItems.push(item);
-      pendingIds.add(itemId);
-    }
-
-    if (!nextItems.length) return;
-    pendingItems.push(...nextItems);
-    setBannerCount(pendingItems.length);
-  }
-
-  function insertItems(items) {
+  function insertItems(items, preserveScroll = false) {
     if (!items.length) return;
+    let totalHeight = 0;
+    let insertedCount = 0;
 
     for (const item of [...items].reverse()) {
       const node = htmlToElement(item.html);
@@ -551,17 +539,16 @@ function initLiveFeed() {
       }
       seenIds.add(itemId);
       feedRoot.insertBefore(node, feedRoot.firstChild);
+      insertedCount += 1;
+      if (preserveScroll) {
+        totalHeight += node.getBoundingClientRect().height || 0;
+      }
     }
     updateRelativeTimeLabels(feedRoot);
-  }
-
-  function flushPending() {
-    if (!pendingItems.length) return;
-    const items = pendingItems;
-    pendingItems = [];
-    pendingIds = new Set();
-    setBannerCount(0);
-    insertItems(items);
+    if (preserveScroll && totalHeight > 0) {
+      window.scrollBy({ top: totalHeight, left: 0, behavior: "auto" });
+    }
+    return insertedCount;
   }
 
   function isNearTop() {
@@ -603,11 +590,16 @@ function initLiveFeed() {
       const items = Array.isArray(data.items) ? data.items : [];
       if (items.length) {
         playArrivalFeedback(items);
-        if (isNearTop()) {
-          window.setTimeout(() => insertItems(items), cardAnimationsEnabled ? 140 : 0);
-        } else {
-          queueItems(items);
-        }
+        const preserveScroll = !isNearTop();
+        window.setTimeout(() => {
+          const insertedCount = insertItems(items, preserveScroll);
+          if (insertedCount && preserveScroll) {
+            unseenCount += insertedCount;
+            setBannerCount(unseenCount);
+          } else if (!preserveScroll) {
+            setBannerCount(0);
+          }
+        }, cardAnimationsEnabled ? 140 : 0);
       }
     } catch (error) {
       console.debug("Live feed poll skipped:", error);
@@ -618,8 +610,8 @@ function initLiveFeed() {
   }
 
   bannerButton?.addEventListener("click", () => {
-    if (pendingItems.length) flushPending();
     window.scrollTo({ top: 0, behavior: "smooth" });
+    setBannerCount(0);
   });
 
   let scrollThrottle = null;
@@ -629,9 +621,7 @@ function initLiveFeed() {
       if (scrollThrottle) return;
       scrollThrottle = window.setTimeout(() => {
         scrollThrottle = null;
-        if (pendingItems.length && isNearTop()) {
-          flushPending();
-        }
+        if (isNearTop()) setBannerCount(0);
       }, 120);
     },
     { passive: true }
