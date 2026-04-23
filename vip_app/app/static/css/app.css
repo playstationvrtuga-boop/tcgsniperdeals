@@ -188,6 +188,38 @@ select { font: inherit; }
   line-height: 1.02;
 }
 
+.auth-shell {
+  display: grid;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.auth-card-login {
+  padding: 24px;
+}
+
+.auth-highlights {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 20px;
+}
+
+.auth-preview {
+  display: grid;
+  place-items: center;
+}
+
+.preview-panel {
+  width: min(100%, 420px);
+  padding: 18px;
+  border-radius: 28px;
+  border: 1px solid rgba(94, 208, 255, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(94, 208, 255, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(13, 22, 38, 0.97), rgba(8, 15, 27, 0.97));
+  box-shadow: var(--shadow);
+}
+
 .hero h1 {
   font-size: clamp(2.1rem, 8vw, 3.6rem);
   max-width: 12ch;
@@ -1795,6 +1827,10 @@ select { font: inherit; }
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .auth-shell {
+    grid-template-columns: 1.05fr 0.95fr;
+  }
+
   .filter-grid {
     grid-template-columns: 1.4fr 0.9fr 0.9fr auto;
   }
@@ -1896,6 +1932,10 @@ select { font: inherit; }
   }
 
   .landing-signals-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-shell {
     grid-template-columns: 1fr;
   }
 
