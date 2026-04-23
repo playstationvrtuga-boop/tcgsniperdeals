@@ -43,6 +43,7 @@ def _get_flag(name: str, default=False):
 TOKEN = _get_setting("TELEGRAM_BOT_TOKEN", _get_setting("TOKEN", ""))
 VIP_CHAT_ID = _get_setting("VIP_CHAT_ID", "-1003793745882")
 FREE_CHAT_ID = _get_setting("FREE_CHAT_ID", "-1003921330386")
+FREE_REALTIME_SAMPLE_PERCENT = int(_get_setting("FREE_REALTIME_SAMPLE_PERCENT", "10"))
 
 APP_API_URL = _get_setting(
     "APP_API_URL",
@@ -71,10 +72,6 @@ PRICING_WORKER_MAX_SLEEP = float(_get_setting("PRICING_WORKER_MAX_SLEEP", "3"))
 PRICING_DEAL_MIN_DISCOUNT = float(_get_setting("PRICING_DEAL_MIN_DISCOUNT", "20"))
 PRICING_DEAL_MIN_MARGIN = float(_get_setting("PRICING_DEAL_MIN_MARGIN", "5"))
 PRICING_DEAL_MIN_SCORE = int(_get_setting("PRICING_DEAL_MIN_SCORE", "60"))
-FREE_ALERT_DELAY_MINUTES = int(_get_setting("FREE_ALERT_DELAY_MINUTES", "15"))
-FREE_ALERT_DELAY_MIN_MINUTES = int(_get_setting("FREE_ALERT_DELAY_MIN_MINUTES", "5"))
-FREE_ALERT_DELAY_MAX_MINUTES = int(_get_setting("FREE_ALERT_DELAY_MAX_MINUTES", "10"))
-FREE_ALERT_MAX_AGE_MINUTES = int(_get_setting("FREE_ALERT_MAX_AGE_MINUTES", "30"))
 FREE_MIN_DISCOUNT_PERCENT = float(_get_setting("FREE_MIN_DISCOUNT_PERCENT", "10"))
 FREE_CTA_EVERY_N_POSTS = int(_get_setting("FREE_CTA_EVERY_N_POSTS", "20"))
 FREE_CTA_APP_LINK = _get_setting(

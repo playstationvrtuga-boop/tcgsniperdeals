@@ -9,9 +9,7 @@ from config import (
     APP_API_STATUS_URL,
     BOT_API_KEY,
     APP_API_TIMEOUT,
-    FREE_ALERT_MAX_AGE_MINUTES,
-    FREE_ALERT_DELAY_MIN_MINUTES,
-    FREE_ALERT_DELAY_MAX_MINUTES,
+    FREE_REALTIME_SAMPLE_PERCENT,
 )
 from core.listing_logger import log_listing_event
 from core.normalizer import normalize_text
@@ -594,8 +592,6 @@ def cleanup_fila_free(fila):
     if not isinstance(fila, list):
         return []
 
-    max_age_minutes = max(int(FREE_ALERT_MAX_AGE_MINUTES or 30), 1)
-    cutoff = datetime.now().astimezone() - timedelta(minutes=max_age_minutes)
     itens = []
     for item in fila:
         if not isinstance(item, dict):
@@ -607,26 +603,10 @@ def cleanup_fila_free(fila):
 
         item["anuncio"] = compactar_anuncio_para_fila_free(anuncio)
         item["detected_at"] = item.get("detected_at") or item.get("anuncio", {}).get("detected_at") or now_iso()
-        item["eligible_at"] = item.get("eligible_at") or item.get("enviar_em")
+        item["eligible_at"] = item.get("eligible_at") or item.get("enviar_em") or item["detected_at"]
         item["share_link"] = item.get("share_link") or build_free_public_listing_url(item.get("id"))
 
-        detected_dt = parse_iso_or_none(item.get("detected_at"))
-        if detected_dt and detected_dt < cutoff:
-            continue
-
         itens.append(item)
-
-    if len(itens) > MAX_FREE_QUEUE_ITEMS:
-        itens = sorted(
-            itens,
-            key=lambda item: (
-                sort_iso_key(item.get("detected_at")),
-                sort_iso_key(item.get("eligible_at")),
-            ),
-            reverse=True,
-        )[:MAX_FREE_QUEUE_ITEMS]
-
-    itens.sort(key=free_queue_sort_key)
     return itens
 
 
@@ -2412,6 +2392,77 @@ def free_queue_sort_key(item):
     )
 
 
+def _free_realtime_sample_percent():
+    try:
+        return max(0, min(100, int(FREE_REALTIME_SAMPLE_PERCENT)))
+    except Exception:
+        return 10
+
+
+def _sample_free_realtime(anuncio):
+    percent = _free_realtime_sample_percent()
+    if percent <= 0:
+        return False
+    draw = random.randint(1, 100)
+    if draw > percent:
+        record_metric_event(
+            "free_block",
+            item_id=anuncio.get("id"),
+            platform=anuncio.get("source"),
+            tcg_type=anuncio.get("tcg_type"),
+            score_label=obter_score_label(anuncio),
+            reason="sampling",
+        )
+        print(
+            f"[free_realtime] sampled out id={anuncio.get('id')} "
+            f"draw={draw} threshold={percent}%"
+        )
+        return False
+
+    print(
+        f"[free_realtime] sampled in id={anuncio.get('id')} "
+        f"draw={draw} threshold={percent}%"
+    )
+    return True
+
+
+def enviar_anuncio_free_realtime(anuncio):
+    anuncio = dict(anuncio)
+    anuncio["share_link"] = anuncio.get("share_link") or build_free_public_listing_url(anuncio.get("id"))
+    mensagem = build_message(anuncio, canal="vip")
+    print(mensagem)
+
+    usar_imagem = bool(anuncio.get("imagem"))
+    if usar_imagem:
+        enviado = enviar_foto_telegram(anuncio["imagem"], mensagem, FREE_CHAT_ID)
+    else:
+        enviado = enviar_telegram(mensagem, FREE_CHAT_ID)
+
+    if enviado:
+        mark_listing_sent(anuncio.get("id"), "free")
+        if anuncio.get("source") == "ebay":
+            log_ebay_debug({
+                "item_id": anuncio.get("id"),
+                "title": anuncio.get("titulo"),
+                "url": anuncio.get("link"),
+                "raw_price": anuncio.get("preco"),
+                "raw_listing_format_text": anuncio.get("ebay_debug", {}).get("raw_listing_format_text", ""),
+                "detected_as_buy_it_now": anuncio.get("ebay_debug", {}).get("detected_as_buy_it_now"),
+                "detected_as_auction": anuncio.get("ebay_debug", {}).get("detected_as_auction"),
+                "english_validation_passed": anuncio.get("ebay_debug", {}).get("english_validation_passed"),
+                "english_rejection_reason": anuncio.get("ebay_debug", {}).get("english_rejection_reason"),
+                "excluded_keyword_hit": anuncio.get("ebay_debug", {}).get("excluded_keyword_hit"),
+                "excluded_keyword_value": anuncio.get("ebay_debug", {}).get("excluded_keyword_value"),
+                "tcg_type": anuncio.get("tcg_type"),
+                "score": anuncio.get("score"),
+                "score_label": obter_score_label(anuncio),
+                "duplicate": False,
+                "final_status": "EBAY_SENT_FREE",
+            })
+
+    return enviado
+
+
 def enfileirar_anuncio_free(anuncio):
     if FREE_LANDING_ONLY:
         return
@@ -2421,67 +2472,11 @@ def enfileirar_anuncio_free(anuncio):
 
     if not should_send_to_free(anuncio):
         return
-
-    fila = carregar_fila_free()
-    anuncio_id = anuncio.get("id")
-    if anuncio_id and any(item.get("id") == anuncio_id for item in fila):
-        print(f"[free_queue] duplicate skipped id={anuncio_id} pending={len(fila)}")
+    if not _sample_free_realtime(anuncio):
         return
 
-    score_label = obter_score_label(anuncio)
-    atraso_minutos = random.randint(
-        min(FREE_ALERT_DELAY_MIN_MINUTES, FREE_ALERT_DELAY_MAX_MINUTES),
-        max(FREE_ALERT_DELAY_MIN_MINUTES, FREE_ALERT_DELAY_MAX_MINUTES),
-    )
-    detected_at = anuncio.get("detected_at") or now_iso()
-    detected_dt = parse_iso_or_none(detected_at) or datetime.now().astimezone()
-    max_age_minutes = max(int(FREE_ALERT_MAX_AGE_MINUTES or 30), 1)
-    if detected_dt < datetime.now().astimezone() - timedelta(minutes=max_age_minutes):
-        print(
-            f"[free_queue] stale skipped id={anuncio_id} "
-            f"detected_at={detected_dt.isoformat(timespec='seconds')} "
-            f"max_age={max_age_minutes}m"
-        )
-        return
-    eligible_at = (detected_dt + timedelta(minutes=atraso_minutos)).isoformat(timespec="seconds")
-
-    fila.append({
-        "id": anuncio_id,
-        "detected_at": detected_at,
-        "eligible_at": eligible_at,
-        "score_label": score_label,
-        "platform": anuncio.get("source"),
-        "tcg_type": anuncio.get("tcg_type"),
-        "url": build_free_public_listing_url(anuncio_id),
-        "share_link": build_free_public_listing_url(anuncio_id),
-        "anuncio": compactar_anuncio_para_fila_free(anuncio),
-    })
-    fila.sort(key=free_queue_sort_key)
-    guardar_fila_free(fila)
-    print(
-        f"[free_queue] queued id={anuncio_id} delay={atraso_minutos}min "
-        f"eligible_at={eligible_at} pending={len(fila)}"
-    )
-
-    if anuncio.get("source") == "ebay":
-        log_ebay_debug({
-            "item_id": anuncio.get("id"),
-            "title": anuncio.get("titulo"),
-            "url": anuncio.get("link"),
-            "raw_price": anuncio.get("preco"),
-            "raw_listing_format_text": anuncio.get("ebay_debug", {}).get("raw_listing_format_text", ""),
-            "detected_as_buy_it_now": anuncio.get("ebay_debug", {}).get("detected_as_buy_it_now"),
-            "detected_as_auction": anuncio.get("ebay_debug", {}).get("detected_as_auction"),
-            "english_validation_passed": anuncio.get("ebay_debug", {}).get("english_validation_passed"),
-            "english_rejection_reason": anuncio.get("ebay_debug", {}).get("english_rejection_reason"),
-            "excluded_keyword_hit": anuncio.get("ebay_debug", {}).get("excluded_keyword_hit"),
-            "excluded_keyword_value": anuncio.get("ebay_debug", {}).get("excluded_keyword_value"),
-            "tcg_type": anuncio.get("tcg_type"),
-            "score": anuncio.get("score"),
-            "score_label": obter_score_label(anuncio),
-            "duplicate": False,
-            "final_status": "EBAY_QUEUED_FREE",
-        })
+    enviado = enviar_anuncio_free_realtime(anuncio)
+    print(f"[free_realtime] sent={enviado} id={anuncio.get('id')}")
 
 
 def enviar_anuncio_telegram(anuncio, chat_id, canal):
@@ -2523,64 +2518,18 @@ def enviar_anuncio_telegram(anuncio, chat_id, canal):
 
 
 def processar_fila_free():
-    if not FREE_CHAT_ID or FREE_CHAT_ID == VIP_CHAT_ID:
-        return
-
     if FREE_LANDING_ONLY:
-        fila = carregar_fila_free()
-        if fila:
-            guardar_fila_free([])
         maybe_send_free_landing_message()
         return
 
-    fila = carregar_fila_free()
-    if not fila:
-        print("[free_queue] pending=0")
+    if not FREE_CHAT_ID or FREE_CHAT_ID == VIP_CHAT_ID:
         return
 
-    agora = datetime.now().astimezone()
-    max_age_minutes = max(int(FREE_ALERT_MAX_AGE_MINUTES or 30), 1)
-    pendentes = []
-    elegiveis = []
-
-    for item in fila:
-        eligible_at = parse_iso_or_none(item.get("eligible_at") or item.get("enviar_em"))
-        detected_dt = parse_iso_or_none(item.get("detected_at"))
-        if detected_dt and detected_dt < agora - timedelta(minutes=max_age_minutes):
-            print(
-                f"[free_queue] stale dropped id={item.get('id') or item.get('listing_id') or 'unknown'} "
-                f"detected_at={detected_dt.isoformat(timespec='seconds')} "
-                f"max_age={max_age_minutes}m"
-            )
-            continue
-        if not eligible_at:
-            pendentes.append(item)
-            continue
-
-        if eligible_at <= agora:
-            elegiveis.append(item)
-        else:
-            pendentes.append(item)
-
-    elegiveis.sort(key=free_queue_sort_key)
-    next_due = pendentes[0].get("eligible_at") if pendentes else None
-    print(
-        f"[free_queue] pending={len(fila)} due_now={len(elegiveis)} "
-        f"next_due={next_due or 'none'}"
-    )
-
-    for item in elegiveis:
-        item_id = item.get("id") or item.get("listing_id") or "unknown"
-        if enviar_anuncio_telegram(item["anuncio"], FREE_CHAT_ID, "free"):
-            print(f"[free_queue] sent id={item_id}")
-            time.sleep(2)
-        else:
-            print(f"[free_queue] send_failed id={item_id}")
-            pendentes.append(item)
-
-    pendentes.sort(key=free_queue_sort_key)
-    guardar_fila_free(pendentes)
-    print(f"[free_queue] remaining={len(pendentes)}")
+    if os.path.exists(FICHEIRO_FILA_FREE):
+        fila = carregar_fila_free()
+        if fila:
+            print(f"[free_realtime] clearing legacy delayed queue count={len(fila)}")
+            guardar_fila_free([])
 
 
 def obter_runtime_pages():

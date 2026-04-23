@@ -129,7 +129,7 @@ It randomly picks a small daily target and spreads that target across the allowe
 
 Desired live flow:
 
-`bot -> Render app API -> Render database -> Render pricing worker -> VIP app now + FREE Telegram after delay`
+`bot -> Render app API -> Render database -> Render pricing worker -> VIP app now + sampled FREE Telegram in real time`
 
 This means:
 
@@ -137,8 +137,8 @@ This means:
 - the bot sends listings to the online app API
 - the Render worker reads those pending listings from the same online database
 - if a listing is a real deal, it appears in the app feed in real time
-- the same deal is sent later to FREE Telegram with a 5 to 10 minute delay
-- the FREE Telegram message hides the direct link and uses a softened title
+- a small sampled subset of VIP alerts is sent to FREE Telegram in real time
+- FREE Telegram now mirrors the VIP announcement format instead of using a delay queue
 
 To make that work online, Render must have:
 
@@ -171,6 +171,7 @@ PRICING_WORKER_MAX_SLEEP=3
 PRICING_DEAL_MIN_DISCOUNT=20
 PRICING_DEAL_MIN_MARGIN=5
 PRICING_DEAL_MIN_SCORE=60
+FREE_REALTIME_SAMPLE_PERCENT=10
 ```
 
 ## 3.2 Run the pricing worker
@@ -196,7 +197,7 @@ The worker:
 - stores `reference_price`, `discount_percent`, `gross_margin`, `pricing_score`, `is_deal`
 - sends a Telegram alert only when a priced listing qualifies as a deal
 - sleeps between loops to keep RAM and API load low
-- also sends delayed FREE Telegram alerts when `free_send_at` becomes due
+- does not manage the Free Telegram delay queue anymore
 
 ## 4. Test one demo listing into the app
 

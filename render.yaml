@@ -116,10 +116,6 @@ services:
         sync: false
       - key: PRICING_WORKER_MAX_SLEEP
         sync: false
-      - key: FREE_ALERT_DELAY_MIN_MINUTES
-        sync: false
-      - key: FREE_ALERT_DELAY_MAX_MINUTES
-        sync: false
   - type: worker
     name: tcg-sniper-deals-gone-worker
     env: python
