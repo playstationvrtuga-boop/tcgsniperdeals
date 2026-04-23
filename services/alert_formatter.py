@@ -243,8 +243,8 @@ def format_free_alert_text(deal: dict) -> str:
         "VIP listing",
         "Real-time listing",
         "",
-        f"{title}",
-        f"{listing_price}",
+        title,
+        listing_price,
     ]
 
     if direct_link:

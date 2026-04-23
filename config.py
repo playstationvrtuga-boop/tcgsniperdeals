@@ -70,3 +70,8 @@ FREE_ALERT_DELAY_MINUTES = int(_get_setting("FREE_ALERT_DELAY_MINUTES", "15"))
 FREE_ALERT_DELAY_MIN_MINUTES = int(_get_setting("FREE_ALERT_DELAY_MIN_MINUTES", "5"))
 FREE_ALERT_DELAY_MAX_MINUTES = int(_get_setting("FREE_ALERT_DELAY_MAX_MINUTES", "10"))
 FREE_MIN_DISCOUNT_PERCENT = float(_get_setting("FREE_MIN_DISCOUNT_PERCENT", "10"))
+FREE_CTA_EVERY_N_POSTS = int(_get_setting("FREE_CTA_EVERY_N_POSTS", "20"))
+FREE_CTA_APP_LINK = _get_setting(
+    "FREE_CTA_APP_LINK",
+    _get_setting("MOBILE_APP_URL", _get_setting("SITE_URL", "")),
+)

@@ -15,6 +15,7 @@ from core.listing_logger import log_listing_event
 from core.normalizer import normalize_text
 from core.scoring import ListingAssessment, assess_listing, is_priority
 from services.alert_formatter import make_partial_product_name
+from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
 from urllib.parse import quote_plus, urljoin
 import requests
 import os
@@ -2423,6 +2424,8 @@ def enviar_anuncio_telegram(anuncio, chat_id, canal):
 
     if enviado:
         mark_listing_sent(anuncio.get("id"), canal)
+        if canal == "free":
+            record_free_cta_sent()
         if anuncio.get("source") == "ebay":
             log_ebay_debug({
                 "item_id": anuncio.get("id"),
@@ -4115,6 +4118,9 @@ def build_message(anuncio, canal="vip"):
         f"Pokemon Sniper Deals\n"
         f"-----------------------"
     )
+
+    if canal == "free" and should_attach_free_cta():
+        mensagem += f"\n\n━━━━━━━━━━━━━━━\n{build_free_cta_block()}\n━━━━━━━━━━━━━━━"
 
     return mensagem
 def obter_vinted_links(page):

@@ -15,6 +15,7 @@ from config import (
     PRICING_WORKER_MIN_SLEEP,
 )
 from services.alert_formatter import classify_deal_level, format_free_alert_text, format_vip_alert, make_partial_product_name
+from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
 from services.deal_detector import EbaySoldError, EbaySoldRateLimitError, evaluate_listing
 from services.telegram_alerts import send_free_alert
 from vip_app.app import create_app
@@ -246,9 +247,12 @@ def process_due_free_alert(listing: Listing) -> str:
     try:
         payload = _build_free_payload(listing)
         message = format_free_alert_text(payload)
+        if should_attach_free_cta():
+            message += f"\n\n━━━━━━━━━━━━━━━\n{build_free_cta_block()}\n━━━━━━━━━━━━━━━"
         sent = send_free_alert(message)
         if sent:
             listing.free_sent = True
+            record_free_cta_sent()
             db.session.commit()
             print(f"[pricing_worker] FREE telegram sent for listing_id={listing.id}")
             return "free_sent"
