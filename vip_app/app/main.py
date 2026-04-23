@@ -1,12 +1,16 @@
 from datetime import datetime, timezone
+import time
 from decimal import Decimal
 from pathlib import Path
 
 from flask import Blueprint, Response, current_app, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import and_, or_
+from sqlalchemy.orm import defer
 
 from .decorators import vip_required
 from .extensions import db
+from .feed_cache import get_or_set
 from .models import Favorite, Listing, Payment, PushSubscription
 from .push import push_enabled
 
@@ -154,14 +158,24 @@ def get_android_apk_download():
 def index():
     if current_user.is_authenticated:
         return redirect(url_for("main.feed"))
-    return render_template("landing.html")
+    preview_listing = (
+        Listing.query.options(defer(Listing.raw_payload))
+        .filter(
+            Listing.image_url.isnot(None),
+            Listing.image_url != "",
+            Listing.image_url.notlike("%example.com%"),
+        )
+        .order_by(*newest_listing_order())
+        .first()
+    )
+    return render_template("landing.html", preview_listing=preview_listing)
 
 
 @main_bp.route("/download-app")
 def download_app():
     apk_download = get_android_apk_download()
     preview_listing = (
-        Listing.query.filter(
+        Listing.query.options(defer(Listing.raw_payload)).filter(
             Listing.image_url.isnot(None),
             Listing.image_url != "",
             Listing.image_url.notlike("%example.com%"),
@@ -201,7 +215,8 @@ def download_android_apk():
 @main_bp.route("/feed")
 @vip_required
 def feed():
-    query = Listing.query
+    feed_started = time.perf_counter()
+    query = Listing.query.options(defer(Listing.raw_payload))
 
     search = request.args.get("q", "").strip()
     platform = request.args.get("platform", "").strip()
@@ -217,22 +232,49 @@ def feed():
         else:
             query = query.filter(Listing.is_deal.is_(True), Listing.badge_label == badge)
 
-    live_listings_count = query.count()
-    listings = query.order_by(*newest_listing_order()).limit(60).all()
+    cache_hit = False
+    if not search and not platform and not badge:
+        def build_default_feed():
+            listings = query.order_by(*newest_listing_order()).limit(60).all()
+            return {
+                "listings": listings,
+                "live_listings_count": len(listings),
+                "deal_count": sum(1 for listing in listings if listing.is_deal),
+                "last_detected_at": listings[0].feed_timestamp if listings else None,
+            }
+
+        feed_snapshot, cache_hit = get_or_set("feed:default", current_app.config["FEED_CACHE_TTL_SECONDS"], build_default_feed)
+        listings = feed_snapshot["listings"]
+        live_listings_count = feed_snapshot["live_listings_count"]
+        deal_count = feed_snapshot["deal_count"]
+        last_detected_at = feed_snapshot["last_detected_at"]
+    else:
+        listings = query.order_by(*newest_listing_order()).limit(60).all()
+        live_listings_count = len(listings)
+        deal_count = sum(1 for listing in listings if listing.is_deal)
+        last_detected_at = listings[0].feed_timestamp if listings else None
+
     favorite_ids = {
-        favorite.listing_id
-        for favorite in Favorite.query.filter_by(user_id=current_user.id).all()
+        listing_id
+        for (listing_id,) in Favorite.query.filter_by(user_id=current_user.id).with_entities(Favorite.listing_id).all()
     }
-    platforms = [row[0] for row in db.session.query(Listing.platform).distinct().all()]
-    deal_badges = [
-        row[0]
-        for row in db.session.query(Listing.badge_label)
-        .filter(Listing.is_deal.is_(True), Listing.badge_label.isnot(None), Listing.badge_label != "")
-        .distinct()
-        .all()
-    ]
-    badges = ["Fresh"] + [badge_name for badge_name in deal_badges if badge_name != "Fresh"]
-    deal_count = Listing.query.filter(Listing.is_deal.is_(True)).count()
+
+    def build_platforms():
+        return [row[0] for row in db.session.query(Listing.platform).distinct().all()]
+
+    def build_badges():
+        deal_badges = [
+            row[0]
+            for row in db.session.query(Listing.badge_label)
+            .filter(Listing.is_deal.is_(True), Listing.badge_label.isnot(None), Listing.badge_label != "")
+            .distinct()
+            .all()
+        ]
+        return ["Fresh"] + [badge_name for badge_name in deal_badges if badge_name != "Fresh"]
+
+    platforms, _ = get_or_set("feed:platforms", current_app.config["FEED_OPTIONS_CACHE_TTL_SECONDS"], build_platforms)
+    badges, _ = get_or_set("feed:badges", current_app.config["FEED_OPTIONS_CACHE_TTL_SECONDS"], build_badges)
+
     alerts_active = False
     if push_enabled():
         alerts_active = PushSubscription.query.filter_by(user_id=current_user.id).first() is not None
@@ -240,9 +282,19 @@ def feed():
     live_stats = {
         "count": live_listings_count,
         "deal_count": deal_count,
-        "last_detected_at": listings[0].feed_timestamp if listings else None,
+        "last_detected_at": last_detected_at,
         "alerts_active": alerts_active,
     }
+
+    if current_app.config.get("LOG_FEED_TIMING", False):
+        total_ms = (time.perf_counter() - feed_started) * 1000
+        current_app.logger.info(
+            "[feed] cache=%s listings=%s favorites=%s total=%.1fms",
+            "hit" if cache_hit else "miss",
+            len(listings),
+            len(favorite_ids),
+            total_ms,
+        )
 
     return render_template(
         "feed.html",
@@ -255,6 +307,84 @@ def feed():
         selected_platform=platform,
         selected_badge=badge,
         live_stats=live_stats,
+        feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
+        feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
+        enable_live_radar=current_app.config["ENABLE_LIVE_RADAR"],
+        enable_card_entry_animations=current_app.config["ENABLE_CARD_ENTRY_ANIMATIONS"],
+        enable_relative_time_updates=current_app.config["ENABLE_RELATIVE_TIME_UPDATES"],
+        relative_time_update_ms=current_app.config["RELATIVE_TIME_UPDATE_MS"],
+    )
+
+
+@main_bp.route("/feed/updates")
+@vip_required
+def feed_updates():
+    cursor_detected_at_raw = request.args.get("latest_detected_at", "").strip()
+    cursor_id_raw = request.args.get("latest_id", "").strip()
+    limit_raw = request.args.get("limit", "").strip()
+
+    try:
+        limit = max(1, min(int(limit_raw or current_app.config.get("FEED_DELTA_MAX_ITEMS", 12)), 24))
+    except (TypeError, ValueError):
+        limit = current_app.config.get("FEED_DELTA_MAX_ITEMS", 12)
+
+    cursor_detected_at = None
+    cursor_id = None
+    if cursor_detected_at_raw and cursor_id_raw:
+        try:
+            cursor_detected_at = datetime.fromisoformat(cursor_detected_at_raw.replace("Z", "+00:00"))
+            if cursor_detected_at.tzinfo is None:
+                cursor_detected_at = cursor_detected_at.replace(tzinfo=timezone.utc)
+            cursor_id = int(cursor_id_raw)
+        except (TypeError, ValueError):
+            cursor_detected_at = None
+            cursor_id = None
+
+    started = time.perf_counter()
+    query = Listing.query.options(defer(Listing.raw_payload))
+    if cursor_detected_at is not None and cursor_id is not None:
+        query = query.filter(
+            or_(
+                Listing.detected_at > cursor_detected_at,
+                and_(Listing.detected_at == cursor_detected_at, Listing.id > cursor_id),
+            )
+        )
+    query = query.order_by(*newest_listing_order()).limit(limit)
+    items = query.all()
+
+    rendered_items = []
+    for listing in items:
+        rendered_items.append(
+            {
+                "id": listing.id,
+                "detected_at": listing.feed_timestamp_iso,
+                "html": render_template("partials/listing_card.html", listing=listing, favorite_ids=set()),
+            }
+        )
+
+    next_cursor = None
+    if items:
+        newest = items[0]
+        next_cursor = {
+            "latest_detected_at": newest.feed_timestamp_iso,
+            "latest_id": newest.id,
+        }
+
+    if current_app.config.get("LOG_FEED_TIMING", False):
+        current_app.logger.info(
+            "[feed-updates] returned=%s limit=%s total=%.1fms",
+            len(rendered_items),
+            limit,
+            (time.perf_counter() - started) * 1000,
+        )
+
+    return jsonify(
+        {
+            "status": "ok",
+            "items": rendered_items,
+            "cursor": next_cursor,
+            "has_more": len(rendered_items) == limit,
+        }
     )
 
 
@@ -332,13 +462,14 @@ def listing_detail(listing_id):
 @main_bp.route("/favorites", methods=["GET"])
 @vip_required
 def favorites():
-    favorites = (
-        Favorite.query.filter_by(user_id=current_user.id)
-        .join(Listing)
+    listings = (
+        Listing.query
+        .join(Favorite, Favorite.listing_id == Listing.id)
+        .options(defer(Listing.raw_payload))
+        .filter(Favorite.user_id == current_user.id)
         .order_by(*newest_listing_order())
         .all()
     )
-    listings = [favorite.listing for favorite in favorites]
     favorite_ids = {listing.id for listing in listings}
     return render_template(
         "favorites.html",
@@ -400,7 +531,7 @@ def offline():
 
 @main_bp.route("/health")
 def health():
-    return Response("ok", mimetype="text/plain")
+    return "ok", 200, {"Cache-Control": "no-store, max-age=0"}
 
 
 @main_bp.route("/push-info")

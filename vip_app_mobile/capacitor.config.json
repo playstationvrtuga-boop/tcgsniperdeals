@@ -3,14 +3,14 @@
   "appName": "TCG Sniper Deals",
   "webDir": "web",
   "server": {
-    "url": "http://127.0.0.1:5000",
-    "cleartext": true,
+    "url": "https://tcg-sniper-deals.onrender.com",
+    "cleartext": false,
     "allowNavigation": [
-      "127.0.0.1"
+      "tcg-sniper-deals.onrender.com"
     ]
   },
   "android": {
-    "allowMixedContent": true
+    "allowMixedContent": false
   },
   "plugins": {
     "SplashScreen": {

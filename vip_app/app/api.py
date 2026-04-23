@@ -5,6 +5,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from flask import Blueprint, current_app, jsonify, request
 
 from .extensions import db
+from .feed_cache import invalidate
 from .models import Listing
 api_bp = Blueprint("api", __name__)
 
@@ -197,6 +198,7 @@ def create_listing():
 
         db.session.add(listing)
         db.session.commit()
+        invalidate("feed:")
 
         return api_response("inserted", 201, id=listing.id, push={"sent": 0, "enabled": False})
     except Exception as error:

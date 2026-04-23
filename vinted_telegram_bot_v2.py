@@ -1,5 +1,5 @@
 from playwright.sync_api import sync_playwright
-from config import TOKEN, CHAT_ID
+from config import TOKEN, VIP_CHAT_ID
 import requests
 import os
 import time
@@ -18,7 +18,7 @@ FICHEIRO_VISTOS = "vistos.txt"
 def enviar_telegram(mensagem):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {
-        "chat_id": CHAT_ID,
+        "chat_id": VIP_CHAT_ID,
         "text": mensagem,
         "disable_web_page_preview": False
     }

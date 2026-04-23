@@ -118,6 +118,10 @@ class Listing(TimestampMixin, db.Model):
 
     __table_args__ = (
         db.UniqueConstraint("source", "external_id", name="uq_listing_source_external"),
+        db.Index("ix_listings_detected_at_id", "detected_at", "id"),
+        db.Index("ix_listings_platform_detected_at", "platform", "detected_at"),
+        db.Index("ix_listings_is_deal_detected_at", "is_deal", "detected_at"),
+        db.Index("ix_listings_badge_label_detected_at", "badge_label", "detected_at"),
     )
 
     @staticmethod
@@ -130,6 +134,15 @@ class Listing(TimestampMixin, db.Model):
     @property
     def feed_timestamp(self):
         return self.detected_at or self.created_at or self.posted_at
+
+    @property
+    def feed_timestamp_iso(self):
+        timestamp = self.feed_timestamp
+        if not timestamp:
+            return ""
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        return timestamp.isoformat()
 
     @property
     def is_pending_pricing(self):
@@ -170,6 +183,22 @@ class Listing(TimestampMixin, db.Model):
         if self.is_deal:
             return "good"
         return "watch"
+
+    @property
+    def display_microcopy(self):
+        if self.is_deal:
+            return "Below market"
+        if self.is_pending_pricing:
+            return "Just detected"
+
+        detected_at = self.feed_timestamp
+        if detected_at:
+            if detected_at.tzinfo is None:
+                detected_at = detected_at.replace(tzinfo=timezone.utc)
+            elapsed = utcnow() - detected_at
+            if elapsed <= timedelta(minutes=5):
+                return "Fast-moving"
+        return ""
 
 
 class Favorite(TimestampMixin, db.Model):

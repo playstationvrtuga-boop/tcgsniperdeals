@@ -1,4 +1,8 @@
-<article class="listing-card" data-listing-id="{{ listing.id }}">
+<article
+  class="listing-card"
+  data-listing-id="{{ listing.id }}"
+  data-detected-at="{{ listing.feed_timestamp_iso }}"
+>
   <div class="listing-image-wrap">
     {% if listing.image_url %}
       <img class="listing-image" src="{{ listing.image_url }}" alt="{{ listing.title }}" loading="lazy">
@@ -18,7 +22,7 @@
       {% if listing.gross_margin is not none %}
       <span class="listing-profit-pill">+{{ "%.2f"|format(listing.gross_margin) }} EUR</span>
       {% endif %}
-      <span class="listing-age">{{ listing.feed_timestamp|relative_time }}</span>
+      <span class="listing-age" data-relative-time data-detected-at="{{ listing.feed_timestamp_iso }}">{{ listing.feed_timestamp|relative_time }}</span>
     </div>
   </div>
 
@@ -34,6 +38,12 @@
       <strong class="listing-price">{{ listing.price_display }}</strong>
       <span class="listing-time">{{ listing.feed_timestamp|datetime_format }}</span>
     </div>
+
+    {% if listing.display_microcopy %}
+    <div class="listing-microcopy-row">
+      <span class="listing-microcopy">{{ listing.display_microcopy }}</span>
+    </div>
+    {% endif %}
 
     <div class="listing-signal-grid">
       <div>

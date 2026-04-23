@@ -1,8 +1,8 @@
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask
-from sqlalchemy import inspect, text
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .extensions import db, login_manager
@@ -10,6 +10,11 @@ from .filters import datetime_format, register_template_filters, relative_time, 
 
 
 def ensure_runtime_schema(app):
+    if not app.config.get("RUN_STARTUP_SCHEMA_CHECK", False):
+        return
+
+    from sqlalchemy import inspect, text
+
     inspector = inspect(db.engine)
     if "listings" not in inspector.get_table_names():
         return
@@ -76,7 +81,11 @@ def ensure_runtime_schema(app):
 
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_normalized_url ON listings (normalized_url)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_detected_at ON listings (detected_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_detected_at_id ON listings (detected_at, id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_pricing_status ON listings (pricing_status)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_platform_detected_at ON listings (platform, detected_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_is_deal_detected_at ON listings (is_deal, detected_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_badge_label_detected_at ON listings (badge_label, detected_at)"))
         connection.execute(text("UPDATE listings SET normalized_url = external_url WHERE normalized_url IS NULL"))
         connection.execute(text("UPDATE listings SET available_status = 'available' WHERE available_status IS NULL"))
         connection.execute(text("UPDATE listings SET pricing_status = 'pending' WHERE pricing_status IS NULL"))
@@ -87,6 +96,7 @@ def ensure_runtime_schema(app):
 
 
 def create_app(minimal=False, skip_db=False, skip_blueprints=False):
+    startup_started = time.perf_counter()
     print("[startup] 3) create_app started", flush=True)
     load_dotenv(Path(__file__).resolve().parent.parent / ".env")
     print("[startup] 3.1) .env loaded", flush=True)
@@ -109,13 +119,18 @@ def create_app(minimal=False, skip_db=False, skip_blueprints=False):
             return "TCG Sniper Deals minimal app is running"
 
         print("[startup] 5) minimal route registered", flush=True)
+        if app.config.get("LOG_STARTUP_TIMING", False):
+            elapsed_ms = (time.perf_counter() - startup_started) * 1000
+            print(f"[startup] create_app finished in {elapsed_ms:.1f}ms", flush=True)
         print("[startup] 6) create_app finished", flush=True)
         return app
 
-    data_dir = Path(app.root_path).parent / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
-    print("[startup] 3.5) data directory ensured", flush=True)
+    if app.config["SQLALCHEMY_DATABASE_URI"].startswith("sqlite:"):
+        data_dir = Path(app.root_path).parent / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        print("[startup] 3.5) data directory ensured", flush=True)
 
+    run_db_create_all = app.config.get("RUN_DB_CREATE_ALL", not app.config.get("IS_PRODUCTION", False))
     if not skip_db:
         db.init_app(app)
         print("[startup] 4.1) database extension init completed", flush=True)
@@ -148,7 +163,7 @@ def create_app(minimal=False, skip_db=False, skip_blueprints=False):
     app.register_blueprint(api_bp, url_prefix="/api")
     print("[startup] 5.1) routes registered", flush=True)
 
-    if not skip_db:
+    if not skip_db and run_db_create_all:
         print("[startup] 4.5) importing models", flush=True)
         with app.app_context():
             from . import models  # noqa: F401
@@ -160,5 +175,8 @@ def create_app(minimal=False, skip_db=False, skip_blueprints=False):
     else:
         print("[startup] 4.5) database create_all skipped", flush=True)
 
+    if app.config.get("LOG_STARTUP_TIMING", False):
+        elapsed_ms = (time.perf_counter() - startup_started) * 1000
+        print(f"[startup] create_app finished in {elapsed_ms:.1f}ms", flush=True)
     print("[startup] 6) create_app finished", flush=True)
     return app

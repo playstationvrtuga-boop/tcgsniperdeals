@@ -1,17 +1,15 @@
 import requests
-from config import TOKEN, CHAT_ID
+from config import TOKEN, VIP_CHAT_ID
 
-mensagem = "Teste do bot Pokémon: está a funcionar."
+print("TOKEN:", TOKEN[:10] + "..." if TOKEN else "VAZIO")
+print("VIP_CHAT_ID:", VIP_CHAT_ID)
 
 url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-
 payload = {
-    "chat_id": CHAT_ID,
-    "text": mensagem
+    "chat_id": VIP_CHAT_ID,
+    "text": "TESTE DIRETO TELEGRAM"
 }
 
-resposta = requests.post(url, data=payload)
-
-print("Status code:", resposta.status_code)
-print("Resposta:", resposta.text)
-input("Carrega Enter para sair...")
+r = requests.post(url, data=payload, timeout=20)
+print("STATUS:", r.status_code)
+print("RESPOSTA:", r.text)

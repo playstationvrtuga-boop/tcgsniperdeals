@@ -1,6 +1,7 @@
 print("[startup] 1) manage.py started", flush=True)
 
 import argparse
+import os
 import socket
 from decimal import Decimal
 from threading import Thread
@@ -8,7 +9,7 @@ from urllib.request import urlopen
 
 from app import create_app
 from app.extensions import db
-from app.models import Listing, Payment, User, utcnow
+from app.feed_cache import invalidate
 from werkzeug.serving import make_server
 
 print("[startup] 2) imports completed", flush=True)
@@ -18,7 +19,19 @@ app = create_app()
 print("[startup] 2.2) app instance created", flush=True)
 
 
+def running_on_render() -> bool:
+    return bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
+
+
+def demo_seed_allowed() -> bool:
+    if os.getenv("ALLOW_DEMO_SEED", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    return not running_on_render()
+
+
 def create_admin(email: str, password: str, telegram: str | None = None):
+    from app.models import User, utcnow
+
     with app.app_context():
         user = User.query.filter_by(email=email.lower().strip()).first()
         if not user:
@@ -37,6 +50,15 @@ def create_admin(email: str, password: str, telegram: str | None = None):
 
 
 def seed_demo():
+    from app.models import Listing, Payment, User, utcnow
+
+    if not demo_seed_allowed():
+        print(
+            "Refusing to seed demo users on Render without ALLOW_DEMO_SEED=true. "
+            "This avoids creating public demo credentials in a live environment."
+        )
+        return
+
     with app.app_context():
         if not User.query.filter_by(email="admin@tcgsniper.local").first():
             admin = User(email="admin@tcgsniper.local", telegram_username="@tcgsniper", is_admin=True, is_vip=True)
@@ -108,10 +130,13 @@ def seed_demo():
             db.session.add(payment)
 
         db.session.commit()
+        invalidate("feed:")
         print("Demo data ready.")
 
 
 def test_api_listing():
+    from app.models import Listing, utcnow
+
     with app.app_context():
         client = app.test_client()
         stamp = utcnow().strftime("%Y%m%d%H%M%S")
@@ -145,6 +170,7 @@ def test_api_listing():
         if listing_id:
             listing = db.session.get(Listing, listing_id)
             print(f"Stored listing: {listing.title} ({listing.platform})")
+            invalidate("feed:")
 
         print(f"Open {app.config['SITE_URL'].rstrip('/')}/feed to verify it in the VIP feed.")
 

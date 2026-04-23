@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
+from sqlalchemy import or_
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from .decorators import admin_required
@@ -51,10 +52,16 @@ def dashboard():
     listings = Listing.query.order_by(*newest_listing_order()).limit(20).all()
     payments = payments_query.limit(20).all()
 
-    all_users = User.query.all()
+    total_users = User.query.count()
+    vip_live = User.query.filter(
+        or_(
+            User.is_admin.is_(True),
+            (User.is_vip.is_(True) & (User.vip_expires_at.is_(None) | (User.vip_expires_at >= utcnow()))),
+        )
+    ).count()
     overview = {
-        "total_users": len(all_users),
-        "vip_live": sum(1 for user in all_users if user.vip_active),
+        "total_users": total_users,
+        "vip_live": vip_live,
         "pending_payments": Payment.query.filter(Payment.status.in_(["pending", "pending_confirmation"])).count(),
         "listings_24h": Listing.query.filter(
             db.func.coalesce(Listing.detected_at, Listing.created_at) >= utcnow() - timedelta(days=1)

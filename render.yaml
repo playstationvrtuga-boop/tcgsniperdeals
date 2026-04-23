@@ -2,10 +2,10 @@ services:
   - type: web
     name: tcg-sniper-deals
     env: python
-    plan: free
+    plan: starter
     rootDir: vip_app
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT wsgi:app
+    startCommand: gunicorn --config gunicorn_conf.py wsgi:app
     healthCheckPath: /health
     autoDeploy: true
     envVars:
@@ -17,6 +17,42 @@ services:
         generateValue: true
       - key: BOT_API_KEY
         generateValue: true
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: GUNICORN_THREADS
+        value: "1"
+      - key: GUNICORN_TIMEOUT
+        value: "60"
+      - key: GUNICORN_KEEPALIVE
+        value: "5"
+      - key: RUN_STARTUP_SCHEMA_CHECK
+        value: "false"
+      - key: RUN_DB_CREATE_ALL
+        value: "false"
+      - key: LOG_STARTUP_TIMING
+        value: "true"
+      - key: LOG_FEED_TIMING
+        value: "false"
+      - key: FEED_CACHE_TTL_SECONDS
+        value: "5"
+      - key: FEED_OPTIONS_CACHE_TTL_SECONDS
+        value: "60"
+      - key: FEED_POLL_INTERVAL_MS
+        value: "2500"
+      - key: FEED_DELTA_MAX_ITEMS
+        value: "12"
+      - key: ENABLE_LIVE_RADAR
+        value: "true"
+      - key: ENABLE_CARD_ENTRY_ANIMATIONS
+        value: "true"
+      - key: ENABLE_RELATIVE_TIME_UPDATES
+        value: "true"
+      - key: RELATIVE_TIME_UPDATE_MS
+        value: "15000"
+      - key: DB_POOL_SIZE
+        value: "2"
+      - key: DB_MAX_OVERFLOW
+        value: "2"
       - key: SITE_URL
         sync: false
       - key: MOBILE_APP_URL
@@ -58,6 +94,16 @@ services:
         sync: false
       - key: VAPID_PRIVATE_KEY
         sync: false
+      - key: RUN_STARTUP_SCHEMA_CHECK
+        value: "false"
+      - key: RUN_DB_CREATE_ALL
+        value: "false"
+      - key: LOG_STARTUP_TIMING
+        value: "false"
+      - key: DB_POOL_SIZE
+        value: "2"
+      - key: DB_MAX_OVERFLOW
+        value: "1"
       - key: PRICING_DEAL_MIN_DISCOUNT
         sync: false
       - key: PRICING_DEAL_MIN_MARGIN

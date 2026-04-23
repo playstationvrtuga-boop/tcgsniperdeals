@@ -35,6 +35,13 @@ If needed:
 python vip_app\manage.py seed-demo
 ```
 
+On Render / production, `seed-demo` is blocked by default so it does not create public demo credentials by accident.
+Only allow it intentionally with:
+
+```env
+ALLOW_DEMO_SEED=true
+```
+
 ## Shared API key
 
 The bot sends listings with:
@@ -66,6 +73,15 @@ ANDROID_APK_URL=https://your-public-host/TCG-Sniper-Deals-Android.apk
 
 If `ANDROID_APK_URL` is set, the download page uses that public link on Render.
 If it is empty, the app falls back to the local debug APK path for local development.
+
+## Production security notes
+
+When `SITE_URL` uses `https://` or the app runs on Render, the app now enables:
+
+- secure session cookies
+- secure remember-me cookies
+- HTTP-only cookies
+- `SameSite=Lax` cookies
 
 ## Incoming listings API
 
@@ -217,6 +233,39 @@ MOBILE_APP_URL=https://your-public-domain.onrender.com
 ### Important note
 
 Without an external hosting account or deploy target, this machine alone cannot become a permanent public HTTPS endpoint.
+
+### Render performance settings
+
+Recommended environment variables for the Render web service:
+
+```env
+WEB_CONCURRENCY=2
+GUNICORN_THREADS=1
+GUNICORN_TIMEOUT=60
+GUNICORN_KEEPALIVE=5
+RUN_STARTUP_SCHEMA_CHECK=false
+RUN_DB_CREATE_ALL=false
+LOG_STARTUP_TIMING=true
+LOG_FEED_TIMING=false
+FEED_CACHE_TTL_SECONDS=5
+FEED_OPTIONS_CACHE_TTL_SECONDS=60
+FEED_POLL_INTERVAL_MS=2500
+FEED_DELTA_MAX_ITEMS=12
+ENABLE_LIVE_RADAR=true
+ENABLE_CARD_ENTRY_ANIMATIONS=true
+ENABLE_RELATIVE_TIME_UPDATES=true
+RELATIVE_TIME_UPDATE_MS=15000
+DB_POOL_SIZE=2
+DB_MAX_OVERFLOW=2
+```
+
+Recommended production command:
+
+```powershell
+gunicorn --config gunicorn_conf.py wsgi:app
+```
+
+This keeps app startup lighter, leaves `/health` cheap, and lets the worker process heavier background jobs instead of the web request path.
 
 ## Admin
 

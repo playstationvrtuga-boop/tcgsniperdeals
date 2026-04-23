@@ -339,3 +339,36 @@ npm.cmd run sync:config
 Full mobile instructions are in:
 
 [C:\Users\Trabalho\Desktop\bot_pokemon\vip_app_mobile\README.md](C:\Users\Trabalho\Desktop\bot_pokemon\vip_app_mobile\README.md)
+
+## Render tuning
+
+Recommended web service env values:
+
+```env
+WEB_CONCURRENCY=2
+GUNICORN_THREADS=1
+GUNICORN_TIMEOUT=60
+GUNICORN_KEEPALIVE=5
+RUN_STARTUP_SCHEMA_CHECK=false
+RUN_DB_CREATE_ALL=false
+LOG_STARTUP_TIMING=true
+LOG_FEED_TIMING=false
+FEED_CACHE_TTL_SECONDS=5
+FEED_OPTIONS_CACHE_TTL_SECONDS=60
+FEED_POLL_INTERVAL_MS=2500
+FEED_DELTA_MAX_ITEMS=12
+ENABLE_LIVE_RADAR=true
+ENABLE_CARD_ENTRY_ANIMATIONS=true
+ENABLE_RELATIVE_TIME_UPDATES=true
+RELATIVE_TIME_UPDATE_MS=15000
+DB_POOL_SIZE=2
+DB_MAX_OVERFLOW=2
+```
+
+Recommended command from `vip_app`:
+
+```powershell
+gunicorn --config gunicorn_conf.py wsgi:app
+```
+
+These settings keep startup lighter, keep `/health` instant, and give the web service two workers by default without moving heavy work into the request path.

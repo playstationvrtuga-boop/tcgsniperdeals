@@ -352,6 +352,255 @@ function initBilling() {
   if (initialMethod) setSelectedMethod(initialMethod);
 }
 
+function htmlToElement(html) {
+  if (!html) return null;
+  const template = document.createElement("template");
+  template.innerHTML = html.trim();
+  return template.content.firstElementChild;
+}
+
+function formatFeedRelativeTime(input) {
+  if (!input) return "";
+  const detectedAt = new Date(input);
+  if (Number.isNaN(detectedAt.getTime())) return "";
+
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - detectedAt.getTime()) / 1000));
+  if (elapsedSeconds < 10) return "Detected just now";
+  if (elapsedSeconds < 60) return `Detected ${elapsedSeconds}s ago`;
+
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+  if (elapsedMinutes < 60) return `Detected ${elapsedMinutes}m ago`;
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `Detected ${elapsedHours}h ago`;
+
+  const elapsedDays = Math.floor(elapsedHours / 24);
+  return `Detected ${elapsedDays}d ago`;
+}
+
+function updateRelativeTimeLabels(root) {
+  const scope = root || document;
+  scope.querySelectorAll("[data-relative-time][data-detected-at]").forEach((node) => {
+    const nextText = formatFeedRelativeTime(node.dataset.detectedAt);
+    if (nextText && node.textContent !== nextText) {
+      node.textContent = nextText;
+    }
+  });
+}
+
+function createRadarController(radarRoot, enabled) {
+  if (!radarRoot || !enabled) {
+    return { pulse: () => {} };
+  }
+
+  const blips = [];
+
+  function pulse(count = 1) {
+    const size = radarRoot.getBoundingClientRect();
+    if (!size.width || !size.height) return;
+
+    const maxBlips = Math.min(3, Math.max(1, count));
+    for (let index = 0; index < maxBlips; index += 1) {
+      const blip = document.createElement("span");
+      blip.className = "live-radar-blip";
+
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 0.18 + Math.random() * 0.34;
+      const x = 50 + Math.cos(angle) * radius * 50;
+      const y = 50 + Math.sin(angle) * radius * 50;
+
+      blip.style.left = `${x}%`;
+      blip.style.top = `${y}%`;
+      radarRoot.appendChild(blip);
+
+      requestAnimationFrame(() => blip.classList.add("is-visible"));
+      blips.push(blip);
+
+      window.setTimeout(() => {
+        blip.remove();
+      }, 1250 + index * 120);
+    }
+  }
+
+  return { pulse };
+}
+
+function initLiveFeed() {
+  const feedRoot = document.querySelector("[data-live-feed-root]");
+  if (!feedRoot) return;
+
+  const banner = document.querySelector("[data-feed-live-banner]");
+  const bannerCopy = banner?.querySelector("[data-feed-live-banner-copy]");
+  const bannerButton = banner?.querySelector("[data-feed-live-banner-button]");
+  const radarRoot = document.querySelector("[data-live-radar]");
+  const updatesUrl = feedRoot.dataset.feedUpdatesUrl;
+  const pollIntervalMs = Number(feedRoot.dataset.feedPollMs || 2500);
+  const deltaLimit = Number(feedRoot.dataset.feedDeltaLimit || 12);
+  const radarEnabled = feedRoot.dataset.feedLiveRadar === "1";
+  const cardAnimationsEnabled = feedRoot.dataset.feedCardAnimations === "1";
+  const relativeTimeEnabled = feedRoot.dataset.feedRelativeTimeUpdates === "1";
+  const relativeTimeIntervalMs = Number(feedRoot.dataset.feedRelativeTimeIntervalMs || 15000);
+  const radar = createRadarController(radarRoot, radarEnabled);
+
+  const seenIds = new Set(
+    [...feedRoot.querySelectorAll(".listing-card[data-listing-id]")]
+      .map((card) => Number(card.dataset.listingId || 0))
+      .filter(Boolean)
+  );
+
+  let latestDetectedAt = feedRoot.dataset.feedCursorDetectedAt || "";
+  let latestId = Number(feedRoot.dataset.feedCursorId || 0);
+  let pendingItems = [];
+  let pendingIds = new Set();
+  let timer = null;
+  let inFlight = false;
+
+  function updateCursor(cursor) {
+    if (!cursor) return;
+    if (cursor.latest_detected_at) latestDetectedAt = cursor.latest_detected_at;
+    if (cursor.latest_id) latestId = Number(cursor.latest_id) || latestId;
+    feedRoot.dataset.feedCursorDetectedAt = latestDetectedAt;
+    feedRoot.dataset.feedCursorId = String(latestId);
+  }
+
+  function setBannerCount(count) {
+    if (!banner || !bannerCopy || !bannerButton) return;
+    if (!count) {
+      banner.classList.add("is-hidden");
+      banner.hidden = true;
+      return;
+    }
+
+    banner.hidden = false;
+    banner.classList.remove("is-hidden");
+    bannerCopy.textContent = count === 1 ? "1 new deal ready" : `${count} new deals ready`;
+    bannerButton.textContent = count === 1 ? "See now" : "See now";
+  }
+
+  function queueItems(items) {
+    const nextItems = [];
+    for (const item of items) {
+      const itemId = Number(item?.id || 0);
+      if (!itemId || seenIds.has(itemId) || pendingIds.has(itemId)) continue;
+      nextItems.push(item);
+      pendingIds.add(itemId);
+    }
+
+    if (!nextItems.length) return;
+    pendingItems.push(...nextItems);
+    setBannerCount(pendingItems.length);
+  }
+
+  function insertItems(items) {
+    if (!items.length) return;
+
+    for (const item of [...items].reverse()) {
+      const node = htmlToElement(item.html);
+      if (!node) continue;
+      const itemId = Number(item.id || node.dataset.listingId || 0);
+      if (seenIds.has(itemId)) continue;
+      if (cardAnimationsEnabled) {
+        node.classList.add("is-new-feed-item");
+      }
+      seenIds.add(itemId);
+      feedRoot.insertBefore(node, feedRoot.firstChild);
+    }
+    updateRelativeTimeLabels(feedRoot);
+  }
+
+  function flushPending() {
+    if (!pendingItems.length) return;
+    const items = pendingItems;
+    pendingItems = [];
+    pendingIds = new Set();
+    setBannerCount(0);
+    insertItems(items);
+  }
+
+  function isNearTop() {
+    return window.scrollY < 220;
+  }
+
+  function scheduleNext(delayMs) {
+    if (timer) window.clearTimeout(timer);
+    timer = window.setTimeout(pollFeed, delayMs);
+  }
+
+  async function pollFeed() {
+    if (inFlight || !updatesUrl) return;
+    if (document.hidden) {
+      scheduleNext(Math.max(pollIntervalMs, 10000));
+      return;
+    }
+
+    inFlight = true;
+    try {
+      const url = new URL(updatesUrl, window.location.origin);
+      if (latestDetectedAt && latestId) {
+        url.searchParams.set("latest_detected_at", latestDetectedAt);
+        url.searchParams.set("latest_id", String(latestId));
+      }
+      url.searchParams.set("limit", String(deltaLimit));
+
+      const response = await fetch(url.toString(), {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) {
+        throw new Error(`Feed polling failed (${response.status})`);
+      }
+
+      const data = await response.json();
+      updateCursor(data.cursor);
+
+      const items = Array.isArray(data.items) ? data.items : [];
+      if (items.length) {
+        radar.pulse(items.length);
+        if (isNearTop()) {
+          insertItems(items);
+        } else {
+          queueItems(items);
+        }
+      }
+    } catch (error) {
+      console.debug("Live feed poll skipped:", error);
+    } finally {
+      inFlight = false;
+      scheduleNext(pollIntervalMs);
+    }
+  }
+
+  bannerButton?.addEventListener("click", () => {
+    if (pendingItems.length) flushPending();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  let scrollThrottle = null;
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (scrollThrottle) return;
+      scrollThrottle = window.setTimeout(() => {
+        scrollThrottle = null;
+        if (pendingItems.length && isNearTop()) {
+          flushPending();
+        }
+      }, 120);
+    },
+    { passive: true }
+  );
+
+  setBannerCount(0);
+  scheduleNext(pollIntervalMs);
+
+  if (relativeTimeEnabled) {
+    updateRelativeTimeLabels(feedRoot);
+    window.setInterval(() => {
+      updateRelativeTimeLabels(feedRoot);
+    }, Math.max(5000, relativeTimeIntervalMs));
+  }
+}
+
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();
   deferredInstallPrompt = event;
@@ -399,4 +648,5 @@ initNativeShell().finally(() => {
   syncPushButtons();
   initSplash();
   initBilling();
+  initLiveFeed();
 });

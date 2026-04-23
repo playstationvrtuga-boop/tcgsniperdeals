@@ -1,36 +1,67 @@
 {% extends "base.html" %}
 {% block title %}Live VIP Feed - TCG Sniper Deals{% endblock %}
 {% block content %}
-<section class="section-header section-header-feed">
-  <div>
-    <span class="pill">VIP live edge</span>
-    <h1>Live listing flow - move before the market</h1>
-    <p>Every fresh listing lands here in real time. Strong deals get upgraded as soon as the worker confirms the edge.</p>
-  </div>
-  <div class="section-header-actions">
-    <button class="ghost-button install-button" hidden>Install app</button>
-    <button class="primary-button push-enable-button" {% if not push_enabled %}disabled{% endif %}>
-      {% if live_stats.alerts_active %}Alerts active{% elif push_enabled %}Get instant alerts{% else %}Instant alerts unavailable{% endif %}
-    </button>
-  </div>
-</section>
+<section class="feed-command-center{% if not enable_live_radar %} is-radar-off{% endif %}">
+  <section class="section-header section-header-feed feed-command-center-header">
+    <div>
+      <span class="pill">Market intelligence</span>
+      <h1>Live feed for fresh opportunity flow</h1>
+      <p>New listings land here in real time. The radar stays active, the stream stays light, and the strongest signals rise first.</p>
+      <div class="feed-hero-meta">
+        <span class="mini-stat">LIVE</span>
+        <span class="mini-stat">{{ live_stats.count }} listings</span>
+        <span class="mini-stat">{{ live_stats.deal_count }} flagged</span>
+        <span class="mini-stat">{{ live_stats.last_detected_at|relative_time }}</span>
+      </div>
+    </div>
+    <div class="section-header-actions">
+      <button class="ghost-button install-button" hidden>Install app</button>
+      <button class="primary-button push-enable-button" {% if not push_enabled %}disabled{% endif %}>
+        {% if live_stats.alerts_active %}Alerts active{% elif push_enabled %}Get instant alerts{% else %}Instant alerts unavailable{% endif %}
+      </button>
+    </div>
+  </section>
 
-<section class="stats-strip">
-  <article class="stat-card">
-    <span class="stat-label">Live stream</span>
-    <strong>{{ live_stats.count }}</strong>
-    <small>{{ live_stats.deal_count }} flagged deals inside the stream</small>
-  </article>
-  <article class="stat-card">
-    <span class="stat-label">Last detected</span>
-    <strong>{{ live_stats.last_detected_at|relative_time }}</strong>
-    <small>{% if live_stats.last_detected_at %}{{ live_stats.last_detected_at|datetime_format }}{% else %}Waiting for the next drop{% endif %}</small>
-  </article>
-  <article class="stat-card">
-    <span class="stat-label">Alert status</span>
-    <strong>{% if live_stats.alerts_active %}Live{% elif push_enabled %}Ready{% else %}Offline{% endif %}</strong>
-    <small>{% if live_stats.alerts_active %}Instant alerts are active{% elif push_enabled %}Turn them on for faster moves{% else %}Push setup still unavailable{% endif %}</small>
-  </article>
+  <section class="live-radar-shell{% if not enable_live_radar %} is-disabled{% endif %}" data-live-radar-shell>
+    <div class="live-radar-copy">
+      <span class="eyebrow">Live radar</span>
+      <h2>Scanning for market edge</h2>
+      <p>Fresh listings rise here instantly. The scanner stays light, quiet and fast.</p>
+      <div class="live-status-row">
+        <span class="live-status-pill">
+          <span class="live-status-dot" aria-hidden="true"></span>
+          LIVE
+        </span>
+        <span class="live-status-text">Monitoring live opportunity flow</span>
+      </div>
+    </div>
+
+    <div class="live-radar" data-live-radar data-radar-enabled="{{ 1 if enable_live_radar else 0 }}" aria-hidden="true">
+      <span class="live-radar-ring"></span>
+      <span class="live-radar-ring live-radar-ring-2"></span>
+      <span class="live-radar-ring live-radar-ring-3"></span>
+      <span class="live-radar-sweep"></span>
+      <span class="live-radar-core"></span>
+    </div>
+  </section>
+
+  <section class="stats-strip">
+    <article class="stat-card">
+      <span class="stat-label">Live stream</span>
+      <strong>{{ live_stats.count }}</strong>
+      <small>{{ live_stats.deal_count }} flagged deals inside the stream</small>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Last detected</span>
+      <strong>{{ live_stats.last_detected_at|relative_time }}</strong>
+      <small>{% if live_stats.last_detected_at %}{{ live_stats.last_detected_at|datetime_format }}{% else %}Waiting for the next drop{% endif %}</small>
+    </article>
+    <article class="stat-card">
+      <span class="stat-label">Alert status</span>
+      <strong>{% if live_stats.alerts_active %}Live{% elif push_enabled %}Ready{% else %}Offline{% endif %}</strong>
+      <small>{% if live_stats.alerts_active %}Instant alerts are active{% elif push_enabled %}Turn them on for faster moves{% else %}Push setup still unavailable{% endif %}</small>
+    </article>
+  </section>
 </section>
 
 <section class="toolbar-card" id="feed-filters">
@@ -60,7 +91,24 @@
   </form>
 </section>
 
-<section class="listing-grid">
+<div class="feed-live-banner is-hidden" data-feed-live-banner hidden>
+  <span class="feed-live-banner-copy" data-feed-live-banner-copy>New deals ready</span>
+  <button class="ghost-button feed-live-banner-button" type="button" data-feed-live-banner-button>Show now</button>
+</div>
+
+<section
+  class="listing-grid"
+  data-live-feed-root
+  data-feed-updates-url="{{ url_for('main.feed_updates') }}"
+  data-feed-poll-ms="{{ feed_poll_interval_ms }}"
+  data-feed-delta-limit="{{ feed_delta_max_items }}"
+  data-feed-live-radar="{{ 1 if enable_live_radar else 0 }}"
+  data-feed-card-animations="{{ 1 if enable_card_entry_animations else 0 }}"
+  data-feed-relative-time-updates="{{ 1 if enable_relative_time_updates else 0 }}"
+  data-feed-relative-time-interval-ms="{{ relative_time_update_ms }}"
+  data-feed-cursor-detected-at="{{ listings[0].feed_timestamp_iso if listings else '' }}"
+  data-feed-cursor-id="{{ listings[0].id if listings else 0 }}"
+>
   {% for listing in listings %}
     {% include "partials/listing_card.html" %}
   {% else %}

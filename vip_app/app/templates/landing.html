@@ -1,24 +1,129 @@
 {% extends "base.html" %}
 {% block title %}TCG Sniper Deals{% endblock %}
 {% block content %}
-<section class="hero">
-  <div class="hero-copy">
+<section class="hero landing-hero-shell">
+  <div class="landing-hero-copy">
     <span class="pill">Private VIP access</span>
-    <h1>See the strongest TCG deals before the market reacts.</h1>
+    <h1>See fresh deals first, before everyone else catches up.</h1>
     <p>
-      A private mobile command center for collectors, flippers and serious buyers who win on speed, timing and early access.
+      TCG Sniper Deals is a live opportunity stream for collectors and flippers who want fresh listings,
+      instant alerts and a clean view of the strongest moves before slower buyers react.
     </p>
-    <div class="hero-points">
-      <div class="hero-point">New deals dropping in real time</div>
-      <div class="hero-point">Spot the edge before everyone else</div>
-      <div class="hero-point">Save your highest-priority targets in one tap</div>
-      <div class="hero-point">Install in seconds on iPhone and Android</div>
+
+    <div class="hero-points landing-hero-points">
+      <div class="hero-point">Fresh listings land in the live stream in real time</div>
+      <div class="hero-point">See the edge fast, with less noise and more clarity</div>
+      <div class="hero-point">Open, save and act quickly from your phone</div>
+      <div class="hero-point">VIP members get the full feed and direct alerts</div>
     </div>
+
     <div class="hero-actions">
       <a class="primary-button" href="{{ url_for('auth.register') }}">Unlock VIP access</a>
       <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
       <a class="ghost-button" href="{{ url_for('auth.login') }}">Enter the live feed</a>
     </div>
+
+    <div class="landing-hero-note">
+      Built for speed. Designed for first-look advantage. Kept light enough for mobile and the Render.
+    </div>
+  </div>
+
+  <div class="landing-hero-preview" aria-hidden="true">
+    <div class="device-frame landing-device-frame">
+      <div class="device-notch"></div>
+      <div class="device-screen">
+        <div class="preview-topbar">
+          <span>VIP stream</span>
+          <span class="preview-topbar-badge">LIVE</span>
+        </div>
+
+        <div class="preview-card preview-card-featured">
+          <span class="preview-pill">Just detected</span>
+          {% if preview_listing and preview_listing.image_url %}
+          <div class="preview-card-media">
+            <img
+              src="{{ preview_listing.image_url }}"
+              alt="{{ preview_listing.title }}"
+              class="preview-card-image"
+              loading="lazy">
+          </div>
+          {% endif %}
+          <strong>{{ preview_listing.title if preview_listing else "Fresh VIP listing" }}</strong>
+          <small>
+            {{ preview_listing.platform if preview_listing else "Live feed" }}
+            {% if preview_listing and preview_listing.feed_timestamp_iso %}
+              &bull; {{ preview_listing.feed_timestamp_iso|relative_time }}
+            {% endif %}
+          </small>
+          <div class="preview-price">
+            {{ preview_listing.price_display if preview_listing else "Detected now" }}
+          </div>
+        </div>
+
+        <div class="preview-card preview-card-signal">
+          <span class="preview-muted">Scanning now</span>
+          <strong>Live market intelligence</strong>
+          <small>New drops surface automatically as the feed updates.</small>
+        </div>
+
+        <div class="preview-card preview-card-row">
+          <div>
+            <span class="preview-muted">Alerts active</span>
+            <strong>Instant access</strong>
+          </div>
+          <div>
+            <span class="preview-muted">Edge</span>
+            <strong>First look</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="landing-proof-strip">
+  <article class="landing-proof-card">
+    <span class="eyebrow">Why members stay</span>
+    <strong>Speed, timing and visibility are what move inventory first.</strong>
+    <p>We keep the stream clean so the best opportunities are easy to spot before slower buyers react.</p>
+  </article>
+  <article class="landing-proof-card">
+    <span class="eyebrow">What you get</span>
+    <strong>Live feed, mobile install and saved targets in one place.</strong>
+    <p>Open the app, watch new listings land and act without needing to refresh manually.</p>
+  </article>
+  <article class="landing-proof-card">
+    <span class="eyebrow">Built for action</span>
+    <strong>Designed to feel fast, premium and focused on the edge.</strong>
+    <p>It looks like a command center because that is how the best opportunities are handled.</p>
+  </article>
+</section>
+
+<section class="landing-signals">
+  <div class="landing-signals-header">
+    <span class="pill">Live signals</span>
+    <div>
+      <h2>What VIP members see first</h2>
+      <p>Small, fast signals that show the stream is live and the edge is moving.</p>
+    </div>
+  </div>
+
+  <div class="landing-signals-grid">
+    <article class="landing-signal-card">
+      <span class="signal-dot"></span>
+      <strong>Fresh drop</strong>
+      <small>New listing just surfaced in the live stream.</small>
+    </article>
+    <article class="landing-signal-card">
+      <span class="signal-dot is-accent"></span>
+      <strong>Below market</strong>
+      <small>Target looks lighter than recent sales and worth a fast look.</small>
+    </article>
+    <article class="landing-signal-card">
+      <span class="signal-dot is-warm"></span>
+      <strong>Fast moving</strong>
+      <small>Signals that tend to disappear before slower buyers notice.</small>
+    </article>
   </div>
 </section>
 {% endblock %}
