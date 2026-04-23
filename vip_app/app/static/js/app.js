@@ -390,11 +390,10 @@ function updateRelativeTimeLabels(root) {
 
 function createRadarController(radarRoot, enabled) {
   if (!radarRoot || !enabled) {
-    return { pulse: () => {} };
+    return { pulse: () => {}, spawnPings: () => {} };
   }
 
   let pulseTimeout = null;
-
   function pulse() {
     if (pulseTimeout) window.clearTimeout(pulseTimeout);
     radarRoot.classList.remove("is-pulsing");
@@ -406,7 +405,41 @@ function createRadarController(radarRoot, enabled) {
     }, 260);
   }
 
-  return { pulse };
+  function spawnPing(delayMs = 0) {
+    window.setTimeout(() => {
+      if (!radarRoot.isConnected) return;
+      const ping = document.createElement("span");
+      ping.className = "live-radar-ping";
+
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 23 + Math.random() * 24;
+      const x = 50 + Math.cos(angle) * radius;
+      const y = 50 + Math.sin(angle) * radius;
+
+      ping.style.left = `${x}%`;
+      ping.style.top = `${y}%`;
+      ping.style.setProperty("--ping-angle", `${Math.round(angle * (180 / Math.PI))}deg`);
+
+      radarRoot.appendChild(ping);
+      ping.classList.add("is-visible");
+      ping.addEventListener(
+        "animationend",
+        () => {
+          ping.remove();
+        },
+        { once: true }
+      );
+    }, delayMs);
+  }
+
+  function spawnPings(count = 1) {
+    const total = Math.max(1, Math.min(Number(count) || 1, 6));
+    for (let index = 0; index < total; index += 1) {
+      spawnPing(index * 72);
+    }
+  }
+
+  return { pulse, spawnPings };
 }
 
 function createSourceController(sourceRail, enabled) {
@@ -496,6 +529,7 @@ function initLiveFeed() {
       .filter(Boolean);
 
     radar.pulse();
+    radar.spawnPings(platformKeys.length || items.length || 1);
     window.setTimeout(() => {
       sourceFeedback.pulsePlatforms(platformKeys);
     }, 70);

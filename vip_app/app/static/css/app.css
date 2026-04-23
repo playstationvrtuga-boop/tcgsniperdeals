@@ -554,9 +554,9 @@ select { font: inherit; }
 .live-source-rail {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 .source-pill {
@@ -565,22 +565,23 @@ select { font: inherit; }
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 13px;
-  border-radius: 13px;
-  border: 1px solid rgba(53, 224, 255, 0.12);
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(53, 224, 255, 0.18);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0)),
-    linear-gradient(180deg, rgba(18, 28, 43, 0.92), rgba(11, 16, 24, 0.88));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0)),
+    linear-gradient(180deg, rgba(18, 28, 43, 0.96), rgba(11, 16, 24, 0.92));
   color: var(--muted-strong);
-  font-size: 0.71rem;
+  font-size: 0.74rem;
+  font-weight: 800;
   line-height: 1;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   overflow: hidden;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 10px 24px rgba(2, 8, 23, 0.18);
+    0 12px 28px rgba(2, 8, 23, 0.22);
   transition:
     transform 0.18s ease,
     background 0.18s ease,
@@ -615,45 +616,45 @@ select { font: inherit; }
 
 .source-pill[data-source-label="vinted"] {
   --source-accent: var(--accent-purple);
-  --source-sheen: rgba(124, 92, 255, 0.12);
-  border-color: rgba(124, 92, 255, 0.16);
+  --source-sheen: rgba(124, 92, 255, 0.18);
+  border-color: rgba(124, 92, 255, 0.24);
   background:
-    linear-gradient(180deg, rgba(124, 92, 255, 0.08), rgba(124, 92, 255, 0.02)),
-    linear-gradient(180deg, rgba(18, 28, 43, 0.92), rgba(11, 16, 24, 0.88));
+    linear-gradient(180deg, rgba(124, 92, 255, 0.14), rgba(124, 92, 255, 0.03)),
+    linear-gradient(180deg, rgba(18, 28, 43, 0.96), rgba(11, 16, 24, 0.92));
   color: #f4efff;
 }
 
 .source-pill[data-source-label="ebay"] {
   --source-accent: var(--accent-cyan);
-  --source-sheen: rgba(53, 224, 255, 0.12);
-  border-color: rgba(53, 224, 255, 0.16);
+  --source-sheen: rgba(53, 224, 255, 0.18);
+  border-color: rgba(53, 224, 255, 0.24);
   background:
-    linear-gradient(180deg, rgba(53, 224, 255, 0.08), rgba(53, 224, 255, 0.02)),
-    linear-gradient(180deg, rgba(18, 28, 43, 0.92), rgba(11, 16, 24, 0.88));
+    linear-gradient(180deg, rgba(53, 224, 255, 0.14), rgba(53, 224, 255, 0.03)),
+    linear-gradient(180deg, rgba(18, 28, 43, 0.96), rgba(11, 16, 24, 0.92));
   color: #eafcff;
 }
 
 .source-pill-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   background: var(--source-accent);
   box-shadow:
-    0 0 0 4px rgba(255, 255, 255, 0.045),
-    0 0 12px rgba(53, 224, 255, 0.24);
+    0 0 0 4px rgba(255, 255, 255, 0.05),
+    0 0 14px rgba(53, 224, 255, 0.28);
   filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.06));
 }
 
 .source-pill[data-source-label="vinted"] .source-pill-dot {
   box-shadow:
-    0 0 0 4px rgba(255, 255, 255, 0.045),
-    0 0 12px rgba(124, 92, 255, 0.24);
+    0 0 0 4px rgba(255, 255, 255, 0.05),
+    0 0 14px rgba(124, 92, 255, 0.28);
 }
 
 .source-pill[data-source-label="ebay"] .source-pill-dot {
   box-shadow:
-    0 0 0 4px rgba(255, 255, 255, 0.045),
-    0 0 12px rgba(53, 224, 255, 0.24);
+    0 0 0 4px rgba(255, 255, 255, 0.05),
+    0 0 14px rgba(53, 224, 255, 0.28);
 }
 
 .source-pill-crosshair {
@@ -688,29 +689,29 @@ select { font: inherit; }
 
 .source-pill.is-targeted {
   color: #f5fbff;
-  transform: translateY(-1px) scale(1.035);
+  transform: translateY(-1px) scale(1.045);
 }
 
 .source-pill[data-source-label="vinted"].is-targeted {
-  border-color: rgba(124, 92, 255, 0.34);
+  border-color: rgba(124, 92, 255, 0.48);
   background:
-    linear-gradient(180deg, rgba(124, 92, 255, 0.14), rgba(124, 92, 255, 0.04)),
-    linear-gradient(180deg, rgba(18, 28, 43, 0.94), rgba(11, 16, 24, 0.9));
+    linear-gradient(180deg, rgba(124, 92, 255, 0.2), rgba(124, 92, 255, 0.06)),
+    linear-gradient(180deg, rgba(18, 28, 43, 0.97), rgba(11, 16, 24, 0.94));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 0 0 1px rgba(124, 92, 255, 0.16),
-    0 0 18px rgba(124, 92, 255, 0.18);
+    0 0 22px rgba(124, 92, 255, 0.22);
 }
 
 .source-pill[data-source-label="ebay"].is-targeted {
-  border-color: rgba(53, 224, 255, 0.34);
+  border-color: rgba(53, 224, 255, 0.48);
   background:
-    linear-gradient(180deg, rgba(53, 224, 255, 0.14), rgba(53, 224, 255, 0.04)),
-    linear-gradient(180deg, rgba(18, 28, 43, 0.94), rgba(11, 16, 24, 0.9));
+    linear-gradient(180deg, rgba(53, 224, 255, 0.2), rgba(53, 224, 255, 0.06)),
+    linear-gradient(180deg, rgba(18, 28, 43, 0.97), rgba(11, 16, 24, 0.94));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 0 0 1px rgba(53, 224, 255, 0.16),
-    0 0 18px rgba(53, 224, 255, 0.18);
+    0 0 22px rgba(53, 224, 255, 0.22);
 }
 
 .source-pill.is-targeted .source-pill-crosshair {
@@ -810,11 +811,13 @@ select { font: inherit; }
 
 .live-radar-blip {
   position: absolute;
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #35e0ff, #00ffa6);
-  box-shadow: 0 0 0 6px rgba(53, 224, 255, 0.08), 0 0 14px rgba(0, 255, 166, 0.24);
+  background: linear-gradient(135deg, rgba(255, 92, 92, 0.98), rgba(255, 36, 36, 0.78));
+  box-shadow:
+    0 0 0 5px rgba(255, 55, 55, 0.14),
+    0 0 16px rgba(255, 64, 64, 0.34);
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.45);
 }
@@ -829,9 +832,42 @@ select { font: inherit; }
 }
 
 @keyframes radar-blip {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.35); }
-  18% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(1.35); }
+}
+
+.live-radar-ping {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.2);
+  background:
+    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.95) 0 18%, rgba(255, 112, 112, 0.96) 28%, rgba(255, 52, 52, 0.92) 54%, rgba(255, 52, 52, 0.18) 76%, transparent 78%);
+  box-shadow:
+    0 0 0 5px rgba(255, 68, 68, 0.12),
+    0 0 18px rgba(255, 68, 68, 0.34);
+}
+
+.live-radar-ping.is-visible {
+  animation: radar-ping-fade 920ms ease-out forwards;
+}
+
+@keyframes radar-ping-fade {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.25);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.45);
+  }
 }
 
 @keyframes radar-center-pulse {
