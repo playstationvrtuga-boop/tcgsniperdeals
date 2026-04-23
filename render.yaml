@@ -18,7 +18,7 @@ services:
       - key: BOT_API_KEY
         generateValue: true
       - key: WEB_CONCURRENCY
-        value: "2"
+        value: "1"
       - key: GUNICORN_THREADS
         value: "1"
       - key: GUNICORN_TIMEOUT
@@ -52,9 +52,9 @@ services:
       - key: RELATIVE_TIME_UPDATE_MS
         value: "15000"
       - key: DB_POOL_SIZE
-        value: "2"
+        value: "1"
       - key: DB_MAX_OVERFLOW
-        value: "2"
+        value: "1"
       - key: SITE_URL
         sync: false
       - key: MOBILE_APP_URL
