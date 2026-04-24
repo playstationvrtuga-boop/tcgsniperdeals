@@ -2428,7 +2428,14 @@ def _sample_free_realtime(anuncio):
 
 def enviar_anuncio_free_realtime(anuncio):
     anuncio = dict(anuncio)
-    anuncio["share_link"] = anuncio.get("share_link") or build_free_public_listing_url(anuncio.get("id"))
+    original_link = (
+        anuncio.get("link_original")
+        or anuncio.get("link")
+        or anuncio.get("url")
+        or anuncio.get("share_link")
+        or ""
+    )
+    anuncio["share_link"] = original_link
     mensagem = build_message(anuncio, canal="vip")
     print(mensagem)
 
