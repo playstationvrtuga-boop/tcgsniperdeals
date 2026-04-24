@@ -97,6 +97,225 @@ BILLING_METHODS = [
 ]
 
 
+SEO_PAGES = {
+    "pokemon-deals": {
+        "title": "Real-Time Pokémon TCG Deals | TCG Sniper Deals",
+        "meta_description": "Find real-time Pokémon TCG deals, booster packs, ETBs, Charizard cards and sealed products before they disappear.",
+        "h1": "Real-Time Pokémon TCG Deals",
+        "intro": (
+            "TCG Sniper Deals helps collectors and resellers find Pokémon TCG opportunities faster. "
+            "The app tracks listings from marketplaces like Vinted and eBay and highlights Pokémon cards, "
+            "booster packs, Elite Trainer Boxes, sealed products and underpriced listings before they disappear."
+        ),
+        "sections": [
+            {
+                "title": "Why speed matters in Pokémon deals",
+                "text": (
+                    "The best Pokémon deals usually do not stay available for long. Charizard cards, booster packs, ETBs "
+                    "and sealed Pokémon products can sell within minutes when the price is too low. TCG Sniper Deals is "
+                    "built to help users react faster instead of manually refreshing marketplaces all day."
+                ),
+            },
+            {
+                "title": "VIP alerts",
+                "text": (
+                    "VIP users get faster access to deal alerts, while public users may only see limited or delayed opportunities. "
+                    "If you collect, resell or flip Pokémon cards, real-time alerts can give you a serious advantage."
+                ),
+            },
+        ],
+        "related": ["charizard-deals", "pokemon-etb-deals", "pokemon-booster-deals", "pokemon-ebay-deals"],
+    },
+    "charizard-deals": {
+        "title": "Charizard Card Deals | Real-Time Pokémon Alerts",
+        "meta_description": "Track Charizard Pokémon card deals, underpriced listings and real-time marketplace alerts.",
+        "h1": "Charizard Card Deals",
+        "intro": (
+            "Charizard is one of the most searched and collected Pokémon cards worldwide. Because of that demand, "
+            "good Charizard card deals often disappear quickly."
+        ),
+        "sections": [
+            {
+                "title": "Find Charizard listings faster",
+                "text": (
+                    "TCG Sniper Deals helps track marketplace listings where Charizard cards may appear below market value. "
+                    "This includes raw cards, graded cards, PSA slabs, vintage cards and modern Charizard hits."
+                ),
+            },
+            {
+                "title": "Built for collectors and resellers",
+                "text": (
+                    "Instead of checking Vinted and eBay manually, users can use alerts to react faster when a potential Charizard deal appears."
+                ),
+            },
+        ],
+        "related": ["pokemon-deals", "pokemon-ebay-deals", "cheap-pokemon-cards", "pokemon-vinted-deals"],
+    },
+    "pokemon-etb-deals": {
+        "title": "Pokémon ETB Deals | Elite Trainer Box Alerts",
+        "meta_description": "Find Pokémon Elite Trainer Box deals, ETB discounts and sealed Pokémon TCG product alerts.",
+        "h1": "Pokémon ETB Deals",
+        "intro": (
+            "Elite Trainer Boxes are one of the most popular sealed Pokémon TCG products for collectors, investors and resellers."
+        ),
+        "sections": [
+            {
+                "title": "Track sealed Pokémon products",
+                "text": (
+                    "TCG Sniper Deals helps users monitor ETB listings across marketplaces and identify potential underpriced sealed products."
+                ),
+            },
+            {
+                "title": "Why ETBs matter",
+                "text": (
+                    "Pokémon ETBs are easy to store, popular with collectors and often sell fast when listed below normal market prices."
+                ),
+            },
+        ],
+        "related": ["pokemon-deals", "pokemon-booster-deals", "pokemon-vinted-deals", "pokemon-ebay-deals"],
+    },
+    "pokemon-booster-deals": {
+        "title": "Pokémon Booster Pack Deals | Real-Time TCG Alerts",
+        "meta_description": "Track Pokémon booster pack deals, booster boxes and sealed pack listings in real time.",
+        "h1": "Pokémon Booster Pack Deals",
+        "intro": (
+            "Booster packs and booster boxes are among the most searched Pokémon TCG products online."
+        ),
+        "sections": [
+            {
+                "title": "Find booster pack opportunities",
+                "text": (
+                    "TCG Sniper Deals tracks marketplace listings for booster packs, booster boxes and sealed Pokémon TCG products."
+                ),
+            },
+            {
+                "title": "React before deals disappear",
+                "text": (
+                    "Good booster deals can sell quickly, especially when they include popular sets, rare packs or discounted sealed products."
+                ),
+            },
+        ],
+        "related": ["pokemon-deals", "pokemon-etb-deals", "pokemon-ebay-deals", "cheap-pokemon-cards"],
+    },
+    "pokemon-ebay-deals": {
+        "title": "Pokémon eBay Deals | Real-Time Card Alerts",
+        "meta_description": "Find Pokémon eBay deals, underpriced cards, sealed products and real-time TCG alerts.",
+        "h1": "Pokémon eBay Deals",
+        "intro": (
+            "eBay is one of the biggest marketplaces for Pokémon cards, graded slabs, sealed boxes and rare collectibles."
+        ),
+        "sections": [
+            {
+                "title": "Track eBay Pokémon listings",
+                "text": (
+                    "TCG Sniper Deals helps users monitor new Pokémon listings and detect possible opportunities faster."
+                ),
+            },
+            {
+                "title": "Useful for flipping and collecting",
+                "text": (
+                    "Whether you are looking for cheap cards, graded Pokémon cards or sealed products, fast alerts can help you act before other buyers."
+                ),
+            },
+        ],
+        "related": ["pokemon-deals", "charizard-deals", "pokemon-vinted-deals", "cheap-pokemon-cards"],
+    },
+    "pokemon-vinted-deals": {
+        "title": "Pokémon Vinted Deals | Cheap Pokémon Card Alerts",
+        "meta_description": "Track Pokémon Vinted deals, cheap Pokémon cards and underpriced TCG listings.",
+        "h1": "Pokémon Vinted Deals",
+        "intro": (
+            "Vinted can be a strong place to find cheap Pokémon cards, bundles and collection listings from casual sellers."
+        ),
+        "sections": [
+            {
+                "title": "Find underpriced listings",
+                "text": (
+                    "Many sellers on Vinted list Pokémon cards without checking the full market value. This can create opportunities for collectors and resellers."
+                ),
+            },
+            {
+                "title": "Real-time advantage",
+                "text": (
+                    "The best Vinted Pokémon deals often sell very fast. TCG Sniper Deals helps users spot new listings faster."
+                ),
+            },
+        ],
+        "related": ["pokemon-deals", "cheap-pokemon-cards", "pokemon-etb-deals", "pokemon-ebay-deals"],
+    },
+    "cheap-pokemon-cards": {
+        "title": "Cheap Pokémon Cards | Find Undervalued Deals",
+        "meta_description": "Find cheap Pokémon cards, undervalued listings and real-time Pokémon TCG deal alerts.",
+        "h1": "Cheap Pokémon Cards",
+        "intro": (
+            "Finding cheap Pokémon cards online is not just about searching manually. The best opportunities usually appear and disappear quickly."
+        ),
+        "sections": [
+            {
+                "title": "Undervalued Pokémon listings",
+                "text": (
+                    "TCG Sniper Deals helps identify new listings that may be cheaper than normal market value."
+                ),
+            },
+            {
+                "title": "For collectors and resellers",
+                "text": (
+                    "Whether you want cards for your personal collection or for resale, speed and timing are key."
+                ),
+            },
+        ],
+        "related": ["pokemon-deals", "pokemon-vinted-deals", "pokemon-ebay-deals", "charizard-deals"],
+    },
+}
+
+
+def build_seo_page_context(slug):
+    data = SEO_PAGES[slug]
+    page = {
+        "slug": slug,
+        "title": data["title"],
+        "meta_description": data["meta_description"],
+        "h1": data["h1"],
+        "intro": data["intro"],
+        "sections": [dict(section) for section in data["sections"]],
+        "related_pages": [
+            {
+                "slug": related_slug,
+                "label": SEO_PAGES[related_slug]["h1"],
+                "url": f"/{related_slug}",
+            }
+            for related_slug in data.get("related", [])
+            if related_slug in SEO_PAGES
+        ],
+    }
+    return page
+
+
+def render_seo_page(slug):
+    page = build_seo_page_context(slug)
+    return render_template(
+        "seo_page.html",
+        page=page,
+        canonical_url=request.url,
+        vip_access_url=url_for("main.billing"),
+        app_url=url_for("main.index"),
+    )
+
+
+def register_seo_page_routes():
+    for slug in SEO_PAGES:
+        endpoint = f"seo_page_{slug.replace('-', '_')}"
+
+        def view(page_slug=slug):
+            return render_seo_page(page_slug)
+
+        view.__name__ = endpoint
+        main_bp.add_url_rule(f"/{slug}", endpoint=endpoint, view_func=view)
+
+
+register_seo_page_routes()
+
+
 def get_current_plan_key(user):
     latest_paid = (
         Payment.query.filter_by(user_id=user.id, status="paid")
