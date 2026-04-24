@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}TCG Sniper Deals{% endblock %}
+{% block meta_description %}TCG Sniper Deals tracks real-time Pokémon TCG deals across Vinted and eBay so collectors and resellers can react faster.{% endblock %}
 {% block content %}
 <section class="feed-command-center public-dashboard-shell{% if not enable_live_radar %} is-radar-off{% endif %}">
   <section class="section-header section-header-feed public-dashboard-header">
@@ -52,5 +53,28 @@
       <p>The stream will fill as soon as the bot spots the next drop.</p>
     </div>
   {% endfor %}
+</section>
+
+<section class="landing-seo-shell">
+  <div class="landing-seo-copy">
+    <span class="pill">{{ seo_home.eyebrow }}</span>
+    <h2>{{ seo_home.title }}</h2>
+    <p>{{ seo_home.text }}</p>
+  </div>
+
+  <div class="landing-seo-grid">
+    {% for section in seo_home.sections %}
+    <article class="landing-seo-card">
+      <h3>{{ section.title }}</h3>
+      <p>{{ section.text }}</p>
+    </article>
+    {% endfor %}
+  </div>
+
+  <div class="landing-seo-links">
+    {% for label, endpoint in seo_home.links %}
+    <a class="seo-link-chip" href="{{ url_for(endpoint) }}">{{ label }}</a>
+    {% endfor %}
+  </div>
 </section>
 {% endblock %}

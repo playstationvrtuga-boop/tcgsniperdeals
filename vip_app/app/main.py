@@ -269,6 +269,39 @@ SEO_PAGES = {
 }
 
 
+SEO_HOME_CONTENT = {
+    "eyebrow": "Pokémon TCG search",
+    "title": "Find real-time Pokémon TCG deals before they disappear",
+    "text": (
+        "TCG Sniper Deals tracks Pokémon cards, ETBs, booster packs and sealed products across Vinted and eBay. "
+        "Collectors and resellers use the app to spot underpriced listings faster and keep up with the live deal stream."
+    ),
+    "sections": [
+        {
+            "title": "Pokémon cards, ETBs and booster packs",
+            "text": (
+                "If you are searching for Charizard cards, Elite Trainer Boxes, booster packs or cheap Pokémon cards, "
+                "the live feed highlights fresh listings as they are detected."
+            ),
+        },
+        {
+            "title": "Built for collectors and resellers",
+            "text": (
+                "The public home gives a preview of the stream, while VIP users get the fastest alerts, full access and the strongest opportunities."
+            ),
+        },
+    ],
+    "links": [
+        ("Charizard deals", "main.seo_page_charizard_deals"),
+        ("ETB deals", "main.seo_page_pokemon_etb_deals"),
+        ("Booster pack deals", "main.seo_page_pokemon_booster_deals"),
+        ("eBay deals", "main.seo_page_pokemon_ebay_deals"),
+        ("Vinted deals", "main.seo_page_pokemon_vinted_deals"),
+        ("Cheap Pokémon cards", "main.seo_page_cheap_pokemon_cards"),
+    ],
+}
+
+
 def build_seo_page_context(slug):
     data = SEO_PAGES[slug]
     page = {
@@ -420,6 +453,7 @@ def index():
         relative_time_update_ms=current_app.config["RELATIVE_TIME_UPDATE_MS"],
         feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
         feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
+        seo_home=SEO_HOME_CONTENT,
     )
 
 
