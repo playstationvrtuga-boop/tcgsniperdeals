@@ -60,6 +60,18 @@
           </div>
         </div>
         <form method="post" action="{{ url_for('admin.update_vip', user_id=user.id) }}" class="admin-user-form">
+          <label>
+            Email
+            <input type="email" name="email" value="{{ user.email }}" required>
+          </label>
+          <label>
+            New password
+            <input type="password" name="password" placeholder="Leave blank to keep current password">
+          </label>
+          <label class="checkbox-line">
+            <input type="checkbox" name="is_admin" {% if user.is_admin %}checked{% endif %}>
+            Admin access
+          </label>
           <label class="checkbox-line">
             <input type="checkbox" name="is_vip" {% if user.is_vip %}checked{% endif %}>
             VIP access live

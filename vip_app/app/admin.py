@@ -91,10 +91,35 @@ def update_vip(user_id):
         flash("Member not found.", "error")
         return redirect(url_for("admin.dashboard"))
 
+    email = request.form.get("email", "").strip().lower()
+    telegram_username = request.form.get("telegram_username", "").strip() or None
+    password = request.form.get("password", "").strip()
+    is_admin = request.form.get("is_admin") == "on"
     user.is_vip = request.form.get("is_vip") == "on"
-    user.telegram_username = request.form.get("telegram_username", "").strip() or None
+    user.telegram_username = telegram_username
     expiration = request.form.get("vip_expires_at", "").strip()
     user.vip_expires_at = parse_date(expiration) if expiration else None
+
+    if email:
+        existing = User.query.filter(User.email == email, User.id != user.id).first()
+        if existing:
+            flash("That email is already in use.", "error")
+            return redirect(url_for("admin.dashboard"))
+        user.email = email
+
+    if password:
+        if len(password) < 8:
+            flash("Use at least 8 characters for a new password.", "error")
+            return redirect(url_for("admin.dashboard"))
+        user.set_password(password)
+
+    if not is_admin and user.is_admin:
+        other_admin_exists = User.query.filter(User.is_admin.is_(True), User.id != user.id).first() is not None
+        if not other_admin_exists:
+            flash("Keep at least one admin account active.", "error")
+            return redirect(url_for("admin.dashboard"))
+
+    user.is_admin = is_admin
     db.session.commit()
     flash(f"VIP access updated for {user.email}.", "success")
     return redirect(url_for("admin.dashboard"))
