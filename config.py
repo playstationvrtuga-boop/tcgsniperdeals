@@ -54,6 +54,7 @@ APP_API_STATUS_URL = _get_setting(
     f"{str(_get_setting('SITE_URL', 'http://127.0.0.1:5000')).rstrip('/')}/api/listings/status",
 )
 SITE_URL = _get_setting("SITE_URL", "http://127.0.0.1:5000")
+APP_PUBLIC_URL = _get_setting("APP_PUBLIC_URL", "https://tcg-sniper-deals.onrender.com")
 BOT_API_KEY = os.environ.get("BOT_API_KEY") or LOCAL_ENV.get("BOT_API_KEY", "") or TOKEN
 APP_API_KEY = BOT_API_KEY or os.environ.get("APP_API_KEY") or LOCAL_ENV.get("APP_API_KEY", "")
 APP_API_TIMEOUT = float(_get_setting("APP_API_TIMEOUT", "8"))
@@ -78,6 +79,12 @@ FREE_CTA_APP_LINK = _get_setting(
     "FREE_CTA_APP_LINK",
     _get_setting("MOBILE_APP_URL", _get_setting("SITE_URL", "")),
 )
+FREE_PROMO_ENABLED = _get_flag("FREE_PROMO_ENABLED", default=True)
+FREE_PROMO_FOLDER = _get_setting(
+    "FREE_PROMO_FOLDER",
+    str(BASE_DIR / "vip_app" / "app" / "static" / "promos"),
+)
+FREE_PROMO_INTERVAL_MINUTES = int(_get_setting("FREE_PROMO_INTERVAL_MINUTES", "60"))
 ENABLE_FREE_GONE_ALERTS = _get_flag("ENABLE_FREE_GONE_ALERTS", default=True)
 FREE_GONE_MIN_PER_DAY = int(_get_setting("FREE_GONE_MIN_PER_DAY", "3"))
 FREE_GONE_MAX_PER_DAY = int(_get_setting("FREE_GONE_MAX_PER_DAY", "5"))

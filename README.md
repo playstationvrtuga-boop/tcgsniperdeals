@@ -16,6 +16,9 @@ There is now also a lightweight pricing layer for production testing:
 4. Gone-alert worker for FREE Telegram FOMO posts  
    Path: `C:\Users\Trabalho\Desktop\bot_pokemon\gone_alert_worker.py`
 
+5. FREE Telegram promotional banner scheduler  
+   Path: `C:\Users\Trabalho\Desktop\bot_pokemon\services\free_promos.py`
+
 The bot now sends accepted listings into the VIP app automatically through:
 
 `POST /api/listings`
@@ -75,6 +78,17 @@ The bot config file is:
 
 The bot now auto-reads values from `vip_app\.env` when possible, so on the same machine it usually needs little or no extra setup.
 
+For the hourly FREE promotional banners, set:
+
+- `APP_PUBLIC_URL` for the button target
+- `FREE_PROMO_ENABLED=true`
+- `FREE_PROMO_FOLDER=vip_app/app/static/promos`
+- `FREE_PROMO_INTERVAL_MINUTES=60`
+
+The banner image files live in:
+
+`C:\Users\Trabalho\Desktop\bot_pokemon\vip_app\app\static\promos`
+
 ## 3. Run the bot
 
 From:
@@ -92,6 +106,14 @@ When the bot accepts a valid listing, the flow is now:
 `validated listing -> app API -> app database -> VIP feed`
 
 Telegram sending is still separate and optional.
+
+The bot also starts a lightweight hourly promotional banner scheduler for the FREE channel. It sends one random promo image, one random caption, and one inline button that opens the app.
+
+To test one promo immediately during development, run:
+
+```powershell
+python send_test_promo.py
+```
 
 ## 3.3 Run the gone-alert worker
 

@@ -16,6 +16,7 @@ from core.normalizer import normalize_text
 from core.scoring import ListingAssessment, assess_listing, is_priority
 from services.alert_formatter import make_partial_product_name
 from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
+from services.free_promos import schedule_free_promos_every_hour
 from services.public_links import build_free_public_listing_url
 from urllib.parse import quote_plus, urljoin
 import requests
@@ -4812,6 +4813,7 @@ def main():
     compactar_ficheiro_linhas(FICHEIRO_VISTOS_EBAY_DEBUG, MAX_VISTOS_EBAY_DEBUG_ITEMS)
     if FREE_LANDING_ONLY:
         guardar_fila_free([])
+    schedule_free_promos_every_hour()
     print("Bot ativo...")
     ciclo = 0
     next_cycle_at = time.monotonic()
