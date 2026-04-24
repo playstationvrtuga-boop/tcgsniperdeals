@@ -486,9 +486,7 @@ select { font: inherit; }
 
 .live-radar-shell {
   display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(0, 1.05fr) minmax(240px, 300px);
-  align-items: center;
+  gap: 18px;
   margin: 12px 0 14px;
   padding: 18px;
   border: 1px solid rgba(53, 224, 255, 0.16);
@@ -502,6 +500,32 @@ select { font: inherit; }
 
 .live-radar-shell.is-disabled {
   display: none;
+}
+
+.live-radar-stage {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(250px, 324px) minmax(120px, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.live-radar-source-side {
+  display: flex;
+  align-items: center;
+  min-height: 100%;
+}
+
+.live-radar-source-side .source-pill {
+  min-width: 128px;
+  justify-content: center;
+}
+
+.live-radar-source-side.is-left {
+  justify-content: flex-end;
+}
+
+.live-radar-source-side.is-right {
+  justify-content: flex-start;
 }
 
 .live-radar-copy h2 {
@@ -566,14 +590,14 @@ select { font: inherit; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
-  border-radius: 14px;
+  padding: 12px 18px;
+  border-radius: 16px;
   border: 1px solid rgba(53, 224, 255, 0.18);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0)),
     linear-gradient(180deg, rgba(18, 28, 43, 0.96), rgba(11, 16, 24, 0.92));
   color: var(--muted-strong);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.1em;
@@ -732,7 +756,7 @@ select { font: inherit; }
 
 .live-radar {
   position: relative;
-  width: min(100%, 284px);
+  width: min(100%, 324px);
   aspect-ratio: 1;
   margin: 0 auto;
   border-radius: 50%;
@@ -770,9 +794,10 @@ select { font: inherit; }
   inset: 0;
   border-radius: 50%;
   background:
-    conic-gradient(from 0deg, rgba(0, 255, 166, 0.03), rgba(53, 224, 255, 0.16), rgba(124, 92, 255, 0.12), transparent 72%);
+    conic-gradient(from 0deg, rgba(0, 255, 166, 0.06), rgba(0, 255, 166, 0.46), rgba(53, 224, 255, 0.18), rgba(124, 92, 255, 0.1), transparent 72%);
   mask: radial-gradient(circle, transparent 41%, #000 42%);
-  animation: radar-sweep 4.8s linear infinite;
+  filter: drop-shadow(0 0 12px rgba(0, 255, 166, 0.22));
+  animation: radar-sweep 4.3s linear infinite;
 }
 
 .live-radar-core {
@@ -784,7 +809,7 @@ select { font: inherit; }
   border-radius: 50%;
   transform: translate(-50%, -50%);
   background: #d9fff2;
-  box-shadow: 0 0 0 6px rgba(0, 255, 166, 0.1), 0 0 18px rgba(53, 224, 255, 0.18);
+  box-shadow: 0 0 0 6px rgba(0, 255, 166, 0.12), 0 0 18px rgba(53, 224, 255, 0.18);
 }
 
 .live-radar::after {
@@ -844,12 +869,15 @@ select { font: inherit; }
   border-radius: 50%;
   pointer-events: none;
   opacity: 0;
+  left: 50%;
+  top: 50%;
   transform: translate(-50%, -50%) scale(0.2);
   background:
     radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.95) 0 18%, rgba(255, 112, 112, 0.96) 28%, rgba(255, 52, 52, 0.92) 54%, rgba(255, 52, 52, 0.18) 76%, transparent 78%);
   box-shadow:
     0 0 0 5px rgba(255, 68, 68, 0.12),
     0 0 18px rgba(255, 68, 68, 0.34);
+  will-change: transform, opacity;
 }
 
 .live-radar-ping.is-visible {
@@ -866,7 +894,7 @@ select { font: inherit; }
   }
   100% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(1.45);
+    transform: translate(calc(-50% + var(--ping-dx, 0px)), calc(-50% + var(--ping-dy, 0px))) scale(1.15);
   }
 }
 
@@ -1503,6 +1531,8 @@ select { font: inherit; }
   .live-radar-sweep,
   .live-status-dot,
   .live-radar-blip.is-visible,
+  .live-radar-ping.is-visible,
+  .source-pill.is-targeted,
   .listing-card.is-new-feed-item {
     animation: none !important;
   }
@@ -2403,12 +2433,23 @@ select { font: inherit; }
     grid-template-columns: 1fr;
   }
 
+  .live-radar-stage {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    justify-items: center;
+  }
+
+  .live-radar-source-side {
+    width: 100%;
+    justify-content: center;
+  }
+
   .landing-hero-shell {
     grid-template-columns: 1fr;
   }
 
   .live-radar {
-    width: min(100%, 214px);
+    width: min(100%, 244px);
   }
 
   .app-splash-credit {

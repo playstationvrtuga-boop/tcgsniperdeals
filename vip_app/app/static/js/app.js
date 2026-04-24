@@ -405,20 +405,20 @@ function createRadarController(radarRoot, enabled) {
     }, 260);
   }
 
-  function spawnPing(delayMs = 0) {
+  function spawnPing(platformKey = "", delayMs = 0) {
     window.setTimeout(() => {
       if (!radarRoot.isConnected) return;
       const ping = document.createElement("span");
       ping.className = "live-radar-ping";
 
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 23 + Math.random() * 24;
-      const x = 50 + Math.cos(angle) * radius;
-      const y = 50 + Math.sin(angle) * radius;
+      const isVinted = String(platformKey || "").toLowerCase() === "vinted";
+      const isEbay = String(platformKey || "").toLowerCase() === "ebay";
+      const direction = isVinted ? -1 : isEbay ? 1 : Math.random() < 0.5 ? -1 : 1;
+      const distance = 92 + Math.random() * 26;
+      const drift = -16 + Math.random() * 32;
 
-      ping.style.left = `${x}%`;
-      ping.style.top = `${y}%`;
-      ping.style.setProperty("--ping-angle", `${Math.round(angle * (180 / Math.PI))}deg`);
+      ping.style.setProperty("--ping-dx", `${direction * distance}px`);
+      ping.style.setProperty("--ping-dy", `${drift}px`);
 
       radarRoot.appendChild(ping);
       ping.classList.add("is-visible");
@@ -432,10 +432,17 @@ function createRadarController(radarRoot, enabled) {
     }, delayMs);
   }
 
-  function spawnPings(count = 1) {
-    const total = Math.max(1, Math.min(Number(count) || 1, 6));
+  function spawnPings(targets = 1) {
+    if (Array.isArray(targets)) {
+      targets.slice(0, 6).forEach((platformKey, index) => {
+        spawnPing(platformKey, index * 72);
+      });
+      return;
+    }
+
+    const total = Math.max(1, Math.min(Number(targets) || 1, 6));
     for (let index = 0; index < total; index += 1) {
-      spawnPing(index * 72);
+      spawnPing("", index * 72);
     }
   }
 
@@ -529,7 +536,7 @@ function initLiveFeed() {
       .filter(Boolean);
 
     radar.pulse();
-    radar.spawnPings(platformKeys.length || items.length || 1);
+    radar.spawnPings(platformKeys.length ? platformKeys : items.length || 1);
     window.setTimeout(() => {
       sourceFeedback.pulsePlatforms(platformKeys);
     }, 70);
