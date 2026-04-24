@@ -316,6 +316,29 @@ def register_seo_page_routes():
 register_seo_page_routes()
 
 
+def build_sitemap_urls():
+    site_root = (current_app.config.get("SITE_URL") or request.url_root).rstrip("/")
+    public_paths = [
+        "/",
+        "/download-app",
+        "/pokemon-deals",
+        "/charizard-deals",
+        "/pokemon-etb-deals",
+        "/pokemon-booster-deals",
+        "/pokemon-ebay-deals",
+        "/pokemon-vinted-deals",
+        "/cheap-pokemon-cards",
+    ]
+    today = datetime.now(timezone.utc).date().isoformat()
+    return [
+        {
+            "loc": f"{site_root}{path}",
+            "lastmod": today,
+        }
+        for path in public_paths
+    ]
+
+
 def get_current_plan_key(user):
     latest_paid = (
         Payment.query.filter_by(user_id=user.id, status="paid")
@@ -763,6 +786,35 @@ def vip_pending():
 @main_bp.route("/manifest.webmanifest")
 def manifest():
     return send_from_directory(current_app.static_folder, "manifest.webmanifest", mimetype="application/manifest+json")
+
+
+@main_bp.route("/sitemap.xml")
+def sitemap():
+    urls = build_sitemap_urls()
+    xml = render_template("seo_sitemap.xml", urls=urls)
+    return Response(xml, mimetype="application/xml")
+
+
+@main_bp.route("/robots.txt")
+def robots_txt():
+    site_root = (current_app.config.get("SITE_URL") or request.url_root).rstrip("/")
+    lines = [
+        "User-agent: *",
+        "Allow: /",
+        "Disallow: /feed",
+        "Disallow: /favorites",
+        "Disallow: /profile",
+        "Disallow: /billing",
+        "Disallow: /vip-access",
+        "Disallow: /vip-pending",
+        "Disallow: /admin",
+        "Disallow: /api",
+        "Disallow: /push-info",
+        "Disallow: /push-subscriptions",
+        f"Sitemap: {site_root}/sitemap.xml",
+        "",
+    ]
+    return Response("\n".join(lines), mimetype="text/plain")
 
 
 @main_bp.route("/service-worker.js")
