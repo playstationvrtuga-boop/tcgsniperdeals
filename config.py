@@ -54,10 +54,10 @@ APP_API_STATUS_URL = _get_setting(
     f"{str(_get_setting('SITE_URL', 'http://127.0.0.1:5000')).rstrip('/')}/api/listings/status",
 )
 SITE_URL = _get_setting("SITE_URL", "http://127.0.0.1:5000")
-BOT_API_KEY = os.environ.get("BOT_API_KEY") or LOCAL_ENV.get("BOT_API_KEY", "")
+BOT_API_KEY = os.environ.get("BOT_API_KEY") or LOCAL_ENV.get("BOT_API_KEY", "") or TOKEN
 APP_API_KEY = BOT_API_KEY or os.environ.get("APP_API_KEY") or LOCAL_ENV.get("APP_API_KEY", "")
 APP_API_TIMEOUT = float(_get_setting("APP_API_TIMEOUT", "8"))
-APP_API_ENABLED = _get_flag("APP_API_ENABLED", default=bool(APP_API_URL and BOT_API_KEY))
+APP_API_ENABLED = _get_flag("APP_API_ENABLED", default=bool(APP_API_URL and (BOT_API_KEY or TOKEN)))
 
 CARDMARKET_API_BASE = _get_setting("CARDMARKET_API_BASE", "https://apiv2.cardmarket.com/ws/v2.0/output.json")
 CARDMARKET_APP_TOKEN = _get_setting("CARDMARKET_APP_TOKEN", "")
@@ -78,7 +78,7 @@ FREE_CTA_APP_LINK = _get_setting(
     "FREE_CTA_APP_LINK",
     _get_setting("MOBILE_APP_URL", _get_setting("SITE_URL", "")),
 )
-ENABLE_FREE_GONE_ALERTS = _get_flag("ENABLE_FREE_GONE_ALERTS", default=False)
+ENABLE_FREE_GONE_ALERTS = _get_flag("ENABLE_FREE_GONE_ALERTS", default=True)
 FREE_GONE_MIN_PER_DAY = int(_get_setting("FREE_GONE_MIN_PER_DAY", "3"))
 FREE_GONE_MAX_PER_DAY = int(_get_setting("FREE_GONE_MAX_PER_DAY", "5"))
 FREE_GONE_WINDOWS = _get_setting(
