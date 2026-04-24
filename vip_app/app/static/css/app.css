@@ -503,10 +503,68 @@ select { font: inherit; }
 }
 
 .live-radar-stage {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(120px, 1fr) minmax(250px, 324px) minmax(120px, 1fr);
   gap: 16px;
   align-items: center;
+}
+
+.live-radar-link {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  width: calc(50% - 170px);
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0.5;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 166, 0.42), rgba(53, 224, 255, 0.18), transparent);
+  filter: drop-shadow(0 0 10px rgba(0, 255, 166, 0.12));
+}
+
+.live-radar-link::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 88, 88, 0.95) 0 45%, rgba(255, 35, 35, 0.35) 70%, transparent 75%);
+  box-shadow: 0 0 0 5px rgba(255, 68, 68, 0.12), 0 0 18px rgba(255, 68, 68, 0.34);
+  opacity: 0;
+  transform: translateY(-50%) scale(0.35);
+  pointer-events: none;
+}
+
+.live-radar-link.is-active {
+  opacity: 0.92;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 166, 0.65), rgba(53, 224, 255, 0.28), transparent);
+  animation: radar-link-glow 420ms ease-out;
+}
+
+.live-radar-link.is-active::after {
+  opacity: 1;
+  animation: radar-link-ping 520ms ease-out forwards;
+}
+
+.live-radar-link-left {
+  left: 50%;
+  margin-left: -154px;
+  transform-origin: right center;
+}
+
+.live-radar-link-left::after {
+  right: -4px;
+}
+
+.live-radar-link-right {
+  right: 50%;
+  margin-right: -154px;
+  transform-origin: left center;
+}
+
+.live-radar-link-right::after {
+  left: -4px;
 }
 
 .live-radar-source-side {
@@ -716,6 +774,12 @@ select { font: inherit; }
   transform: translateY(-1px) scale(1.045);
 }
 
+.source-pill.is-targeted .source-pill-dot {
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, 0.06),
+    0 0 18px rgba(255, 255, 255, 0.24);
+}
+
 .source-pill[data-source-label="vinted"].is-targeted {
   border-color: rgba(124, 92, 255, 0.48);
   background:
@@ -834,6 +898,21 @@ select { font: inherit; }
   animation: radar-core-pulse 240ms ease-out;
 }
 
+.live-radar.is-pulsing::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 255, 166, 0.34);
+  transform: translate(-50%, -50%) scale(0.4);
+  box-shadow: 0 0 0 10px rgba(0, 255, 166, 0.05), 0 0 22px rgba(0, 255, 166, 0.22);
+  animation: radar-center-echo 280ms ease-out;
+  pointer-events: none;
+}
+
 .live-radar-blip {
   position: absolute;
   width: 9px;
@@ -917,6 +996,50 @@ select { font: inherit; }
   0% { transform: translate(-50%, -50%) scale(1); }
   40% { transform: translate(-50%, -50%) scale(1.28); }
   100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes radar-center-echo {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.35);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.35);
+  }
+}
+
+@keyframes radar-link-glow {
+  0% {
+    opacity: 0.45;
+    filter: drop-shadow(0 0 8px rgba(0, 255, 166, 0.1));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 14px rgba(0, 255, 166, 0.28));
+  }
+  100% {
+    opacity: 0.5;
+    filter: drop-shadow(0 0 10px rgba(0, 255, 166, 0.12));
+  }
+}
+
+@keyframes radar-link-ping {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.35);
+  }
+  22% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scale(1.22);
+  }
 }
 
 @keyframes live-dot-pulse {
@@ -1532,6 +1655,7 @@ select { font: inherit; }
   .live-status-dot,
   .live-radar-blip.is-visible,
   .live-radar-ping.is-visible,
+  .live-radar-link.is-active,
   .source-pill.is-targeted,
   .listing-card.is-new-feed-item {
     animation: none !important;
@@ -2437,6 +2561,20 @@ select { font: inherit; }
     grid-template-columns: 1fr;
     gap: 10px;
     justify-items: center;
+  }
+
+  .live-radar-link {
+    width: 38px;
+    top: 52%;
+    margin: 0;
+  }
+
+  .live-radar-link-left {
+    left: calc(50% - 74px);
+  }
+
+  .live-radar-link-right {
+    right: calc(50% - 74px);
   }
 
   .live-radar-source-side {

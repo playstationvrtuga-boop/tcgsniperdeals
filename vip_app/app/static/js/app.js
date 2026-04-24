@@ -498,6 +498,8 @@ function initLiveFeed() {
   const bannerButton = banner?.querySelector("[data-feed-live-banner-button]");
   const radarRoot = document.querySelector("[data-live-radar]");
   const sourceRail = document.querySelector("[data-source-rail]");
+  const radarLinkLeft = document.querySelector(".live-radar-link-left");
+  const radarLinkRight = document.querySelector(".live-radar-link-right");
   const updatesUrl = feedRoot.dataset.feedUpdatesUrl;
   const pollIntervalMs = Number(feedRoot.dataset.feedPollMs || 2500);
   const deltaLimit = Number(feedRoot.dataset.feedDeltaLimit || 12);
@@ -508,6 +510,7 @@ function initLiveFeed() {
   const relativeTimeIntervalMs = Number(feedRoot.dataset.feedRelativeTimeIntervalMs || 15000);
   const radar = createRadarController(radarRoot, radarEnabled);
   const sourceFeedback = createSourceController(sourceRail, radarEnabled && targetFeedbackEnabled);
+  const linkTimers = new Map();
 
   const seenIds = new Set(
     [...feedRoot.querySelectorAll(".listing-card[data-listing-id]")]
@@ -536,10 +539,41 @@ function initLiveFeed() {
       .filter(Boolean);
 
     radar.pulse();
+    pulseRadarLinks(platformKeys);
     radar.spawnPings(platformKeys.length ? platformKeys : items.length || 1);
     window.setTimeout(() => {
       sourceFeedback.pulsePlatforms(platformKeys);
     }, 70);
+  }
+
+  function pulseRadarLinks(platformKeys) {
+    const uniqueKeys = [...new Set((platformKeys || []).filter(Boolean))];
+    const targets = new Set();
+    uniqueKeys.forEach((platformKey) => {
+      if (platformKey === "vinted") targets.add(radarLinkLeft);
+      if (platformKey === "ebay") targets.add(radarLinkRight);
+    });
+    if (!targets.size) {
+      targets.add(radarLinkLeft);
+      targets.add(radarLinkRight);
+    }
+
+    targets.forEach((node) => {
+      if (!node) return;
+      const timerKey = node.className;
+      const existingTimer = linkTimers.get(timerKey);
+      if (existingTimer) window.clearTimeout(existingTimer);
+
+      node.classList.remove("is-active");
+      void node.offsetWidth;
+      node.classList.add("is-active");
+
+      const timer = window.setTimeout(() => {
+        node.classList.remove("is-active");
+        linkTimers.delete(timerKey);
+      }, 520);
+      linkTimers.set(timerKey, timer);
+    });
   }
 
   function updateCursor(cursor) {
