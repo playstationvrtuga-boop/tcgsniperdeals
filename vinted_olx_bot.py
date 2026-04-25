@@ -368,6 +368,39 @@ def enviar_anuncio_app(anuncio):
     }
 
 
+def _mask_runtime_value(value):
+    text = str(value or "").strip()
+    if not text:
+        return "missing"
+    if len(text) <= 8:
+        return "***"
+    return f"{text[:4]}...{text[-4:]}"
+
+
+def _app_api_target_label():
+    url = str(APP_API_URL or "").lower()
+    if "127.0.0.1" in url or "localhost" in url:
+        return "local"
+    if url:
+        return "online"
+    return "disabled"
+
+
+def log_delivery_config():
+    print(
+        "[delivery_config] "
+        f"app_api_enabled={APP_API_ENABLED} "
+        f"app_target={_app_api_target_label()} "
+        f"app_api_url={APP_API_URL or 'missing'}"
+    )
+    print(
+        "[delivery_config] "
+        f"free_realtime_sample={_free_realtime_sample_percent()}% "
+        f"free_chat={_mask_runtime_value(FREE_CHAT_ID)} "
+        f"vip_chat={_mask_runtime_value(VIP_CHAT_ID)}"
+    )
+
+
 def enviar_status_anuncio_app(anuncio, status):
     if not APP_API_ENABLED:
         return {"status": "disabled"}
@@ -1621,6 +1654,31 @@ def mark_listing_sent(item_id, canal):
     )
 
 
+def mark_listing_app_synced(item_id, sync_result):
+    if not item_id:
+        return
+
+    data = carregar_tracking()
+    item = data.get("items", {}).get(item_id)
+    if not item:
+        return
+
+    agora = now_iso()
+    status = (sync_result or {}).get("status") or "unknown"
+    item["app_sync_status"] = status
+    item["app_sync_at"] = agora
+    item.pop("app_sync_error", None)
+
+    if status in {"inserted", "duplicate"}:
+        item["sent_to_vip"] = True
+        item["sent_to_vip_at"] = item.get("sent_to_vip_at") or agora
+    elif status not in {"disabled", "disabled_missing_config"}:
+        erro = (sync_result or {}).get("error") or (sync_result or {}).get("data") or status
+        item["app_sync_error"] = str(erro)[:300]
+
+    guardar_tracking(data)
+
+
 def update_listing_status(item_id, status):
     data = carregar_tracking()
     item = data.get("items", {}).get(item_id)
@@ -2478,18 +2536,19 @@ def enviar_anuncio_free_realtime(anuncio):
 
 def enfileirar_anuncio_free(anuncio):
     if FREE_LANDING_ONLY:
-        return
+        return {"status": "disabled_landing_only"}
 
     if not FREE_CHAT_ID or FREE_CHAT_ID == VIP_CHAT_ID:
-        return
+        return {"status": "disabled_chat_config"}
 
     if not should_send_to_free(anuncio):
-        return
+        return {"status": "filtered"}
     if not _sample_free_realtime(anuncio):
-        return
+        return {"status": "sampled_out", "sample_percent": _free_realtime_sample_percent()}
 
     enviado = enviar_anuncio_free_realtime(anuncio)
     print(f"[free_realtime] sent={enviado} id={anuncio.get('id')}")
+    return {"status": "sent" if enviado else "send_failed", "sample_percent": _free_realtime_sample_percent()}
 
 
 def enviar_anuncio_telegram(anuncio, chat_id, canal):
@@ -4858,6 +4917,7 @@ def main():
         guardar_fila_free([])
     schedule_free_promos_every_hour()
     print("Bot ativo...")
+    log_delivery_config()
     ciclo = 0
     next_cycle_at = time.monotonic()
 
@@ -4899,7 +4959,13 @@ def main():
             for anuncio in novos:
                 registar_tracking_anuncio(anuncio)
                 anuncio["app_sync"] = enviar_anuncio_app(anuncio)
-                enfileirar_anuncio_free(anuncio)
+                mark_listing_app_synced(anuncio.get("id"), anuncio.get("app_sync"))
+                free_result = enfileirar_anuncio_free(anuncio)
+                print(
+                    f"[delivery_result] id={anuncio.get('id')} "
+                    f"app={anuncio.get('app_sync', {}).get('status')} "
+                    f"free={(free_result or {}).get('status')}"
+                )
                 time.sleep(2)
             novos.clear()
             del novos
