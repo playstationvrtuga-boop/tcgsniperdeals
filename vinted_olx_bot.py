@@ -14,7 +14,7 @@ from config import (
 from core.listing_logger import log_listing_event
 from core.normalizer import normalize_text
 from core.scoring import ListingAssessment, assess_listing, is_priority
-from services.alert_formatter import make_partial_product_name
+from services.alert_formatter import format_telegram_listing_message, make_partial_product_name
 from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
 from services.free_promos import schedule_free_promos_every_hour
 from services.public_links import build_free_public_listing_url
@@ -2437,7 +2437,7 @@ def enviar_anuncio_free_realtime(anuncio):
         or ""
     )
     anuncio["share_link"] = original_link
-    mensagem = build_message(anuncio, canal="vip")
+    mensagem = build_message(anuncio, canal="free")
     print(mensagem)
 
     usar_imagem = bool(anuncio.get("imagem"))
@@ -2448,6 +2448,8 @@ def enviar_anuncio_free_realtime(anuncio):
 
     if enviado:
         mark_listing_sent(anuncio.get("id"), "free")
+        print(f"[telegram_free] Telegram message sent id={anuncio.get('id')}")
+        record_free_cta_sent()
         if anuncio.get("source") == "ebay":
             log_ebay_debug({
                 "item_id": anuncio.get("id"),
@@ -2467,6 +2469,9 @@ def enviar_anuncio_free_realtime(anuncio):
                 "duplicate": False,
                 "final_status": "EBAY_SENT_FREE",
             })
+
+    if not enviado:
+        print(f"[telegram_free] Telegram message failed id={anuncio.get('id')}")
 
     return enviado
 
@@ -2501,6 +2506,8 @@ def enviar_anuncio_telegram(anuncio, chat_id, canal):
     if enviado:
         mark_listing_sent(anuncio.get("id"), canal)
         if canal == "free":
+            print(f"[telegram_free] Telegram message sent id={anuncio.get('id')}")
+        if canal == "free":
             record_free_cta_sent()
         if anuncio.get("source") == "ebay":
             log_ebay_debug({
@@ -2521,6 +2528,9 @@ def enviar_anuncio_telegram(anuncio, chat_id, canal):
                 "duplicate": False,
                 "final_status": "EBAY_SENT_VIP" if canal == "vip" else "EBAY_SENT_FREE",
             })
+
+    if not enviado and canal == "free":
+        print(f"[telegram_free] Telegram message failed id={anuncio.get('id')}")
 
     return enviado
 
@@ -2714,6 +2724,15 @@ def format_feedback_line(feedback, source=None):
         return f"🧑‍💼 Seller feedback: {nivel}"
 
     return ""
+
+
+def free_seller_rating_text(feedback, source=None):
+    line = format_feedback_line(feedback, source)
+    if not line:
+        return ""
+    if ":" in line:
+        return line.split(":", 1)[1].strip()
+    return line.strip()
 
 
 def has_no_feedback_history(texto):
@@ -4117,6 +4136,30 @@ def linha_ebay_sold_alerta(dados):
 def build_message(anuncio, canal="vip"):
     if canal == "free" and anuncio.get("free_message_text"):
         return anuncio["free_message_text"]
+
+    if canal == "free":
+        payload = {
+            "title": anuncio.get("titulo"),
+            "source": anuncio.get("source") or anuncio.get("origem"),
+            "price": formatar_preco_com_eur(anuncio.get("preco") or ""),
+            "seller_rating": free_seller_rating_text(anuncio.get("seller_feedback"), anuncio.get("source")),
+            "url": anuncio.get("share_link") or anuncio.get("link") or "",
+            "detected_at": anuncio.get("detected_at"),
+            "created_at": anuncio.get("created_at"),
+        }
+        mensagem, age_meta = format_telegram_listing_message(payload, return_meta=True)
+        print(
+            f"[telegram_free] listing age calculated id={anuncio.get('id')} "
+            f"age={age_meta.get('age_text')} source={age_meta.get('source')}"
+        )
+        if age_meta.get("used_created_at_fallback"):
+            print(f"[telegram_free] missing detected_at fallback used id={anuncio.get('id')}")
+        print(f"[telegram_free] Telegram message formatted id={anuncio.get('id')}")
+
+        if should_attach_free_cta():
+            mensagem += f"\n{build_free_cta_block()}\n\n━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        return mensagem
 
     tcg_label = get_tcg_label(anuncio.get("tcg_type"))
     linha_ebay_sold = linha_ebay_sold_alerta(anuncio.get("ebay_sold")) if canal == "vip" else ""

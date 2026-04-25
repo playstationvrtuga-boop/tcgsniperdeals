@@ -1,6 +1,13 @@
 import unittest
+from datetime import datetime, timezone
 
-from services.alert_formatter import format_free_alert_text, format_vip_alert, make_partial_product_name
+from services.alert_formatter import (
+    format_free_alert_text,
+    format_telegram_listing_message,
+    format_vip_alert,
+    listing_age_details,
+    make_partial_product_name,
+)
 
 
 class AlertFormatterTests(unittest.TestCase):
@@ -62,6 +69,35 @@ class AlertFormatterTests(unittest.TestCase):
         self.assertNotIn("Produto", text)
         self.assertNotIn("Preco", text)
         self.assertNotIn("Real-time listing", text)
+
+    def test_telegram_listing_message_has_card_spacing_and_age(self):
+        text = format_telegram_listing_message(
+            {
+                "title": "Cartes Pokemon gradees Collect Aura 9.5 Mewtwo ex Team Rocket + Zeraora V JP",
+                "source": "vinted",
+                "price": "22.99",
+                "seller_rating": "+7",
+                "url": "https://www.vinted.pt/items/example",
+                "detected_at": "2026-04-25T18:00:00+00:00",
+            },
+            now=datetime(2026, 4, 25, 18, 0, 12, tzinfo=timezone.utc),
+        )
+        self.assertIn("Pokemon Sniper Deals", text)
+        self.assertIn("12s ago", text)
+        self.assertIn("🎴 Pokémon TCG", text)
+        self.assertIn("🛒 Vinted", text)
+        self.assertIn("💰 Price: €22.99", text)
+        self.assertIn("📊 Seller rating: +7", text)
+        self.assertIn("🔗 View listing:", text)
+        self.assertTrue(text.endswith("━━━━━━━━━━━━━━━━━━━━━━━\n\n"))
+
+    def test_listing_age_uses_created_at_fallback(self):
+        details = listing_age_details(
+            {"created_at": "2026-04-25T18:00:00+00:00"},
+            now=datetime(2026, 4, 25, 18, 2, 5, tzinfo=timezone.utc),
+        )
+        self.assertEqual(details["age_text"], "2m")
+        self.assertTrue(details["used_created_at_fallback"])
 
 
 if __name__ == "__main__":

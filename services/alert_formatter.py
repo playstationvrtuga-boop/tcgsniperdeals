@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import re
 from datetime import datetime, timezone
 
@@ -34,6 +35,13 @@ CARD_CODE_PATTERNS = [
 ]
 
 GENERIC_FALLBACK = "Premium Pokemon card spotted"
+TELEGRAM_FREE_TIMING_VARIANTS = (
+    ("Caught", "⚡"),
+    ("Spotted", "👀"),
+    ("Detected", "🚀"),
+    ("Found", "🎯"),
+    ("Gotcha", "⚡"),
+)
 GONE_ALERT_VARIANTS = (
     (
         "⚠️ GONE ALERT",
@@ -108,6 +116,21 @@ def _coerce_datetime(value) -> datetime | None:
     return dt.astimezone()
 
 
+def _get_value(data, *keys, default=None):
+    if isinstance(data, dict):
+        for key in keys:
+            value = data.get(key)
+            if value is not None and value != "":
+                return value
+        return default
+
+    for key in keys:
+        value = getattr(data, key, None)
+        if value is not None and value != "":
+            return value
+    return default
+
+
 def _relative_time(value) -> str:
     dt = _coerce_datetime(value)
     if not dt:
@@ -156,6 +179,101 @@ def _pretty_platform(value: str) -> str:
     if not text:
         return "Unknown"
     return text
+
+
+def _format_listing_price_for_telegram(value) -> str:
+    text = _clean_text(str(value or ""))
+    if not text:
+        return "Not available"
+    if "€" in text or "EUR" in text.upper() or "$" in text:
+        return text
+    return f"€{text}"
+
+
+def _truncate_title(value: str, max_length: int = 180) -> str:
+    text = _clean_text(value)
+    if len(text) <= max_length:
+        return text
+    trimmed = text[: max_length - 1].rsplit(" ", 1)[0].strip()
+    return f"{trimmed or text[: max_length - 1].strip()}…"
+
+
+def listing_age_details(listing, now: datetime | None = None) -> dict:
+    detected_at = _get_value(listing, "detected_at")
+    created_at = _get_value(listing, "created_at")
+    timestamp = _coerce_datetime(detected_at) or _coerce_datetime(created_at)
+    source = "detected_at" if _coerce_datetime(detected_at) else ("created_at" if timestamp else "missing")
+
+    if not timestamp:
+        return {
+            "age_text": "just now",
+            "age_seconds": None,
+            "source": source,
+            "used_created_at_fallback": False,
+        }
+
+    current = now.astimezone() if isinstance(now, datetime) else datetime.now().astimezone()
+    seconds = max(int((current - timestamp).total_seconds()), 0)
+    if seconds < 60:
+        age_text = f"{seconds}s"
+    elif seconds < 120:
+        age_text = "1m"
+    else:
+        age_text = f"{seconds // 60}m"
+
+    return {
+        "age_text": age_text,
+        "age_seconds": seconds,
+        "source": source,
+        "used_created_at_fallback": source == "created_at",
+    }
+
+
+def format_listing_age(listing, now: datetime | None = None) -> str:
+    details = listing_age_details(listing, now=now)
+    label, icon = random.choice(TELEGRAM_FREE_TIMING_VARIANTS)
+    age_text = details["age_text"]
+    if age_text == "just now":
+        return f"{label} just now {icon}"
+    return f"{label} {age_text} ago {icon}"
+
+
+def format_telegram_listing_message(listing: dict, *, now: datetime | None = None, return_meta: bool = False):
+    title = _truncate_title(
+        str(_get_value(listing, "title", "titulo", "full_name", default=GENERIC_FALLBACK)),
+    )
+    source = _pretty_platform(_get_value(listing, "source", "platform", "marketplace", default=""))
+    source_label = source if source != "Unknown" else "Marketplace"
+    price = _format_listing_price_for_telegram(_get_value(listing, "price", "preco", "listing_price_text", "price_display"))
+    seller_rating = _clean_text(str(_get_value(listing, "seller_rating", default="")))
+    url = _clean_text(str(_get_value(listing, "url", "share_link", "public_link", "direct_link", "link", default="")))
+    timing_line = format_listing_age(listing, now=now)
+    age_meta = listing_age_details(listing, now=now)
+
+    lines = [
+        "-----",
+        "🔥 Pokemon Sniper Deals",
+        timing_line,
+        "-----",
+        "",
+        "🎴 Pokémon TCG",
+        f"🛒 {source_label}",
+        "",
+        title,
+        "",
+        f"💰 Price: {price}",
+    ]
+    if seller_rating:
+        lines.append(f"📊 Seller rating: {seller_rating}")
+
+    if url:
+        lines.extend(["", "🔗 View listing:", url])
+
+    lines.extend(["", "", "━━━━━━━━━━━━━━━━━━━━━━━", "", ""])
+    message = "\n".join(lines)
+    if return_meta:
+        return message, age_meta
+    return message
 
 
 def classify_deal_level(discount_percent, potential_profit):
