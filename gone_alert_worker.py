@@ -5,7 +5,7 @@ import random
 import time
 from datetime import datetime
 
-from config import ENABLE_FREE_GONE_ALERTS, FREE_GONE_WORKER_INTERVAL_MINUTES
+from config import APP_API_URL, ENABLE_FREE_GONE_ALERTS, FREE_GONE_WORKER_INTERVAL_MINUTES
 from services.free_gone_alerts import (
     find_next_gone_candidate,
     get_or_create_state,
@@ -41,7 +41,11 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
     processed = 0
     with app.app_context():
         ensure_schema()
-        print(f"[gone_worker] database={app.config.get('SQLALCHEMY_DATABASE_URI')}")
+        database_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+        print(f"[gone_worker] database={database_uri}")
+        print(f"[gone_worker] bot_app_api_url={APP_API_URL}")
+        if "127.0.0.1" not in str(APP_API_URL) and "localhost" not in str(APP_API_URL) and str(database_uri).startswith("sqlite"):
+            print("[gone_worker] warning: bot is configured for online API, but this worker is reading local SQLite")
         print(f"[gone_worker] enabled={ENABLE_FREE_GONE_ALERTS}")
         while True:
             if not ENABLE_FREE_GONE_ALERTS:

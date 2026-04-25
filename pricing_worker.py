@@ -5,7 +5,7 @@ import random
 import time
 from sqlalchemy import or_
 
-from config import PRICING_WORKER_MAX_SLEEP, PRICING_WORKER_MIN_SLEEP
+from config import APP_API_URL, PRICING_WORKER_MAX_SLEEP, PRICING_WORKER_MIN_SLEEP
 from services.alert_formatter import format_vip_alert, make_partial_product_name
 from services.deal_detector import EbaySoldError, EbaySoldRateLimitError, evaluate_listing
 from vip_app.app import create_app
@@ -162,7 +162,11 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
     processed = 0
 
     with app.app_context():
-        print(f"[pricing_worker] database={app.config.get('SQLALCHEMY_DATABASE_URI')}")
+        database_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+        print(f"[pricing_worker] database={database_uri}")
+        print(f"[pricing_worker] bot_app_api_url={APP_API_URL}")
+        if "127.0.0.1" not in str(APP_API_URL) and "localhost" not in str(APP_API_URL) and str(database_uri).startswith("sqlite"):
+            print("[pricing_worker] warning: bot is configured for online API, but this worker is reading local SQLite")
         while True:
             listing = fetch_next_pending_listing()
             if listing is not None:
