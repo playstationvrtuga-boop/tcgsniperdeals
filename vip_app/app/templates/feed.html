@@ -3,7 +3,7 @@
 {% block content %}
 <nav class="vip-tab-nav" aria-label="VIP deal sections">
   <a class="vip-tab {% if active_tab == 'live' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">⚡ Live Deals</a>
-  <a class="vip-tab {% if active_tab == 'smart' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Smart Deals</a>
+  <a class="vip-tab {% if active_tab == 'smart' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Sniper Deals</a>
   <a class="vip-tab {% if active_tab == 'missed' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">💀 Missed Deals</a>
 </nav>
 

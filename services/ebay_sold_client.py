@@ -20,6 +20,10 @@ EBAY_SOLD_SEARCH_URL = (
     "https://www.ebay.com/sch/i.html"
     "?_nkw={query}&LH_Sold=1&LH_Complete=1&_ipg=25&LH_BIN=1"
 )
+EBAY_ACTIVE_BUY_NOW_SEARCH_URL = (
+    "https://www.ebay.com/sch/i.html"
+    "?_nkw={query}&LH_BIN=1&_ipg=25"
+)
 
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -57,6 +61,8 @@ def _normalize_title(value: str) -> str:
 def _parse_price_to_eur(price_text: str) -> float | None:
     text = _clean_text(price_text)
     if not text:
+        return None
+    if re.search(r"\bto\b|\bfrom\b|-", text, flags=re.IGNORECASE):
         return None
 
     euro_match = re.search(r"EUR\s*([\d.,]+)|([\d.,]+)\s*(?:€|EUR|â‚¬)", text, flags=re.IGNORECASE)
@@ -198,9 +204,59 @@ class EbaySoldClient:
 
         return listings
 
+    def fetch_active_buy_now(
+        self,
+        product_name: str,
+        max_results: int = 5,
+        listing_kind: str | None = None,
+    ) -> list[EbaySoldListing]:
+        query = _query_from_title(product_name, listing_kind=listing_kind)
+        if not query:
+            return []
+
+        url = EBAY_ACTIVE_BUY_NOW_SEARCH_URL.format(query=quote_plus(query))
+        try:
+            response = self.session.get(url, timeout=self.timeout)
+        except requests.Timeout as error:
+            raise EbaySoldError("eBay Buy Now request timed out.") from error
+        except requests.RequestException as error:
+            raise EbaySoldError(f"eBay Buy Now request failed: {error}") from error
+
+        if response.status_code in {403, 429}:
+            raise EbaySoldRateLimitError(f"eBay Buy Now lookup refused with HTTP {response.status_code}.")
+        if response.status_code >= 400:
+            raise EbaySoldError(f"eBay Buy Now lookup failed with HTTP {response.status_code}.")
+
+        listings: list[EbaySoldListing] = []
+        for block in _extract_item_blocks(response.text):
+            title = _extract_title(block)
+            if not title or "shop on ebay" in title.lower():
+                continue
+            if not _matches_listing_kind(title, listing_kind):
+                continue
+
+            score = _title_overlap_score(product_name, title)
+            if score < 2:
+                continue
+
+            price_text = _extract_price(block)
+            price_eur = _parse_price_to_eur(price_text)
+            if price_eur is None or price_eur <= 0:
+                continue
+
+            listings.append(EbaySoldListing(title=title, price_eur=price_eur))
+            if len(listings) >= max_results:
+                break
+
+        return listings
+
 
 ebay_sold_client = EbaySoldClient()
 
 
 def get_recent_sales(product_name: str, max_results: int = 3, listing_kind: str | None = None) -> list[EbaySoldListing]:
     return ebay_sold_client.fetch_recent_sales(product_name, max_results=max_results, listing_kind=listing_kind)
+
+
+def get_active_buy_now(product_name: str, max_results: int = 5, listing_kind: str | None = None) -> list[EbaySoldListing]:
+    return ebay_sold_client.fetch_active_buy_now(product_name, max_results=max_results, listing_kind=listing_kind)

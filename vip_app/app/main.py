@@ -703,10 +703,10 @@ def smart_deals():
         order_by=smart_deal_order(),
         cache_key="feed:smart",
         page_mode="smart",
-        board_label="Smart pricing",
-        board_title="Smart Deals with pricing edge",
+        board_label="Sniper pricing",
+        board_title="Sniper Deals with pricing edge",
         board_intro="Only enriched listings with market signals, discount pressure or real profit potential.",
-        stat_label="Smart stream",
+        stat_label="Sniper stream",
     )
 
 

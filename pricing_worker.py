@@ -45,8 +45,8 @@ def _mark_processed(listing: Listing, result) -> None:
     listing.score_level = _score_level(result.score)
     listing.is_deal = bool(result.is_deal)
     listing.pricing_status = "analyzed" if result.status in {"deal", "priced"} else result.status
-    listing.pricing_error = result.reason
-    listing.pricing_reason = result.reason or result.status
+    listing.pricing_error = result.reason if result.status not in {"deal", "priced"} else None
+    listing.pricing_reason = _pricing_reason(result)
     listing.pricing_checked_at = checked_at
     listing.pricing_analyzed_at = checked_at
 
@@ -75,12 +75,33 @@ def _score_level(score: int | float | None) -> str:
     return "LOW"
 
 
+def _pricing_reason(result) -> str:
+    parts = [
+        f"source={result.price_source or 'unknown'}",
+        f"sold_refs={result.comparable_count or 0}",
+        f"buy_now_refs={getattr(result, 'buy_now_count', 0) or 0}",
+    ]
+    if getattr(result, "buy_now_reference_price", None) is not None:
+        parts.append(f"buy_now_ref={result.buy_now_reference_price:.2f}eur")
+    if result.reason:
+        parts.append(f"note={result.reason}")
+    return "; ".join(parts)[:255]
+
+
 def _describe_result(result) -> str:
     kind = result.listing_kind or "unknown"
+    source = result.price_source or "unknown"
+    buy_now_count = getattr(result, "buy_now_count", 0) or 0
+    buy_now_reference = getattr(result, "buy_now_reference_price", None)
+    buy_now_part = f" buy_now={buy_now_count}"
+    if buy_now_reference is not None:
+        buy_now_part += f" buy_now_ref={buy_now_reference:.2f}eur"
+
     if result.status == "deal":
         return (
             f"DEAL kind={kind} price={result.listing_price:.2f}eur "
-            f"ref={result.reference_price:.2f}eur last3={result.comparable_count} "
+            f"ref={result.reference_price:.2f}eur source={source} "
+            f"last3={result.comparable_count}{buy_now_part} "
             f"discount={result.discount_percent:.1f}% margin={result.gross_margin:.2f}eur "
             f"score={result.score}"
         )
@@ -88,7 +109,8 @@ def _describe_result(result) -> str:
     if result.status == "priced":
         return (
             f"PRICED kind={kind} price={result.listing_price:.2f}eur "
-            f"ref={result.reference_price:.2f}eur last3={result.comparable_count} "
+            f"ref={result.reference_price:.2f}eur source={source} "
+            f"last3={result.comparable_count}{buy_now_part} "
             f"discount={result.discount_percent:.1f}% margin={result.gross_margin:.2f}eur "
             f"score={result.score}"
         )
@@ -96,8 +118,11 @@ def _describe_result(result) -> str:
     if result.reason == "listing_not_precisely_identified":
         return f"SKIPPED kind={kind} reason=title_not_precise"
 
-    if result.reason == "not_enough_recent_sales":
-        return f"SKIPPED kind={kind} reason=only_{result.comparable_count}_recent_sales"
+    if result.reason in {"not_enough_recent_sales", "not_enough_price_references"} or str(result.reason or "").startswith("not_enough_price_references"):
+        return (
+            f"SKIPPED kind={kind} reason=not_enough_price_refs "
+            f"sold={result.comparable_count} buy_now={buy_now_count}"
+        )
 
     if result.reason == "invalid_listing_price":
         return f"SKIPPED kind={kind} reason=invalid_price"

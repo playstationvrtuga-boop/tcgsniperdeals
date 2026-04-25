@@ -97,7 +97,7 @@
     {% if current_user.is_authenticated %}
     <nav class="bottom-nav" aria-label="Mobile">
       <a class="bottom-nav-item {% if request.endpoint == 'main.feed' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">⚡ Live</a>
-      <a class="bottom-nav-item {% if request.endpoint == 'main.smart_deals' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Smart</a>
+      <a class="bottom-nav-item {% if request.endpoint == 'main.smart_deals' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Sniper</a>
       <a class="bottom-nav-item {% if request.endpoint == 'main.missed_deals' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">💀 Missed</a>
     </nav>
     {% endif %}

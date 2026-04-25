@@ -27,6 +27,7 @@ class DealLevelTests(unittest.TestCase):
         text = format_free_alert_text(
             {
                 "title": "Charizard EX PFL125 Near Mint",
+                "platform": "Vinted",
                 "listing_price": 12,
                 "listing_price_text": "12.00 EUR",
                 "market_price": 25,
@@ -34,7 +35,9 @@ class DealLevelTests(unittest.TestCase):
                 "free_message_variant": "short",
             }
         )
-        self.assertIn("Real-time listing", text)
+        self.assertIn("Pokemon TCG", text)
+        self.assertIn("Vinted", text)
+        self.assertIn("Charizard EX PFL125 Near Mint", text)
         self.assertIn("Listing Price", text)
 
 
