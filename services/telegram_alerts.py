@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import requests
 
 from config import FREE_CHAT_ID, TOKEN, VIP_CHAT_ID
@@ -27,19 +29,46 @@ def format_alert(listing, result) -> str:
     )
 
 
-def send_message(message: str, chat_id: str, *, disable_preview: bool = False) -> bool:
+def _build_inline_button(button_text: str, button_url: str) -> str:
+    return json.dumps(
+        {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": button_text,
+                        "url": button_url,
+                    }
+                ]
+            ]
+        },
+        ensure_ascii=False,
+    )
+
+
+def send_message(
+    message: str,
+    chat_id: str,
+    *,
+    disable_preview: bool = False,
+    button_text: str | None = None,
+    button_url: str | None = None,
+) -> bool:
     if not TOKEN or not chat_id:
         return False
 
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "disable_web_page_preview": disable_preview,
+    }
+    if button_text and button_url:
+        payload["reply_markup"] = _build_inline_button(button_text, button_url)
+
     try:
         response = requests.post(
             url,
-            data={
-                "chat_id": chat_id,
-                "text": message,
-                "disable_web_page_preview": disable_preview,
-            },
+            data=payload,
             timeout=15,
         )
         data = response.json()
@@ -53,5 +82,11 @@ def send_alert(message: str) -> bool:
     return send_message(message, VIP_CHAT_ID, disable_preview=False)
 
 
-def send_free_alert(message: str) -> bool:
-    return send_message(message, FREE_CHAT_ID, disable_preview=True)
+def send_free_alert(message: str, *, button_text: str | None = None, button_url: str | None = None) -> bool:
+    return send_message(
+        message,
+        FREE_CHAT_ID,
+        disable_preview=True,
+        button_text=button_text,
+        button_url=button_url,
+    )

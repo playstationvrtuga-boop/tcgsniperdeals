@@ -9,6 +9,7 @@ from typing import Iterable
 from sqlalchemy import func, or_
 
 from config import (
+    APP_PUBLIC_URL,
     FREE_GONE_MAX_AGE_HOURS,
     FREE_GONE_MAX_PER_DAY,
     FREE_GONE_MIN_PER_DAY,
@@ -352,4 +353,4 @@ def format_gone_alert_payload(listing: Listing) -> dict:
 
 def post_gone_alert(listing: Listing, *, variant: int = 0) -> bool:
     message = format_free_gone_alert_text(format_gone_alert_payload(listing), variant=variant)
-    return send_free_alert(message)
+    return send_free_alert(message, button_text="Get VIP Access", button_url=APP_PUBLIC_URL)

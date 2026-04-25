@@ -13,14 +13,14 @@ class FreeGoneAlertTests(unittest.TestCase):
                 "platform": "Vinted",
                 "listing_price_text": "75.00 EUR",
                 "updated_at": "2026-04-23T10:15:00+01:00",
-                "app_url": "https://tcg-sniper-deals.onrender.com",
             }
         )
         self.assertIn("GONE ALERT", text)
         self.assertIn("Last seen", text)
         self.assertIn("VIP", text)
-        self.assertIn("https://tcg-sniper-deals.onrender.com", text)
+        self.assertIn("button", text.lower())
         self.assertNotIn("Produto", text)
+        self.assertNotIn("http", text.lower())
         self.assertNotIn("vinted.pt/items", text.lower())
 
     def test_daily_plan_spreads_counts_across_windows(self):
