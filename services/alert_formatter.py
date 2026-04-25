@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
+from config import APP_PUBLIC_URL
+
 
 CONDITION_PATTERNS = [
     r"\bnear mint\b",
@@ -44,6 +46,9 @@ GONE_ALERT_VARIANTS = (
             "🕒 Went unavailable {time}",
             "",
             "This one disappeared fast.",
+            "",
+            "Want the next one before it disappears?",
+            "Get VIP access here: {app_url}",
         ],
     ),
     (
@@ -55,6 +60,9 @@ GONE_ALERT_VARIANTS = (
             "📍 {platform}",
             "",
             "A clean FOMO signal from the live stream.",
+            "",
+            "VIP users see fresh listings first.",
+            "Open the app: {app_url}",
         ],
     ),
     (
@@ -66,6 +74,9 @@ GONE_ALERT_VARIANTS = (
             "🕒 Gone {time}",
             "",
             "That one moved quickly.",
+            "",
+            "Catch the next live opportunity inside VIP.",
+            "Join here: {app_url}",
         ],
     ),
 )
@@ -302,6 +313,7 @@ def format_free_gone_alert_text(deal: dict, *, variant: int = 0) -> str:
     relative_label = _relative_time(deal.get("unavailable_at") or deal.get("updated_at") or deal.get("detected_at"))
     variant_index = variant % len(GONE_ALERT_VARIANTS)
     headline, lines = GONE_ALERT_VARIANTS[variant_index]
+    app_url = _clean_text(deal.get("app_url") or APP_PUBLIC_URL)
 
     rendered = [headline]
     for line in lines:
@@ -311,6 +323,7 @@ def format_free_gone_alert_text(deal: dict, *, variant: int = 0) -> str:
                 platform=platform,
                 price=price,
                 time=relative_label,
+                app_url=app_url,
             )
         )
 
