@@ -20,6 +20,26 @@ from services.telegram_alerts import send_free_alert
 from vip_app.app.extensions import db
 from vip_app.app.models import FreeGoneAlertState, Listing
 
+GONE_AVAILABLE_STATUSES = [
+    "deleted",
+    "eliminada",
+    "eliminado",
+    "esgotada",
+    "esgotado",
+    "indisponivel",
+    "indisponível",
+    "not-available",
+    "out-of-stock",
+    "out_of_stock",
+    "removed",
+    "removida",
+    "removido",
+    "sold",
+    "unavailable",
+    "vendida",
+    "vendido",
+]
+
 
 @dataclass(frozen=True)
 class WindowSpec:
@@ -219,7 +239,7 @@ def _candidate_query(cutoff: datetime, used_listing_ids: Iterable[int]):
     query = (
         Listing.query.filter(
             _is_pokemon_tcg_clause(),
-            status_value.in_(["unavailable", "removed", "sold"]),
+            status_value.in_(GONE_AVAILABLE_STATUSES),
             ~Listing.id.in_(list(used_listing_ids) or [-1]),
             _age_clause(cutoff),
         )

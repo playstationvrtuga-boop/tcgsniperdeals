@@ -2,7 +2,7 @@ import unittest
 from datetime import date
 
 from services.alert_formatter import format_free_gone_alert_text
-from services.free_gone_alerts import build_daily_plan, parse_windows
+from services.free_gone_alerts import GONE_AVAILABLE_STATUSES, build_daily_plan, parse_windows
 
 
 class FreeGoneAlertTests(unittest.TestCase):
@@ -28,6 +28,11 @@ class FreeGoneAlertTests(unittest.TestCase):
         self.assertEqual(sum(plan["window_plan"].values()), plan["daily_target_count"])
         self.assertEqual(sum(plan["window_posted"].values()), 0)
         self.assertEqual(set(plan["window_plan"].keys()), {window.key for window in windows})
+
+    def test_gone_statuses_accept_portuguese_sold_terms(self):
+        self.assertIn("vendido", GONE_AVAILABLE_STATUSES)
+        self.assertIn("vendida", GONE_AVAILABLE_STATUSES)
+        self.assertIn("indisponível", GONE_AVAILABLE_STATUSES)
 
 
 if __name__ == "__main__":

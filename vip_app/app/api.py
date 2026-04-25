@@ -1,4 +1,5 @@
 import json
+import unicodedata
 from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -89,6 +90,50 @@ def normalize_source(value, platform):
     return normalize_platform(platform).lower().replace(" ", "_")
 
 
+def _plain_token(value):
+    raw = str(value or "").strip().lower().replace("_", "-")
+    return "".join(
+        char for char in unicodedata.normalize("NFKD", raw)
+        if not unicodedata.combining(char)
+    )
+
+
+def normalize_available_status(value):
+    raw = _plain_token(value)
+    if not raw:
+        return "available"
+
+    mapping = {
+        "active": "available",
+        "ativo": "available",
+        "ativa": "available",
+        "available": "available",
+        "disponivel": "available",
+        "live": "available",
+        "sold": "sold",
+        "vendida": "sold",
+        "vendido": "sold",
+        "deleted": "removed",
+        "eliminada": "removed",
+        "eliminado": "removed",
+        "apagada": "removed",
+        "apagado": "removed",
+        "removed": "removed",
+        "removida": "removed",
+        "removido": "removed",
+        "esgotada": "unavailable",
+        "esgotado": "unavailable",
+        "indisponivel": "unavailable",
+        "not-available": "unavailable",
+        "out-of-stock": "unavailable",
+        "unavailable": "unavailable",
+        "reservada": "reserved",
+        "reservado": "reserved",
+        "reserved": "reserved",
+    }
+    return mapping.get(raw, raw)
+
+
 def pick_first(payload, *keys, default=None):
     for key in keys:
         value = payload.get(key)
@@ -162,7 +207,7 @@ def build_listing_from_payload(payload):
         score=score_value,
         category=str(pick_first(payload, "category", default="")).strip() or None,
         tcg_type=str(pick_first(payload, "tcg_type", default="pokemon")).strip() or "pokemon",
-        available_status=str(pick_first(payload, "available_status", default="available")).strip() or "available",
+        available_status=normalize_available_status(pick_first(payload, "available_status", "status", default="available")),
         pricing_status="pending",
         pricing_error=None,
         reference_price=None,
@@ -232,7 +277,7 @@ def update_listing_status():
     if not isinstance(payload, dict):
         return api_response("validation_error", 400, message="Invalid JSON payload.")
 
-    status = str(pick_first(payload, "available_status", "status", default="")).strip().lower()
+    status = normalize_available_status(pick_first(payload, "available_status", "status", default=""))
     if not status:
         return api_response("validation_error", 400, message="Missing fields: available_status")
 
