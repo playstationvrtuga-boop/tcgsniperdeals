@@ -35,14 +35,20 @@ def fetch_next_pending_listing() -> Listing | None:
 
 
 def _mark_processed(listing: Listing, result) -> None:
+    checked_at = utcnow()
     listing.reference_price = result.reference_price
     listing.discount_percent = result.discount_percent
     listing.gross_margin = result.gross_margin
+    listing.estimated_profit = result.gross_margin
+    listing.profit_margin = result.gross_margin
     listing.pricing_score = result.score
+    listing.score_level = _score_level(result.score)
     listing.is_deal = bool(result.is_deal)
-    listing.pricing_status = result.status
+    listing.pricing_status = "analyzed" if result.status in {"deal", "priced"} else result.status
     listing.pricing_error = result.reason
-    listing.pricing_checked_at = utcnow()
+    listing.pricing_reason = result.reason or result.status
+    listing.pricing_checked_at = checked_at
+    listing.pricing_analyzed_at = checked_at
 
 
 def _mark_error(listing: Listing, status: str, message: str) -> None:
@@ -56,6 +62,17 @@ def _short_title(value: str, max_len: int = 78) -> str:
     if len(text) <= max_len:
         return text
     return f"{text[: max_len - 3].rstrip()}..."
+
+
+def _score_level(score: int | float | None) -> str:
+    value = int(score or 0)
+    if value >= 85:
+        return "INSANE"
+    if value >= 70:
+        return "HIGH"
+    if value >= 45:
+        return "MEDIUM"
+    return "LOW"
 
 
 def _describe_result(result) -> str:

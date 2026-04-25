@@ -1,10 +1,12 @@
 <article
-  class="listing-card"
+  class="listing-card listing-card-{{ page_mode|default('live') }} score-{{ (listing.score_level or listing.display_signal or 'tracking')|lower|replace(' ', '-') }}"
   data-listing-id="{{ listing.id }}"
   data-platform="{{ listing.platform|lower|replace(' ', '-') }}"
-  data-detected-at="{{ listing.feed_timestamp_iso }}"
+  data-detected-at="{% if page_mode == 'missed' %}{{ listing.gone_timestamp_iso or listing.feed_timestamp_iso }}{% else %}{{ listing.feed_timestamp_iso }}{% endif %}"
 >
   {% set public_preview = public_preview if public_preview is defined else false %}
+  {% set mode = page_mode|default('live') %}
+  {% set profit_value = listing.effective_profit %}
   <div class="listing-image-wrap">
     {% if listing.image_url %}
       <img class="listing-image" src="{{ listing.image_url }}" alt="{{ listing.title }}" loading="lazy">
@@ -14,22 +16,40 @@
 
     <div class="listing-overlay-top">
       <span class="badge badge-platform badge-platform-{{ listing.platform|lower|replace(' ', '-') }}">{{ listing.platform }}</span>
+      {% if mode == "missed" %}
+      <span class="badge badge-missed">{{ (listing.effective_status or "gone")|upper }}</span>
+      {% elif mode == "smart" %}
+      <span class="badge badge-smart-level badge-{{ (listing.score_level or listing.display_badge)|lower|replace(' ', '-') }}">{{ listing.score_level or listing.display_badge }}</span>
+      {% else %}
       <span class="badge badge-score badge-{{ listing.display_badge|lower|replace(' ', '-') }}">{{ listing.display_badge }}</span>
+      {% endif %}
     </div>
 
     <div class="listing-overlay-bottom">
       {% if listing.discount_percent is not none %}
       <span class="listing-edge-pill">-{{ "%.1f"|format(listing.discount_percent) }}%</span>
       {% endif %}
-      {% if listing.gross_margin is not none %}
-      <span class="listing-profit-pill">+{{ "%.2f"|format(listing.gross_margin) }} EUR</span>
+      {% if profit_value is not none %}
+      <span class="listing-profit-pill">+{{ "%.2f"|format(profit_value) }} EUR</span>
       {% endif %}
+      {% if mode == "missed" and listing.gone_after_label %}
+      <span class="listing-age listing-age-missed">{{ listing.gone_after_label }}</span>
+      {% else %}
       <span class="listing-age" data-relative-time data-detected-at="{{ listing.feed_timestamp_iso }}">{{ listing.feed_timestamp|relative_time }}</span>
+      {% endif %}
     </div>
   </div>
 
   <div class="listing-body">
-    <p class="listing-kicker">{{ listing.display_alert_title }}</p>
+    <p class="listing-kicker">
+      {% if mode == "smart" %}
+        {{ listing.score_level or "Smart signal" }}
+      {% elif mode == "missed" %}
+        Detected earlier by TCG Sniper Deals
+      {% else %}
+        {{ listing.display_alert_title }}
+      {% endif %}
+    </p>
     <h2 title="{{ listing.title }}">{{ listing.title }}</h2>
     <p class="listing-marketplace listing-marketplace-{{ listing.platform|lower|replace(' ', '-') }}">
       <span class="market-dot" aria-hidden="true"></span>
@@ -43,7 +63,13 @@
 
     {% if listing.display_microcopy %}
     <div class="listing-microcopy-row">
-      <span class="listing-microcopy">{{ listing.display_microcopy }}</span>
+      <span class="listing-microcopy">
+        {% if mode == "missed" %}Missed opportunity{% else %}{{ listing.display_microcopy }}{% endif %}
+      </span>
+    </div>
+    {% elif mode == "missed" %}
+    <div class="listing-microcopy-row">
+      <span class="listing-microcopy">Missed opportunity</span>
     </div>
     {% endif %}
 
@@ -54,7 +80,7 @@
       </div>
       <div>
         <span class="signal-label">Potential profit</span>
-        <strong>{% if listing.gross_margin is not none %}+{{ "%.2f"|format(listing.gross_margin) }} EUR{% else %}Pending{% endif %}</strong>
+        <strong>{% if profit_value is not none %}+{{ "%.2f"|format(profit_value) }} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div>
         <span class="signal-label">Platform</span>
@@ -66,18 +92,36 @@
       </div>
       <div>
         <span class="signal-label">Signal</span>
-        <strong>{{ listing.display_signal }}</strong>
+        <strong>{% if mode == "missed" %}{{ listing.effective_status }}{% else %}{{ listing.display_signal }}{% endif %}</strong>
       </div>
+      {% if mode == "missed" %}
+      <div>
+        <span class="signal-label">Gone detected</span>
+        <strong>{% if listing.gone_timestamp %}{{ listing.gone_timestamp|relative_time }}{% else %}Tracked{% endif %}</strong>
+      </div>
+      {% if listing.pricing_reason %}
+      <div>
+        <span class="signal-label">Reason</span>
+        <strong>{{ listing.pricing_reason }}</strong>
+      </div>
+      {% endif %}
+      {% endif %}
     </div>
 
+    {% if mode == "missed" %}
+    <p class="listing-urgency listing-urgency-missed">
+      {{ listing.gone_after_label or "This listing is no longer available." }}
+    </p>
+    {% else %}
     <p class="listing-urgency">{{ listing.feed_timestamp|urgency_hint }}</p>
+    {% endif %}
 
     <div class="listing-actions">
-      <a class="primary-button" href="{{ listing.external_url }}" target="_blank" rel="noopener">Open listing</a>
       {% if public_preview %}
-      <a class="ghost-button" href="{{ url_for('auth.login', next=url_for('main.feed')) }}">Unlock VIP</a>
+      <a class="primary-button" href="{{ url_for('auth.login', next=url_for('main.feed')) }}">Unlock VIP</a>
       <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
       {% else %}
+      <a class="primary-button" href="{{ listing.external_url }}" target="_blank" rel="noopener">Open listing</a>
       <button class="ghost-button favorite-toggle {% if listing.id in favorite_ids %}is-saved{% endif %}" data-listing-id="{{ listing.id }}">
         {% if listing.id in favorite_ids %}Saved{% else %}Save{% endif %}
       </button>

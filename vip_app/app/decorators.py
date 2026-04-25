@@ -10,7 +10,7 @@ def vip_required(view):
     def wrapped(*args, **kwargs):
         if current_user.is_admin or current_user.vip_active:
             return view(*args, **kwargs)
-        flash("Your VIP access is not live yet.", "warning")
+        flash("Unlock VIP access to view real-time Pokémon TCG deals.", "warning")
         return redirect(url_for("main.vip_pending"))
 
     return wrapped

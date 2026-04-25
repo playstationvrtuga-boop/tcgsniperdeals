@@ -31,9 +31,19 @@ def ensure_runtime_schema(app):
             "pricing_checked_at": "ALTER TABLE listings ADD COLUMN pricing_checked_at DATETIME",
             "pricing_error": "ALTER TABLE listings ADD COLUMN pricing_error VARCHAR(255)",
             "reference_price": "ALTER TABLE listings ADD COLUMN reference_price FLOAT",
+            "estimated_profit": "ALTER TABLE listings ADD COLUMN estimated_profit FLOAT",
             "discount_percent": "ALTER TABLE listings ADD COLUMN discount_percent FLOAT",
+            "profit_margin": "ALTER TABLE listings ADD COLUMN profit_margin FLOAT",
             "gross_margin": "ALTER TABLE listings ADD COLUMN gross_margin FLOAT",
             "pricing_score": "ALTER TABLE listings ADD COLUMN pricing_score INTEGER",
+            "score_level": "ALTER TABLE listings ADD COLUMN score_level VARCHAR(40)",
+            "pricing_reason": "ALTER TABLE listings ADD COLUMN pricing_reason VARCHAR(255)",
+            "pricing_analyzed_at": "ALTER TABLE listings ADD COLUMN pricing_analyzed_at DATETIME",
+            "status": "ALTER TABLE listings ADD COLUMN status VARCHAR(40)",
+            "status_updated_at": "ALTER TABLE listings ADD COLUMN status_updated_at DATETIME",
+            "gone_detected_at": "ALTER TABLE listings ADD COLUMN gone_detected_at DATETIME",
+            "gone_alert_sent_at": "ALTER TABLE listings ADD COLUMN gone_alert_sent_at DATETIME",
+            "sold_after_seconds": "ALTER TABLE listings ADD COLUMN sold_after_seconds INTEGER",
             "is_deal": "ALTER TABLE listings ADD COLUMN is_deal BOOLEAN",
             "deal_alert_sent_at": "ALTER TABLE listings ADD COLUMN deal_alert_sent_at DATETIME",
             "alert_title": "ALTER TABLE listings ADD COLUMN alert_title VARCHAR(80)",
@@ -57,9 +67,19 @@ def ensure_runtime_schema(app):
             "pricing_checked_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_checked_at TIMESTAMP WITH TIME ZONE",
             "pricing_error": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_error VARCHAR(255)",
             "reference_price": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS reference_price DOUBLE PRECISION",
+            "estimated_profit": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS estimated_profit DOUBLE PRECISION",
             "discount_percent": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS discount_percent DOUBLE PRECISION",
+            "profit_margin": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS profit_margin DOUBLE PRECISION",
             "gross_margin": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS gross_margin DOUBLE PRECISION",
             "pricing_score": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_score INTEGER",
+            "score_level": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS score_level VARCHAR(40)",
+            "pricing_reason": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_reason VARCHAR(255)",
+            "pricing_analyzed_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_analyzed_at TIMESTAMP WITH TIME ZONE",
+            "status": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS status VARCHAR(40)",
+            "status_updated_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS status_updated_at TIMESTAMP WITH TIME ZONE",
+            "gone_detected_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS gone_detected_at TIMESTAMP WITH TIME ZONE",
+            "gone_alert_sent_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS gone_alert_sent_at TIMESTAMP WITH TIME ZONE",
+            "sold_after_seconds": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS sold_after_seconds INTEGER",
             "is_deal": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS is_deal BOOLEAN",
             "deal_alert_sent_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS deal_alert_sent_at TIMESTAMP WITH TIME ZONE",
             "alert_title": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS alert_title VARCHAR(80)",
@@ -83,11 +103,15 @@ def ensure_runtime_schema(app):
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_detected_at ON listings (detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_detected_at_id ON listings (detected_at, id)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_pricing_status ON listings (pricing_status)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_score_level ON listings (score_level)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_gone_detected_at ON listings (gone_detected_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_status_updated_at ON listings (status_updated_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_platform_detected_at ON listings (platform, detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_is_deal_detected_at ON listings (is_deal, detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_badge_label_detected_at ON listings (badge_label, detected_at)"))
         connection.execute(text("UPDATE listings SET normalized_url = external_url WHERE normalized_url IS NULL"))
         connection.execute(text("UPDATE listings SET available_status = 'available' WHERE available_status IS NULL"))
+        connection.execute(text("UPDATE listings SET status = available_status WHERE status IS NULL"))
         connection.execute(text("UPDATE listings SET pricing_status = 'pending' WHERE pricing_status IS NULL"))
         connection.execute(text("UPDATE listings SET is_deal = false WHERE is_deal IS NULL"))
         connection.execute(text("UPDATE listings SET is_vip_only = true WHERE is_vip_only IS NULL"))
@@ -174,6 +198,13 @@ def create_app(minimal=False, skip_db=False, skip_blueprints=False):
             print("[startup] 4.7) database init completed", flush=True)
     else:
         print("[startup] 4.5) database create_all skipped", flush=True)
+        if not skip_db and app.config.get("RUN_STARTUP_SCHEMA_CHECK", False):
+            print("[startup] 4.6) running lightweight schema check", flush=True)
+            with app.app_context():
+                from . import models  # noqa: F401
+
+                ensure_runtime_schema(app)
+            print("[startup] 4.7) lightweight schema check completed", flush=True)
 
     if app.config.get("LOG_STARTUP_TIMING", False):
         elapsed_ms = (time.perf_counter() - startup_started) * 1000

@@ -1,14 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Live VIP Feed - TCG Sniper Deals{% endblock %}
+{% block title %}{{ board_title|default("Live Deals") }} - TCG Sniper Deals{% endblock %}
 {% block content %}
-<section class="feed-command-center{% if not enable_live_radar %} is-radar-off{% endif %}">
+<nav class="vip-tab-nav" aria-label="VIP deal sections">
+  <a class="vip-tab {% if active_tab == 'live' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">⚡ Live Deals</a>
+  <a class="vip-tab {% if active_tab == 'smart' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Smart Deals</a>
+  <a class="vip-tab {% if active_tab == 'missed' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">💀 Missed Deals</a>
+</nav>
+
+<section class="feed-command-center feed-mode-{{ page_mode|default('live') }}{% if not enable_live_radar %} is-radar-off{% endif %}">
   <section class="section-header section-header-feed feed-command-center-header">
     <div>
-      <span class="pill">Market intelligence</span>
-      <h1>Live feed for fresh opportunity flow</h1>
-      <p>New listings land here in real time. The radar stays active, the stream stays light, and the strongest signals rise first.</p>
+      <span class="pill">{{ board_label|default("Market intelligence") }}</span>
+      <h1>{{ board_title|default("Live feed for fresh opportunity flow") }}</h1>
+      <p>{{ board_intro|default("New listings land here in real time. The radar stays active, the stream stays light, and the strongest signals rise first.") }}</p>
       <div class="feed-hero-meta">
-        <span class="mini-stat">LIVE</span>
+        <span class="mini-stat">{{ page_mode|default("live")|upper }}</span>
         <span class="mini-stat">{{ live_stats.count }} listings</span>
         <span class="mini-stat">{{ live_stats.deal_count }} flagged</span>
         <span class="mini-stat">{{ live_stats.last_detected_at|relative_time }}</span>
@@ -67,9 +73,9 @@
 
   <section class="stats-strip">
     <article class="stat-card">
-      <span class="stat-label">Live stream</span>
+      <span class="stat-label">{{ stat_label|default("Live stream") }}</span>
       <strong>{{ live_stats.count }}</strong>
-      <small>{{ live_stats.deal_count }} flagged deals inside the stream</small>
+      <small>{{ live_stats.deal_count }} flagged deals inside this tab</small>
     </article>
     <article class="stat-card">
       <span class="stat-label">Last detected</span>
@@ -117,7 +123,8 @@
 </div>
 
 <section
-  class="listing-grid"
+  class="listing-grid listing-grid-{{ page_mode|default('live') }}"
+  {% if page_mode == "live" %}
   data-live-feed-root
   data-feed-updates-url="{{ url_for('main.feed_updates') }}"
   data-feed-poll-ms="{{ feed_poll_interval_ms }}"
@@ -129,13 +136,14 @@
   data-feed-relative-time-interval-ms="{{ relative_time_update_ms }}"
   data-feed-cursor-detected-at="{{ listings[0].feed_timestamp_iso if listings else '' }}"
   data-feed-cursor-id="{{ listings[0].id if listings else 0 }}"
+  {% endif %}
 >
   {% for listing in listings %}
     {% include "partials/listing_card.html" %}
   {% else %}
     <div class="empty-state">
-      <h2>No fresh listings just yet</h2>
-      <p>The next catch will land here the second your bot sees it.</p>
+      <h2>No listings here yet</h2>
+      <p>This tab will fill automatically when the matching bot or worker data arrives.</p>
     </div>
   {% endfor %}
 </section>

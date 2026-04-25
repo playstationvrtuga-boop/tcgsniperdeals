@@ -5,7 +5,7 @@ from pathlib import Path
 
 from flask import Blueprint, Response, current_app, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, case, or_
 from sqlalchemy.orm import defer
 
 from .decorators import vip_required
@@ -393,6 +393,180 @@ def newest_listing_order():
     )
 
 
+def smart_deal_order():
+    score_rank = case(
+        (db.func.upper(db.func.coalesce(Listing.score_level, "")) == "INSANE", 3),
+        (db.func.upper(db.func.coalesce(Listing.score_level, "")) == "HIGH", 2),
+        (db.func.upper(db.func.coalesce(Listing.score_level, "")) == "MEDIUM", 1),
+        else_=0,
+    )
+    return (
+        score_rank.desc(),
+        db.func.coalesce(Listing.estimated_profit, Listing.profit_margin, Listing.gross_margin, -999).desc(),
+        *newest_listing_order(),
+    )
+
+
+def missed_deal_order():
+    return (
+        db.func.coalesce(Listing.gone_detected_at, Listing.status_updated_at, Listing.updated_at).desc(),
+        *newest_listing_order(),
+    )
+
+
+def favorite_ids_for_current_user():
+    return {
+        listing_id
+        for (listing_id,) in Favorite.query.filter_by(user_id=current_user.id).with_entities(Favorite.listing_id).all()
+    }
+
+
+def gone_status_values():
+    return [
+        "deleted",
+        "eliminada",
+        "eliminado",
+        "esgotada",
+        "esgotado",
+        "expired",
+        "indisponivel",
+        "indisponível",
+        "not-available",
+        "out-of-stock",
+        "out_of_stock",
+        "removed",
+        "removida",
+        "removido",
+        "reserved",
+        "sold",
+        "unavailable",
+        "vendida",
+        "vendido",
+    ]
+
+
+def apply_listing_filters(query, search, platform, badge):
+    if search:
+        query = query.filter(Listing.title.ilike(f"%{search}%"))
+    if platform:
+        query = query.filter(Listing.platform == platform)
+    if badge:
+        if badge == "Fresh":
+            query = query.filter(Listing.is_deal.is_(False))
+        else:
+            query = query.filter(Listing.is_deal.is_(True), Listing.badge_label == badge)
+    return query
+
+
+def feed_options():
+    def build_platforms():
+        return [row[0] for row in db.session.query(Listing.platform).distinct().all()]
+
+    def build_badges():
+        deal_badges = [
+            row[0]
+            for row in db.session.query(Listing.badge_label)
+            .filter(Listing.is_deal.is_(True), Listing.badge_label.isnot(None), Listing.badge_label != "")
+            .distinct()
+            .all()
+        ]
+        return ["Fresh"] + [badge_name for badge_name in deal_badges if badge_name != "Fresh"]
+
+    platforms, _ = get_or_set("feed:platforms", current_app.config["FEED_OPTIONS_CACHE_TTL_SECONDS"], build_platforms)
+    badges, _ = get_or_set("feed:badges", current_app.config["FEED_OPTIONS_CACHE_TTL_SECONDS"], build_badges)
+    return platforms, badges
+
+
+def alerts_are_active():
+    if not push_enabled():
+        return False
+    return PushSubscription.query.filter_by(user_id=current_user.id).first() is not None
+
+
+def render_deals_board(
+    *,
+    query,
+    order_by,
+    cache_key=None,
+    page_mode="live",
+    board_title="Live feed for fresh opportunity flow",
+    board_intro="New listings land here in real time. The radar stays active, the stream stays light, and the strongest signals rise first.",
+    board_label="Market intelligence",
+    stat_label="Live stream",
+):
+    feed_started = time.perf_counter()
+    search = request.args.get("q", "").strip()
+    platform = request.args.get("platform", "").strip()
+    badge = request.args.get("badge", "").strip()
+    query = apply_listing_filters(query.options(defer(Listing.raw_payload)), search, platform, badge)
+
+    cache_hit = False
+    if cache_key and not search and not platform and not badge:
+        def build_snapshot():
+            listings = query.order_by(*order_by).limit(60).all()
+            return {
+                "listings": listings,
+                "live_listings_count": len(listings),
+                "deal_count": sum(1 for listing in listings if listing.is_deal),
+                "last_detected_at": listings[0].feed_timestamp if listings else None,
+            }
+
+        feed_snapshot, cache_hit = get_or_set(cache_key, current_app.config["FEED_CACHE_TTL_SECONDS"], build_snapshot)
+        listings = feed_snapshot["listings"]
+        live_listings_count = feed_snapshot["live_listings_count"]
+        deal_count = feed_snapshot["deal_count"]
+        last_detected_at = feed_snapshot["last_detected_at"]
+    else:
+        listings = query.order_by(*order_by).limit(60).all()
+        live_listings_count = len(listings)
+        deal_count = sum(1 for listing in listings if listing.is_deal)
+        last_detected_at = listings[0].feed_timestamp if listings else None
+
+    live_stats = {
+        "count": live_listings_count,
+        "deal_count": deal_count,
+        "last_detected_at": last_detected_at,
+        "alerts_active": alerts_are_active(),
+    }
+    platforms, badges = feed_options()
+
+    if current_app.config.get("LOG_FEED_TIMING", False):
+        total_ms = (time.perf_counter() - feed_started) * 1000
+        current_app.logger.info(
+            "[%s] cache=%s listings=%s total=%.1fms",
+            page_mode,
+            "hit" if cache_hit else "miss",
+            len(listings),
+            total_ms,
+        )
+
+    return render_template(
+        "feed.html",
+        listings=listings,
+        favorite_ids=favorite_ids_for_current_user(),
+        push_enabled=push_enabled(),
+        platforms=platforms,
+        badges=badges,
+        search=search,
+        selected_platform=platform,
+        selected_badge=badge,
+        live_stats=live_stats,
+        feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
+        feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
+        enable_live_radar=current_app.config["ENABLE_LIVE_RADAR"] and page_mode == "live",
+        enable_target_feedback=current_app.config["ENABLE_TARGET_FEEDBACK"] and page_mode == "live",
+        enable_card_entry_animations=current_app.config["ENABLE_CARD_ENTRY_ANIMATIONS"],
+        enable_relative_time_updates=current_app.config["ENABLE_RELATIVE_TIME_UPDATES"],
+        relative_time_update_ms=current_app.config["RELATIVE_TIME_UPDATE_MS"],
+        page_mode=page_mode,
+        board_title=board_title,
+        board_intro=board_intro,
+        board_label=board_label,
+        stat_label=stat_label,
+        active_tab=page_mode,
+    )
+
+
 def get_android_apk_path():
     project_root = Path(__file__).resolve().parents[2]
     return project_root / "vip_app_mobile" / "android" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
@@ -499,107 +673,57 @@ def download_android_apk():
 
 
 @main_bp.route("/feed")
+@main_bp.route("/deals")
+@main_bp.route("/live-deals")
 @vip_required
 def feed():
-    feed_started = time.perf_counter()
-    query = Listing.query.options(defer(Listing.raw_payload))
+    return render_deals_board(
+        query=Listing.query,
+        order_by=newest_listing_order(),
+        cache_key="feed:default",
+        page_mode="live",
+    )
 
-    search = request.args.get("q", "").strip()
-    platform = request.args.get("platform", "").strip()
-    badge = request.args.get("badge", "").strip()
 
-    if search:
-        query = query.filter(Listing.title.ilike(f"%{search}%"))
-    if platform:
-        query = query.filter(Listing.platform == platform)
-    if badge:
-        if badge == "Fresh":
-            query = query.filter(Listing.is_deal.is_(False))
-        else:
-            query = query.filter(Listing.is_deal.is_(True), Listing.badge_label == badge)
+@main_bp.route("/smart-deals")
+@vip_required
+def smart_deals():
+    score_level = db.func.upper(db.func.coalesce(Listing.score_level, ""))
+    profit_value = db.func.coalesce(Listing.estimated_profit, Listing.profit_margin, Listing.gross_margin, 0)
+    query = Listing.query.filter(
+        Listing.pricing_status == "analyzed",
+        or_(
+            score_level.in_(["MEDIUM", "HIGH", "INSANE"]),
+            profit_value >= 10,
+            Listing.discount_percent >= 10,
+        ),
+    )
+    return render_deals_board(
+        query=query,
+        order_by=smart_deal_order(),
+        cache_key="feed:smart",
+        page_mode="smart",
+        board_label="Smart pricing",
+        board_title="Smart Deals with pricing edge",
+        board_intro="Only enriched listings with market signals, discount pressure or real profit potential.",
+        stat_label="Smart stream",
+    )
 
-    cache_hit = False
-    if not search and not platform and not badge:
-        def build_default_feed():
-            listings = query.order_by(*newest_listing_order()).limit(60).all()
-            return {
-                "listings": listings,
-                "live_listings_count": len(listings),
-                "deal_count": sum(1 for listing in listings if listing.is_deal),
-                "last_detected_at": listings[0].feed_timestamp if listings else None,
-            }
 
-        feed_snapshot, cache_hit = get_or_set("feed:default", current_app.config["FEED_CACHE_TTL_SECONDS"], build_default_feed)
-        listings = feed_snapshot["listings"]
-        live_listings_count = feed_snapshot["live_listings_count"]
-        deal_count = feed_snapshot["deal_count"]
-        last_detected_at = feed_snapshot["last_detected_at"]
-    else:
-        listings = query.order_by(*newest_listing_order()).limit(60).all()
-        live_listings_count = len(listings)
-        deal_count = sum(1 for listing in listings if listing.is_deal)
-        last_detected_at = listings[0].feed_timestamp if listings else None
-
-    favorite_ids = {
-        listing_id
-        for (listing_id,) in Favorite.query.filter_by(user_id=current_user.id).with_entities(Favorite.listing_id).all()
-    }
-
-    def build_platforms():
-        return [row[0] for row in db.session.query(Listing.platform).distinct().all()]
-
-    def build_badges():
-        deal_badges = [
-            row[0]
-            for row in db.session.query(Listing.badge_label)
-            .filter(Listing.is_deal.is_(True), Listing.badge_label.isnot(None), Listing.badge_label != "")
-            .distinct()
-            .all()
-        ]
-        return ["Fresh"] + [badge_name for badge_name in deal_badges if badge_name != "Fresh"]
-
-    platforms, _ = get_or_set("feed:platforms", current_app.config["FEED_OPTIONS_CACHE_TTL_SECONDS"], build_platforms)
-    badges, _ = get_or_set("feed:badges", current_app.config["FEED_OPTIONS_CACHE_TTL_SECONDS"], build_badges)
-
-    alerts_active = False
-    if push_enabled():
-        alerts_active = PushSubscription.query.filter_by(user_id=current_user.id).first() is not None
-
-    live_stats = {
-        "count": live_listings_count,
-        "deal_count": deal_count,
-        "last_detected_at": last_detected_at,
-        "alerts_active": alerts_active,
-    }
-
-    if current_app.config.get("LOG_FEED_TIMING", False):
-        total_ms = (time.perf_counter() - feed_started) * 1000
-        current_app.logger.info(
-            "[feed] cache=%s listings=%s favorites=%s total=%.1fms",
-            "hit" if cache_hit else "miss",
-            len(listings),
-            len(favorite_ids),
-            total_ms,
-        )
-
-    return render_template(
-        "feed.html",
-        listings=listings,
-        favorite_ids=favorite_ids,
-        push_enabled=push_enabled(),
-        platforms=platforms,
-        badges=badges,
-        search=search,
-        selected_platform=platform,
-        selected_badge=badge,
-        live_stats=live_stats,
-        feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
-        feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
-        enable_live_radar=current_app.config["ENABLE_LIVE_RADAR"],
-        enable_target_feedback=current_app.config["ENABLE_TARGET_FEEDBACK"],
-        enable_card_entry_animations=current_app.config["ENABLE_CARD_ENTRY_ANIMATIONS"],
-        enable_relative_time_updates=current_app.config["ENABLE_RELATIVE_TIME_UPDATES"],
-        relative_time_update_ms=current_app.config["RELATIVE_TIME_UPDATE_MS"],
+@main_bp.route("/missed-deals")
+@vip_required
+def missed_deals():
+    status_value = db.func.lower(db.func.coalesce(Listing.status, Listing.available_status, ""))
+    query = Listing.query.filter(status_value.in_(gone_status_values()))
+    return render_deals_board(
+        query=query,
+        order_by=missed_deal_order(),
+        cache_key="feed:missed",
+        page_mode="missed",
+        board_label="Lost opportunities",
+        board_title="Missed Deals already gone",
+        board_intro="Sold, removed or unavailable listings detected earlier by TCG Sniper Deals.",
+        stat_label="Missed stream",
     )
 
 
@@ -836,6 +960,10 @@ def robots_txt():
         "User-agent: *",
         "Allow: /",
         "Disallow: /feed",
+        "Disallow: /deals",
+        "Disallow: /live-deals",
+        "Disallow: /smart-deals",
+        "Disallow: /missed-deals",
         "Disallow: /favorites",
         "Disallow: /profile",
         "Disallow: /billing",

@@ -10,6 +10,8 @@ from .feed_cache import invalidate
 from .models import Listing
 api_bp = Blueprint("api", __name__)
 
+GONE_STATUSES = {"deleted", "expired", "removed", "reserved", "sold", "unavailable"}
+
 
 TRACKING_QUERY_KEYS = {
     "_branch_match_id",
@@ -208,6 +210,7 @@ def build_listing_from_payload(payload):
         category=str(pick_first(payload, "category", default="")).strip() or None,
         tcg_type=str(pick_first(payload, "tcg_type", default="pokemon")).strip() or "pokemon",
         available_status=normalize_available_status(pick_first(payload, "available_status", "status", default="available")),
+        status=normalize_available_status(pick_first(payload, "available_status", "status", default="available")),
         pricing_status="pending",
         pricing_error=None,
         reference_price=None,
@@ -288,6 +291,19 @@ def update_listing_status():
 
         old_status = (listing.available_status or "").strip().lower()
         listing.available_status = status
+        listing.status = status
+        listing.status_updated_at = datetime.now(timezone.utc)
+        if status in GONE_STATUSES:
+            gone_at = parse_datetime(payload.get("gone_detected_at") or payload.get("status_updated_at"), fallback=listing.status_updated_at)
+            listing.gone_detected_at = listing.gone_detected_at or gone_at
+            if listing.detected_at and listing.gone_detected_at and listing.sold_after_seconds is None:
+                detected_at = listing.detected_at
+                gone_detected_at = listing.gone_detected_at
+                if detected_at.tzinfo is None:
+                    detected_at = detected_at.replace(tzinfo=timezone.utc)
+                if gone_detected_at.tzinfo is None:
+                    gone_detected_at = gone_detected_at.replace(tzinfo=timezone.utc)
+                listing.sold_after_seconds = max(int((gone_detected_at - detected_at).total_seconds()), 0)
         if payload.get("source_published_at"):
             listing.source_published_at = parse_datetime(payload.get("source_published_at"), fallback=listing.source_published_at)
         if payload.get("detected_at"):

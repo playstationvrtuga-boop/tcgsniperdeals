@@ -96,10 +96,9 @@
 
     {% if current_user.is_authenticated %}
     <nav class="bottom-nav" aria-label="Mobile">
-      <a class="bottom-nav-item {% if request.endpoint == 'main.feed' and not request.args.get('q') %}is-active{% endif %}" href="{{ url_for('main.feed') }}">Feed</a>
-      <a class="bottom-nav-item {% if request.endpoint == 'main.feed' and request.args.get('q') %}is-active{% endif %}" href="{{ url_for('main.feed') }}#feed-filters">Search</a>
-      <a class="bottom-nav-item {% if request.endpoint == 'main.favorites' %}is-active{% endif %}" href="{{ url_for('main.favorites') }}">Favorites</a>
-      <a class="bottom-nav-item {% if request.endpoint == 'main.profile' %}is-active{% endif %}" href="{{ url_for('main.profile') }}">Profile</a>
+      <a class="bottom-nav-item {% if request.endpoint == 'main.feed' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">⚡ Live</a>
+      <a class="bottom-nav-item {% if request.endpoint == 'main.smart_deals' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Smart</a>
+      <a class="bottom-nav-item {% if request.endpoint == 'main.missed_deals' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">💀 Missed</a>
     </nav>
     {% endif %}
   </div>

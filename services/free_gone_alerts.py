@@ -236,7 +236,7 @@ def _age_clause(cutoff: datetime):
 
 
 def _candidate_query(cutoff: datetime, used_listing_ids: Iterable[int]):
-    status_value = func.lower(func.coalesce(Listing.available_status, ""))
+    status_value = func.lower(func.coalesce(Listing.status, Listing.available_status, ""))
     query = (
         Listing.query.filter(
             _is_pokemon_tcg_clause(),
@@ -308,6 +308,14 @@ def next_due_window_slot(state: FreeGoneAlertState, now: datetime | None = None)
 
 def record_gone_alert_post(state: FreeGoneAlertState, listing: Listing, *, sent_at: datetime | None = None) -> None:
     current = _localize(sent_at or _now_local())
+    listing.status = (listing.status or listing.available_status or "unavailable").strip().lower()
+    listing.gone_detected_at = listing.gone_detected_at or current
+    listing.gone_alert_sent_at = current
+    if listing.detected_at and listing.sold_after_seconds is None:
+        detected_at = _localize(listing.detected_at)
+        if detected_at:
+            listing.sold_after_seconds = max(int((listing.gone_detected_at - detected_at).total_seconds()), 0)
+
     used_ids = set(state.used_listing_ids())
     used_ids.add(int(listing.id))
     state.set_used_listing_ids(sorted(used_ids))

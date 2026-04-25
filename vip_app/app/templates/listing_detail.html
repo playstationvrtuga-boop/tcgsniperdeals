@@ -53,7 +53,7 @@
       </div>
       <div class="meta-tile">
         <span class="label">Potential profit</span>
-        <strong>{% if listing.gross_margin is not none %}+{{ "%.2f"|format(listing.gross_margin) }} EUR{% else %}Pending{% endif %}</strong>
+        <strong>{% if listing.effective_profit is not none %}+{{ "%.2f"|format(listing.effective_profit) }} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Discount</span>
@@ -63,6 +63,22 @@
         <span class="label">Confidence</span>
         <strong>{{ listing.display_confidence }}</strong>
       </div>
+      <div class="meta-tile">
+        <span class="label">Status</span>
+        <strong>{{ listing.effective_status }}</strong>
+      </div>
+      {% if listing.gone_timestamp %}
+      <div class="meta-tile">
+        <span class="label">Gone detected</span>
+        <strong>{{ listing.gone_timestamp|datetime_format }}</strong>
+      </div>
+      {% endif %}
+      {% if listing.gone_after_label %}
+      <div class="meta-tile">
+        <span class="label">Outcome speed</span>
+        <strong>{{ listing.gone_after_label }}</strong>
+      </div>
+      {% endif %}
     </div>
 
     <section class="detail-insight-block">

@@ -97,9 +97,19 @@ class Listing(TimestampMixin, db.Model):
     pricing_checked_at = db.Column(db.DateTime(timezone=True))
     pricing_error = db.Column(db.String(255))
     reference_price = db.Column(db.Float)
+    estimated_profit = db.Column(db.Float)
     discount_percent = db.Column(db.Float)
+    profit_margin = db.Column(db.Float)
     gross_margin = db.Column(db.Float)
     pricing_score = db.Column(db.Integer)
+    score_level = db.Column(db.String(40))
+    pricing_reason = db.Column(db.String(255))
+    pricing_analyzed_at = db.Column(db.DateTime(timezone=True))
+    status = db.Column(db.String(40))
+    status_updated_at = db.Column(db.DateTime(timezone=True))
+    gone_detected_at = db.Column(db.DateTime(timezone=True))
+    gone_alert_sent_at = db.Column(db.DateTime(timezone=True))
+    sold_after_seconds = db.Column(db.Integer)
     is_deal = db.Column(db.Boolean, default=False, nullable=False)
     deal_alert_sent_at = db.Column(db.DateTime(timezone=True))
     alert_title = db.Column(db.String(80))
@@ -167,6 +177,8 @@ class Listing(TimestampMixin, db.Model):
 
     @property
     def display_confidence(self):
+        if self.score_level:
+            return self.score_level.title()
         if self.confidence_label:
             return self.confidence_label
         if self.score_label:
@@ -177,6 +189,8 @@ class Listing(TimestampMixin, db.Model):
 
     @property
     def display_signal(self):
+        if self.score_level:
+            return self.score_level.lower()
         if self.deal_level:
             return self.deal_level
         if self.is_pending_pricing:
@@ -200,6 +214,52 @@ class Listing(TimestampMixin, db.Model):
             if elapsed <= timedelta(minutes=5):
                 return "Fast-moving"
         return ""
+
+    @property
+    def effective_profit(self):
+        if self.estimated_profit is not None:
+            return self.estimated_profit
+        if self.profit_margin is not None:
+            return self.profit_margin
+        return self.gross_margin
+
+    @property
+    def effective_status(self):
+        return (self.status or self.available_status or "available").strip().lower()
+
+    @property
+    def gone_timestamp(self):
+        return self.gone_detected_at or self.status_updated_at or self.updated_at
+
+    @property
+    def gone_timestamp_iso(self):
+        timestamp = self.gone_timestamp
+        if not timestamp:
+            return ""
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        return timestamp.isoformat()
+
+    @property
+    def gone_after_label(self):
+        seconds = self.sold_after_seconds
+        if seconds is None and self.gone_detected_at and self.detected_at:
+            gone_at = self.gone_detected_at
+            detected_at = self.detected_at
+            if gone_at.tzinfo is None:
+                gone_at = gone_at.replace(tzinfo=timezone.utc)
+            if detected_at.tzinfo is None:
+                detected_at = detected_at.replace(tzinfo=timezone.utc)
+            seconds = max(int((gone_at - detected_at).total_seconds()), 0)
+        if seconds is None:
+            return ""
+        if seconds < 60:
+            return f"Gone after {seconds}s"
+        minutes = seconds // 60
+        if minutes < 60:
+            return f"Gone after {minutes} min"
+        hours = minutes // 60
+        return f"Gone after {hours}h"
 
 
 class Favorite(TimestampMixin, db.Model):
