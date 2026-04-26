@@ -99,7 +99,7 @@ def build_query_variants(product_name: str, listing_kind: str | None = None) -> 
     cleaned_title = _clean_query_text(product_name)
     simplified = _without_noisy_terms(cleaned_title)
 
-    variants = [base_query, cleaned_title, simplified]
+    variants = [cleaned_title, base_query, simplified]
 
     title_tokens = simplified.split()
     if title_tokens:

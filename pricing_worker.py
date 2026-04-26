@@ -105,6 +105,10 @@ def _pricing_reason(result) -> str:
         f"sold_refs={result.comparable_count or 0}",
         f"buy_now_refs={getattr(result, 'buy_now_count', 0) or 0}",
     ]
+    if getattr(result, "parser_confidence", None):
+        parts.append(f"confidence={result.parser_confidence}")
+    if getattr(result, "parser_query", None):
+        parts.append(f"query={result.parser_query}")
     if getattr(result, "buy_now_reference_price", None) is not None:
         parts.append(f"buy_now_ref={result.buy_now_reference_price:.2f}eur")
     if result.reason:
@@ -127,7 +131,7 @@ def _describe_result(result) -> str:
             f"ref={result.reference_price:.2f}eur source={source} "
             f"last3={result.comparable_count}{buy_now_part} "
             f"discount={result.discount_percent:.1f}% margin={result.gross_margin:.2f}eur "
-            f"score={result.score}"
+            f"score={result.score} confidence={getattr(result, 'parser_confidence', None) or 'n/a'}"
         )
 
     if result.status == "priced":
@@ -136,17 +140,22 @@ def _describe_result(result) -> str:
             f"ref={result.reference_price:.2f}eur source={source} "
             f"last3={result.comparable_count}{buy_now_part} "
             f"discount={result.discount_percent:.1f}% margin={result.gross_margin:.2f}eur "
-            f"score={result.score}"
+            f"score={result.score} confidence={getattr(result, 'parser_confidence', None) or 'n/a'}"
         )
 
     if result.status == "needs_review":
         return (
             f"NEEDS_REVIEW kind={kind} reason={result.reason or 'n/a'} "
+            f"confidence={getattr(result, 'parser_confidence', None) or 'n/a'} "
+            f"query={getattr(result, 'parser_query', None) or 'n/a'} "
             f"sold={result.comparable_count} buy_now={buy_now_count}"
         )
 
     if result.reason == "listing_not_precisely_identified":
         return f"SKIPPED kind={kind} reason=title_not_precise"
+
+    if result.reason == "not_pokemon_related":
+        return f"SKIPPED kind={kind} confidence={getattr(result, 'parser_confidence', None) or 'UNKNOWN'} reason=not_pokemon_related"
 
     if result.reason in {"not_enough_recent_sales", "not_enough_price_references"} or str(result.reason or "").startswith("not_enough_price_references"):
         return (

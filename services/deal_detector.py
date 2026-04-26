@@ -35,8 +35,42 @@ GRADED_TERMS = ("psa", "bgs", "cgc", "beckett", "graded", "slab")
 SEALED_TERMS = ("sealed", "booster bundle", "tin", "collection box")
 GENERIC_TITLE_TERMS = {
     "pokemon", "pok", "mon", "tcg", "card", "cards", "carta", "cartas",
-    "english", "near", "mint", "nm", "holo", "reverse", "rare", "ultra",
+    "tarjeta", "tarjetas", "carte", "cartes", "karta", "kaarten",
+    "english", "ingles", "inglês", "anglais", "francais", "français",
+    "portugues", "português", "spanish", "espanol", "español",
+    "near", "mint", "nm", "holo", "reverse", "rare", "ultra",
     "double", "seller", "feedback", "sealed", "box", "trainer", "elite",
+    "novo", "nueva", "nuevo", "neuf", "neuve", "bon", "estado", "etat",
+}
+
+KNOWN_POKEMON_NAMES = {
+    "absol", "aerodactyl", "alakazam", "arcanine", "articuno", "blastoise",
+    "bulbasaur", "charizard", "charmander", "charmeleon", "dragonite",
+    "eevee", "espeon", "flareon", "gengar", "greninja", "gyarados",
+    "ivysaur", "jigglypuff", "jolteon", "lapras", "lucario", "lugia",
+    "machamp", "mew", "mewtwo", "moltres", "pikachu", "psyduck", "raichu",
+    "rayquaza", "snorlax", "squirtle", "sylveon", "umbreon", "venusaur",
+    "vaporeon", "zapdos", "zeraora",
+}
+
+SET_HINT_TERMS = {
+    "base", "jungle", "fossil", "rocket", "evolving", "skies", "fusion",
+    "strike", "brilliant", "stars", "astral", "radiance", "lost", "origin",
+    "silver", "tempest", "crown", "zenith", "paldea", "evolved", "obsidian",
+    "flames", "paradox", "rift", "temporal", "forces", "twilight",
+    "masquerade", "stellar", "crown", "surging", "sparks", "prismatic",
+    "evolutions", "celebrations", "champions", "path", "hidden", "fates",
+    "shining", "destinies", "scarlet", "violet", "sword", "shield",
+    "flammes", "fantasmagoriques", "crepuscolo", "mascherato", "ascended",
+    "heroes",
+}
+
+NAME_ALIASES = {
+    "dracaufeu": "charizard",
+    "glurak": "charizard",
+    "salameche": "charmander",
+    "salamèche": "charmander",
+    "pikachu": "pikachu",
 }
 
 
@@ -59,6 +93,21 @@ class DealResult:
     buy_now_titles: list[str] = field(default_factory=list)
     buy_now_count: int = 0
     buy_now_reference_price: float | None = None
+    parser_confidence: str | None = None
+    parser_query: str | None = None
+    parser_name: str | None = None
+
+
+@dataclass
+class ParsedListingIdentity:
+    confidence: str
+    query: str
+    listing_kind: str | None = None
+    extracted_name: str | None = None
+    extracted_number: str | None = None
+    extracted_set: str | None = None
+    fallback_query_used: bool = False
+    is_pokemon_related: bool = False
 
 
 def _clean_text(value: str) -> str:
@@ -78,17 +127,43 @@ def _meaningful_tokens(value: str) -> list[str]:
     ]
 
 
-def _has_card_number_pattern(title: str) -> bool:
+def _extract_pokemon_name(title: str) -> str | None:
     normalized = _normalize_title(title)
-    if re.search(r"\b\d{1,3}\s*/\s*\d{1,3}\b", normalized):
-        return True
-    if re.search(r"\b[a-z]{2,5}\d?[a-z]?\s*[- ]\s*\d{1,3}[a-z]?\b", normalized):
-        return True
-    if re.search(r"\b[a-z]{2,5}\d{2,4}[a-z]?\b", normalized):
-        return True
-    if re.search(r"\b[a-z]{2,5}\s+\d{1,3}\s*/\s*\d{1,3}\b", normalized):
-        return True
-    return False
+    tokens = normalized.split()
+    for token in tokens:
+        if token in NAME_ALIASES:
+            return NAME_ALIASES[token]
+        if token in KNOWN_POKEMON_NAMES:
+            return token
+    return None
+
+
+def _extract_card_number(title: str) -> str | None:
+    text = _clean_text(title)
+    patterns = (
+        r"\b\d{1,3}\s*/\s*\d{1,3}\b",
+        r"\bNo\.?\s*\d{1,4}\b",
+        r"\bCard\s*\d{1,4}\b",
+        r"\b[a-zA-Z]{2,5}\d?[a-zA-Z]?\s*[- ]?\s*\d{1,3}[a-zA-Z]?\b",
+        r"\b[a-zA-Z]{2,5}\d{2,4}[a-zA-Z]?\b",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            return re.sub(r"\s+", "", match.group(0)).strip()
+    return None
+
+
+def _extract_set_hint(title: str) -> str | None:
+    tokens = _normalize_title(title).split()
+    hits = [token for token in tokens if token in SET_HINT_TERMS]
+    if not hits:
+        return None
+    return " ".join(hits[:3])
+
+
+def _has_card_number_pattern(title: str) -> bool:
+    return _extract_card_number(title) is not None
 
 
 def detect_listing_kind(title: str) -> str | None:
@@ -105,6 +180,71 @@ def detect_listing_kind(title: str) -> str | None:
     if _has_card_number_pattern(title):
         return "single_card"
     return None
+
+
+def _is_pokemon_related(title: str) -> bool:
+    normalized = _normalize_title(title)
+    return "pokemon" in normalized.split() or "pok mon" in normalized or _extract_pokemon_name(title) is not None
+
+
+def parse_listing_identity(title: str) -> ParsedListingIdentity:
+    clean_title = _clean_text(title)
+    listing_kind = detect_listing_kind(clean_title)
+    extracted_name = _extract_pokemon_name(clean_title)
+    extracted_number = _extract_card_number(clean_title)
+    extracted_set = _extract_set_hint(clean_title)
+    is_related = _is_pokemon_related(clean_title)
+
+    meaningful = _meaningful_tokens(clean_title)
+    fallback_query_used = False
+
+    if extracted_name and extracted_number and extracted_set:
+        confidence = "HIGH"
+    elif extracted_name and (extracted_number or extracted_set):
+        confidence = "MEDIUM"
+    elif extracted_name or is_related:
+        confidence = "LOW"
+    else:
+        confidence = "UNKNOWN"
+
+    if extracted_name:
+        query_parts = ["pokemon", extracted_name]
+        if extracted_number and confidence in {"HIGH", "MEDIUM"}:
+            query_parts.append(extracted_number)
+        if extracted_set and confidence == "HIGH":
+            query_parts.append(extracted_set)
+        query_parts.append("card")
+        query = " ".join(query_parts)
+        fallback_query_used = confidence == "LOW"
+    elif is_related:
+        query = " ".join(["pokemon", *meaningful[:5]]) if meaningful else "pokemon card"
+        fallback_query_used = True
+    else:
+        query = clean_title
+
+    return ParsedListingIdentity(
+        confidence=confidence,
+        query=_clean_text(query),
+        listing_kind=listing_kind,
+        extracted_name=extracted_name,
+        extracted_number=extracted_number,
+        extracted_set=extracted_set,
+        fallback_query_used=fallback_query_used,
+        is_pokemon_related=is_related,
+    )
+
+
+def _log_parser(identity: ParsedListingIdentity) -> None:
+    print(
+        "[parser] "
+        f"confidence={identity.confidence} "
+        f"extracted_name={identity.extracted_name or ''} "
+        f"extracted_number={identity.extracted_number or ''} "
+        f"extracted_set={identity.extracted_set or ''} "
+        f"fallback_query_used={str(identity.fallback_query_used).lower()} "
+        f"query={identity.query!r}",
+        flush=True,
+    )
 
 
 def _is_precisely_identified_card(title: str) -> bool:
@@ -272,23 +412,40 @@ def _median_price(listings: list[EbaySoldListing]) -> float | None:
 def evaluate_listing(listing) -> DealResult:
     title = _clean_text(getattr(listing, "title", "") or "")
     price_display = _clean_text(getattr(listing, "price_display", "") or "")
-    listing_kind = detect_listing_kind(title)
+    identity = parse_listing_identity(title)
+    listing_kind = identity.listing_kind
+    pricing_query = identity.query or title
 
     if not title:
         return DealResult(status="skipped", reason="missing_title")
 
-    if not is_precisely_identified_listing(title):
-        return DealResult(status="skipped", reason="listing_not_precisely_identified", listing_kind=listing_kind)
+    _log_parser(identity)
+    if identity.confidence == "UNKNOWN":
+        return DealResult(
+            status="skipped",
+            reason="not_pokemon_related",
+            listing_kind=listing_kind,
+            parser_confidence=identity.confidence,
+            parser_query=pricing_query,
+            parser_name=identity.extracted_name,
+        )
 
     listing_price = extract_listing_price_eur(price_display)
     if listing_price is None:
-        return DealResult(status="skipped", reason="invalid_listing_price", listing_kind=listing_kind)
+        return DealResult(
+            status="skipped",
+            reason="invalid_listing_price",
+            listing_kind=listing_kind,
+            parser_confidence=identity.confidence,
+            parser_query=pricing_query,
+            parser_name=identity.extracted_name,
+        )
 
     comparable_sales: list[EbaySoldListing] = []
     recent_sales_error: str | None = None
     recent_sales_exception: EbaySoldError | None = None
     try:
-        comparable_sales = fetch_recent_comparables(title, listing_kind=listing_kind)
+        comparable_sales = fetch_recent_comparables(pricing_query, listing_kind=listing_kind)
     except EbaySoldError as error:
         recent_sales_error = str(error)
         recent_sales_exception = error
@@ -297,7 +454,7 @@ def evaluate_listing(listing) -> DealResult:
     buy_now_error: str | None = None
     buy_now_exception: EbaySoldError | None = None
     try:
-        buy_now_listings = fetch_active_buy_now_comparables(title, listing_kind=listing_kind)
+        buy_now_listings = fetch_active_buy_now_comparables(pricing_query, listing_kind=listing_kind)
     except EbaySoldError as error:
         buy_now_error = str(error)
         buy_now_exception = error
@@ -329,6 +486,9 @@ def evaluate_listing(listing) -> DealResult:
             listing_kind=listing_kind,
             comparable_count=len(comparable_sales),
             buy_now_count=len(buy_now_listings),
+            parser_confidence=identity.confidence,
+            parser_query=pricing_query,
+            parser_name=identity.extracted_name,
         )
 
     comparable_prices = [sale.price_eur for sale in comparable_sales[:3]]
@@ -357,6 +517,9 @@ def evaluate_listing(listing) -> DealResult:
             comparable_count=len(comparable_prices),
             buy_now_count=len(buy_now_prices),
             buy_now_reference_price=buy_now_reference_price,
+            parser_confidence=identity.confidence,
+            parser_query=pricing_query,
+            parser_name=identity.extracted_name,
         )
 
     gross_margin = round(reference_price - listing_price, 2)
@@ -364,6 +527,10 @@ def evaluate_listing(listing) -> DealResult:
     score = calculate_score(discount_percent, gross_margin)
     if price_source == "ebay_buy_now":
         score = max(0, score - 10)
+    if identity.confidence == "MEDIUM":
+        score = max(0, score - 3)
+    elif identity.confidence == "LOW":
+        score = max(0, score - 8)
     is_deal = (
         listing_price < reference_price
         and discount_percent >= PRICING_DEAL_MIN_DISCOUNT
@@ -375,6 +542,7 @@ def evaluate_listing(listing) -> DealResult:
         result_reason = f"{result_reason}; BUY_NOW_REFERENCE_FOUND"
     if recent_sales_error:
         result_reason = f"{result_reason}; SOLD_BLOCKED" if isinstance(recent_sales_exception, EbaySoldRateLimitError) else f"{result_reason}; SOLD_FAILED"
+    result_reason = f"{result_reason}; confidence={identity.confidence}; query={pricing_query}"
 
     return DealResult(
         status="deal" if is_deal else "priced",
@@ -394,6 +562,9 @@ def evaluate_listing(listing) -> DealResult:
         buy_now_count=len(buy_now_prices),
         buy_now_reference_price=buy_now_reference_price,
         reason=result_reason,
+        parser_confidence=identity.confidence,
+        parser_query=pricing_query,
+        parser_name=identity.extracted_name,
     )
 
 
@@ -404,4 +575,5 @@ __all__ = [
     "detect_listing_kind",
     "evaluate_listing",
     "is_precisely_identified_listing",
+    "parse_listing_identity",
 ]
