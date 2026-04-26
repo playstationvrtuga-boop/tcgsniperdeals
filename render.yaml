@@ -116,6 +116,16 @@ services:
         sync: false
       - key: PRICING_WORKER_MAX_SLEEP
         sync: false
+      - key: EBAY_CLIENT_ID
+        sync: false
+      - key: EBAY_CLIENT_SECRET
+        sync: false
+      - key: EBAY_MARKETPLACE_ID
+        value: "EBAY_US"
+      - key: EBAY_ENABLE_OFFICIAL_API
+        value: "true"
+      - key: EBAY_API_TIMEOUT
+        value: "12"
   - type: worker
     name: tcg-sniper-deals-gone-worker
     env: python

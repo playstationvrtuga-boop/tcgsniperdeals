@@ -19,6 +19,11 @@ from services.ebay_sold_client import (
     get_active_buy_now,
     get_recent_sales,
 )
+from services.ebay_api_client import (
+    get_official_active_buy_now,
+    get_official_recent_sales,
+    official_ebay_api_configured,
+)
 from services.price_cache import price_cache
 
 
@@ -194,7 +199,11 @@ def fetch_recent_comparables(product_name: str, listing_kind: str | None) -> lis
             for idx, price in enumerate(cached[:3])
         ]
 
-    sales = get_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
+    sales = []
+    if official_ebay_api_configured():
+        sales = get_official_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
+    if not sales:
+        sales = get_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
     if sales:
         price_cache.set(cache_key, [sale.price_eur for sale in sales])
     return sales
@@ -212,11 +221,19 @@ def fetch_active_buy_now_comparables(product_name: str, listing_kind: str | None
             for idx, price in enumerate(cached[:PRICING_BUY_NOW_MAX_RESULTS])
         ]
 
-    listings = get_active_buy_now(
-        product_name,
-        max_results=PRICING_BUY_NOW_MAX_RESULTS,
-        listing_kind=listing_kind,
-    )
+    listings = []
+    if official_ebay_api_configured():
+        listings = get_official_active_buy_now(
+            product_name,
+            max_results=PRICING_BUY_NOW_MAX_RESULTS,
+            listing_kind=listing_kind,
+        )
+    if not listings:
+        listings = get_active_buy_now(
+            product_name,
+            max_results=PRICING_BUY_NOW_MAX_RESULTS,
+            listing_kind=listing_kind,
+        )
     if listings:
         price_cache.set(cache_key, [listing.price_eur for listing in listings])
     return listings
@@ -266,13 +283,23 @@ def evaluate_listing(listing) -> DealResult:
     if listing_price is None:
         return DealResult(status="skipped", reason="invalid_listing_price", listing_kind=listing_kind)
 
-    comparable_sales = fetch_recent_comparables(title, listing_kind=listing_kind)
+    comparable_sales: list[EbaySoldListing] = []
+    recent_sales_error: str | None = None
+    recent_sales_exception: EbaySoldError | None = None
+    try:
+        comparable_sales = fetch_recent_comparables(title, listing_kind=listing_kind)
+    except EbaySoldError as error:
+        recent_sales_error = str(error)
+        recent_sales_exception = error
+
     buy_now_listings: list[EbaySoldListing] = []
     buy_now_error: str | None = None
+    buy_now_exception: EbaySoldError | None = None
     try:
         buy_now_listings = fetch_active_buy_now_comparables(title, listing_kind=listing_kind)
     except EbaySoldError as error:
         buy_now_error = str(error)
+        buy_now_exception = error
 
     sold_reference_price = _median_price(comparable_sales[:3]) if len(comparable_sales) >= 3 else None
     buy_now_reference_price = (
@@ -282,7 +309,16 @@ def evaluate_listing(listing) -> DealResult:
     )
 
     if sold_reference_price is None and buy_now_reference_price is None:
+        if recent_sales_exception and buy_now_exception:
+            if isinstance(recent_sales_exception, EbaySoldRateLimitError):
+                raise recent_sales_exception
+            if isinstance(buy_now_exception, EbaySoldRateLimitError):
+                raise buy_now_exception
+            raise recent_sales_exception
+
         reason = "not_enough_price_references"
+        if recent_sales_error:
+            reason = f"{reason}; recent_sales_error"
         if buy_now_error:
             reason = f"{reason}; buy_now_error"
         return DealResult(

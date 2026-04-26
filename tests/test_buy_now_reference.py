@@ -2,7 +2,7 @@ from types import SimpleNamespace
 import unittest
 
 import services.deal_detector as deal_detector
-from services.ebay_sold_client import EbaySoldListing
+from services.ebay_sold_client import EbaySoldListing, EbaySoldRateLimitError
 from services.price_cache import price_cache
 
 
@@ -55,6 +55,23 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.assertEqual(result.reference_price, 110.0)
         self.assertEqual(result.buy_now_reference_price, 110.0)
         self.assertEqual(result.buy_now_count, 3)
+
+    def test_buy_now_still_runs_when_recent_sales_are_blocked(self):
+        def blocked_recent(*_args, **_kwargs):
+            raise EbaySoldRateLimitError("eBay sold lookup returned an anti-bot interruption page.")
+
+        deal_detector.fetch_recent_comparables = blocked_recent
+        deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
+            EbaySoldListing("active one", 100.0),
+            EbaySoldListing("active two", 110.0),
+            EbaySoldListing("active three", 120.0),
+        ]
+
+        result = deal_detector.evaluate_listing(self.listing())
+
+        self.assertEqual(result.status, "deal")
+        self.assertEqual(result.price_source, "ebay_buy_now")
+        self.assertEqual(result.reference_price, 110.0)
 
 
 if __name__ == "__main__":

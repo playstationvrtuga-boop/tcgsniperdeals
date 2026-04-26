@@ -213,13 +213,34 @@ python pricing_worker.py
 The worker:
 
 - reads one pending listing at a time from the app database
-- checks lightweight `eBay sold` prices with `requests`
+- checks official eBay API Buy Now prices first when credentials are configured
+- uses lightweight `eBay sold`/Buy Now HTML lookup only as a fallback
 - falls back to similar listings already stored in the local app database
 - uses a lightweight TTL cache in memory
 - stores `reference_price`, `discount_percent`, `gross_margin`, `pricing_score`, `is_deal`
 - sends a Telegram alert only when a priced listing qualifies as a deal
 - sleeps between loops to keep RAM and API load low
 - does not manage the Free Telegram delay queue anymore
+
+### Optional official eBay API pricing
+
+The old HTML lookup can be blocked by eBay anti-bot pages. For production, set these on the Render pricing worker:
+
+```env
+EBAY_CLIENT_ID=your-ebay-app-client-id
+EBAY_CLIENT_SECRET=your-ebay-app-client-secret
+EBAY_ENABLE_OFFICIAL_API=true
+EBAY_MARKETPLACE_ID=EBAY_US
+```
+
+With these values, the pricing worker uses the official eBay Browse API for active Buy Now comparables before trying the old fallback.
+
+Sold price history may require extra eBay Marketplace Insights access. If you get that access later, add:
+
+```env
+EBAY_ENABLE_MARKETPLACE_INSIGHTS=true
+EBAY_MARKETPLACE_INSIGHTS_SEARCH_URL=your-approved-search-endpoint
+```
 
 ## 4. Test one demo listing into the app
 
