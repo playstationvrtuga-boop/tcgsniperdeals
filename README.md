@@ -213,6 +213,8 @@ python pricing_worker.py
 The worker:
 
 - reads one pending listing at a time from the app database
+- parses imperfect titles with a generic Pokemon title parser before pricing
+- creates multiple alias queries such as `charizard 125/094`, `pokemon 125/094`, `pfl 125`, or `pokemon charizard card`
 - checks official eBay API Buy Now prices first when credentials are configured
 - keeps the old `eBay sold`/Buy Now HTML lookup disabled by default in production, because eBay can return anti-bot pages
 - falls back to similar listings already stored in the local app database
@@ -221,6 +223,32 @@ The worker:
 - sends a Telegram alert only when a priced listing qualifies as a deal
 - sleeps between loops to keep RAM and API load low
 - does not manage the Free Telegram delay queue anymore
+
+### Generic title parsing
+
+The pricing worker no longer rejects listings just because the title is imperfect. It uses:
+
+`C:\Users\Trabalho\Desktop\bot_pokemon\services\pokemon_title_parser.py`
+
+The parser normalizes accents, emojis, languages and card-number formats, then extracts:
+
+- Pokemon name when recognized
+- card number and full number like `080/132`
+- possible set code like `PFL`, `ME1`, `SV8`, `PAL`, `OBF`, `TWM`
+- variants like `ex`, `gx`, `v`, `vmax`, `vstar`, `mega`
+- rarity, language and grading hints
+- listing kind: `single_card`, `graded_card`, `sealed_product`, `lot_bundle`, `unknown_pokemon`
+
+It assigns confidence:
+
+- `HIGH`: strong name/number/set or graded signal
+- `MEDIUM`: usable partial identification
+- `LOW`: Pokemon-related but incomplete
+- `UNKNOWN`: no Pokemon signal
+
+`LOW` confidence listings still go to pricing with safer generic queries. Only `UNKNOWN` non-Pokemon listings are skipped. To expand name detection later, edit:
+
+`C:\Users\Trabalho\Desktop\bot_pokemon\data\pokemon_names.json`
 
 ### Render setup: official eBay API pricing
 

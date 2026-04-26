@@ -25,6 +25,7 @@ from services.ebay_api_client import (
     get_official_recent_sales,
     official_ebay_api_configured,
 )
+from services import pokemon_title_parser as title_parser
 from services.price_cache import price_cache
 
 
@@ -95,6 +96,7 @@ class DealResult:
     buy_now_reference_price: float | None = None
     parser_confidence: str | None = None
     parser_query: str | None = None
+    parser_queries: list[str] = field(default_factory=list)
     parser_name: str | None = None
 
 
@@ -188,53 +190,26 @@ def _is_pokemon_related(title: str) -> bool:
 
 
 def parse_listing_identity(title: str) -> ParsedListingIdentity:
-    clean_title = _clean_text(title)
-    listing_kind = detect_listing_kind(clean_title)
-    extracted_name = _extract_pokemon_name(clean_title)
-    extracted_number = _extract_card_number(clean_title)
-    extracted_set = _extract_set_hint(clean_title)
-    is_related = _is_pokemon_related(clean_title)
-
-    meaningful = _meaningful_tokens(clean_title)
-    fallback_query_used = False
-
-    if extracted_name and extracted_number and extracted_set:
-        confidence = "HIGH"
-    elif extracted_name and (extracted_number or extracted_set):
-        confidence = "MEDIUM"
-    elif extracted_name or is_related:
-        confidence = "LOW"
-    else:
-        confidence = "UNKNOWN"
-
-    if extracted_name:
-        query_parts = ["pokemon", extracted_name]
-        if extracted_number and confidence in {"HIGH", "MEDIUM"}:
-            query_parts.append(extracted_number)
-        if extracted_set and confidence == "HIGH":
-            query_parts.append(extracted_set)
-        query_parts.append("card")
-        query = " ".join(query_parts)
-        fallback_query_used = confidence == "LOW"
-    elif is_related:
-        query = " ".join(["pokemon", *meaningful[:5]]) if meaningful else "pokemon card"
-        fallback_query_used = True
-    else:
-        query = clean_title
-
-    return ParsedListingIdentity(
-        confidence=confidence,
-        query=_clean_text(query),
-        listing_kind=listing_kind,
-        extracted_name=extracted_name,
-        extracted_number=extracted_number,
-        extracted_set=extracted_set,
-        fallback_query_used=fallback_query_used,
-        is_pokemon_related=is_related,
-    )
+    return title_parser.parse_listing_identity(title)
 
 
 def _log_parser(identity: ParsedListingIdentity) -> None:
+    signals = getattr(identity, "signals", None)
+    if signals is not None:
+        print(f"[parser] raw_title={signals.raw_title}", flush=True)
+        print(f"[parser] normalized_title={signals.normalized_title}", flush=True)
+        print(f"[parser] kind={signals.kind}", flush=True)
+        print(f"[parser] confidence={signals.confidence}", flush=True)
+        print(f"[parser] pokemon_name={signals.pokemon_name or ''}", flush=True)
+        print(f"[parser] card_number={signals.card_number or ''}", flush=True)
+        print(f"[parser] full_number={signals.full_number or ''}", flush=True)
+        print(f"[parser] set_code={signals.set_code or ''}", flush=True)
+        print(f"[parser] variant={signals.variant or ''}", flush=True)
+        print(f"[parser] generated_queries={signals.queries}", flush=True)
+        print(f"[parser] decision={signals.decision}", flush=True)
+        print(f"[parser] skip_reason={signals.skip_reason or ''}", flush=True)
+        return
+
     print(
         "[parser] "
         f"confidence={identity.confidence} "
@@ -409,12 +384,36 @@ def _median_price(listings: list[EbaySoldListing]) -> float | None:
     return round(float(median(prices)), 2)
 
 
+def _fetch_best_recent_for_queries(queries: list[str], listing_kind: str | None) -> list[EbaySoldListing]:
+    best: list[EbaySoldListing] = []
+    for query in queries:
+        listings = fetch_recent_comparables(query, listing_kind=listing_kind)
+        if len(listings) > len(best):
+            best = listings
+        if len(listings) >= 3:
+            return listings
+    return best
+
+
+def _fetch_best_buy_now_for_queries(queries: list[str], listing_kind: str | None) -> list[EbaySoldListing]:
+    best: list[EbaySoldListing] = []
+    for query in queries:
+        listings = fetch_active_buy_now_comparables(query, listing_kind=listing_kind)
+        if len(listings) > len(best):
+            best = listings
+        if len(listings) >= PRICING_BUY_NOW_MIN_COMPARABLES:
+            return listings
+    return best
+
+
 def evaluate_listing(listing) -> DealResult:
     title = _clean_text(getattr(listing, "title", "") or "")
     price_display = _clean_text(getattr(listing, "price_display", "") or "")
     identity = parse_listing_identity(title)
     listing_kind = identity.listing_kind
+    parser_queries = list(getattr(getattr(identity, "signals", None), "queries", None) or [])
     pricing_query = identity.query or title
+    pricing_queries = parser_queries or [pricing_query]
 
     if not title:
         return DealResult(status="skipped", reason="missing_title")
@@ -427,6 +426,7 @@ def evaluate_listing(listing) -> DealResult:
             listing_kind=listing_kind,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
+            parser_queries=pricing_queries,
             parser_name=identity.extracted_name,
         )
 
@@ -438,6 +438,7 @@ def evaluate_listing(listing) -> DealResult:
             listing_kind=listing_kind,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
+            parser_queries=pricing_queries,
             parser_name=identity.extracted_name,
         )
 
@@ -445,7 +446,7 @@ def evaluate_listing(listing) -> DealResult:
     recent_sales_error: str | None = None
     recent_sales_exception: EbaySoldError | None = None
     try:
-        comparable_sales = fetch_recent_comparables(pricing_query, listing_kind=listing_kind)
+        comparable_sales = _fetch_best_recent_for_queries(pricing_queries, listing_kind=listing_kind)
     except EbaySoldError as error:
         recent_sales_error = str(error)
         recent_sales_exception = error
@@ -454,7 +455,7 @@ def evaluate_listing(listing) -> DealResult:
     buy_now_error: str | None = None
     buy_now_exception: EbaySoldError | None = None
     try:
-        buy_now_listings = fetch_active_buy_now_comparables(pricing_query, listing_kind=listing_kind)
+        buy_now_listings = _fetch_best_buy_now_for_queries(pricing_queries, listing_kind=listing_kind)
     except EbaySoldError as error:
         buy_now_error = str(error)
         buy_now_exception = error
@@ -488,6 +489,7 @@ def evaluate_listing(listing) -> DealResult:
             buy_now_count=len(buy_now_listings),
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
+            parser_queries=pricing_queries,
             parser_name=identity.extracted_name,
         )
 
@@ -519,6 +521,7 @@ def evaluate_listing(listing) -> DealResult:
             buy_now_reference_price=buy_now_reference_price,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
+            parser_queries=pricing_queries,
             parser_name=identity.extracted_name,
         )
 
@@ -564,6 +567,7 @@ def evaluate_listing(listing) -> DealResult:
         reason=result_reason,
         parser_confidence=identity.confidence,
         parser_query=pricing_query,
+        parser_queries=pricing_queries,
         parser_name=identity.extracted_name,
     )
 

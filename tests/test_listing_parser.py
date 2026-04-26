@@ -26,7 +26,7 @@ class ListingParserTests(unittest.TestCase):
         self.assertEqual(identity.confidence, "HIGH")
         self.assertEqual(identity.extracted_name, "charizard")
         self.assertTrue(identity.extracted_number)
-        self.assertIn("paldea", identity.extracted_set)
+        self.assertEqual(identity.extracted_set, "PFL")
 
     def test_medium_confidence_name_and_number_formats(self):
         samples = [
@@ -39,7 +39,7 @@ class ListingParserTests(unittest.TestCase):
         for title in samples:
             with self.subTest(title=title):
                 identity = deal_detector.parse_listing_identity(title)
-                self.assertEqual(identity.confidence, "MEDIUM")
+                self.assertEqual(identity.confidence, "HIGH" if "/" in title else "MEDIUM")
                 self.assertEqual(identity.extracted_name, "pikachu")
                 self.assertTrue(identity.extracted_number)
 
