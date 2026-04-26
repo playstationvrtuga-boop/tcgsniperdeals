@@ -41,6 +41,19 @@ SET_CODES = {
 RARITIES = {"AR", "SAR", "SR", "UR", "IR", "SIR", "HR", "RR"}
 VARIANTS = {"ex", "gx", "v", "vmax", "vstar", "mega", "tag team"}
 SET_CODE_EXCLUDES = {"PSA", "CGC", "BGS", "ACE", "EX", "GX", "VMAX", "VSTAR", "TAG", "TEAM"}
+STOPWORDS = {
+    "de", "des", "da", "do", "dos", "das", "du", "la", "le", "les",
+    "the", "a", "an", "et", "and", "y", "pour", "para", "avec", "com",
+    "sur", "on", "dans", "in", "of", "with", "sans", "sem",
+    "tcg", "card", "cards", "carta", "cartas", "carte", "cartes", "tarjeta",
+    "tarjetas", "bundle", "lot", "lote", "assortimento", "assorted",
+    "random", "mix", "varias", "various", "variadas", "bulk",
+    "premier", "first", "edition", "new", "novo", "nova", "nuevo",
+    "nueva", "neuf", "neuve", "rare", "ultra", "super", "mega",
+    "vintage", "old", "top", "best", "near", "mint", "nm", "holo",
+    "reverse", "secret", "full", "art", "condition", "played",
+    "graded", "slab", "sealed", "pack", "originais", "original",
+}
 POKEMON_KEYWORDS = {
     "pokemon", "tcg", "pokemon card", "carte pokemon", "carta pokemon",
     "tarjeta pokemon", "cartas pokemon", "cartes pokemon",
@@ -54,7 +67,9 @@ GENERIC_QUERY_TERMS = {
     "espanol", "portuguese", "portugues", "lot", "bundle", "lote", "pack",
     "de", "des", "du", "la", "le", "les", "of", "the", "and", "with",
     "sem", "com", "sans", "avec", "originais", "variadas", "neuf", "neuve",
-    "novo", "nova", "nuevo", "nueva", "condition", "edition",
+    "novo", "nova", "nuevo", "nueva", "condition", "edition", "etb",
+    "elite", "trainer", "box", "booster", "display", "tin", "collection",
+    "coffret", "blister", "premier", "first", "top", "best",
 }
 LANGUAGE_HINTS = {
     "japanese": {"japanese", "japonais", "japones", "japonesas", "japan", "jp"},
@@ -235,7 +250,7 @@ def _extract_keyword_name(normalized: str, pokemon_name: str | None) -> str | No
             continue
         if len(token) < 3:
             continue
-        if token in GENERIC_QUERY_TERMS:
+        if token in GENERIC_QUERY_TERMS or token in STOPWORDS:
             continue
         if token in VARIANTS:
             continue
@@ -323,9 +338,57 @@ def extract_card_signals(title: str) -> CardSignals:
 
 
 def _append_unique(queries: list[str], value: str | None) -> None:
-    clean = normalize_title(value or "")
-    if clean and clean not in queries:
+    clean = clean_pricing_query(value or "")
+    if clean and is_valid_query(clean) and clean not in queries:
         queries.append(clean)
+
+
+def _is_strong_number_token(token: str) -> bool:
+    if re.fullmatch(r"\d{1,3}/\d{1,3}", token):
+        return True
+    if not re.fullmatch(r"\d{1,4}", token):
+        return False
+    return len(token) >= 2 or token.startswith("0")
+
+
+def _is_set_code_token(token: str) -> bool:
+    upper = token.upper()
+    if upper in SET_CODES:
+        return True
+    if upper in SET_CODE_EXCLUDES or upper in RARITIES:
+        return False
+    return bool(re.fullmatch(r"[A-Z]{2,5}\d?", upper))
+
+
+def clean_pricing_query(query: str) -> str:
+    normalized = normalize_title(query or "")
+    tokens = []
+    for token in normalized.split():
+        if token in STOPWORDS:
+            continue
+        if token in {"pokemon cards", "pokemon card"}:
+            continue
+        tokens.append(token)
+    return " ".join(tokens)
+
+
+def is_valid_query(query: str) -> bool:
+    cleaned = clean_pricing_query(query)
+    tokens = cleaned.split()
+    if len(tokens) < 2:
+        return False
+
+    has_number = any(_is_strong_number_token(token) for token in tokens)
+    has_set_code = any(_is_set_code_token(token) for token in tokens)
+    has_name = any(
+        token != "pokemon"
+        and token not in STOPWORDS
+        and not _is_strong_number_token(token)
+        and not _is_set_code_token(token)
+        and (len(token) >= 3 or token in VARIANTS)
+        for token in tokens
+    )
+    return has_name or has_number or has_set_code
 
 
 def generate_generic_alias_queries(signals: CardSignals) -> list[str]:

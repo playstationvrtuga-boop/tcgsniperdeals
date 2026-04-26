@@ -1,10 +1,12 @@
 import unittest
 
 from services.pokemon_title_parser import (
+    clean_pricing_query,
     classify_listing_kind,
     detect_pokemon_name,
     extract_card_signals,
     generate_generic_alias_queries,
+    is_valid_query,
     normalize_title,
 )
 
@@ -140,10 +142,26 @@ class PokemonTitleParserTests(unittest.TestCase):
         self.assertIn("moramartik ex 003", signals.queries)
         self.assertIn("moramartik 003", signals.queries)
         self.assertIn("pokemon moramartik", signals.queries)
-        self.assertIn("pokemon card moramartik", signals.queries)
+        self.assertIn("pokemon moramartik", signals.queries)
         self.assertIn("pokemon 003/182", signals.queries)
         self.assertIn("pokemon 003", signals.queries)
-        self.assertIn("pokemon card", signals.queries)
+        self.assertNotIn("pokemon", signals.queries)
+
+    def test_pricing_query_cleaner_removes_stopwords(self):
+        self.assertEqual(clean_pricing_query("pokemon des 9"), "pokemon 9")
+        self.assertEqual(clean_pricing_query("pokemon premier 9"), "pokemon 9")
+        self.assertEqual(clean_pricing_query("pokemon cards bundle"), "pokemon")
+        self.assertEqual(clean_pricing_query("pokemon card moramartik"), "pokemon moramartik")
+
+    def test_pricing_query_validator_blocks_junk_queries(self):
+        self.assertFalse(is_valid_query("pokemon des 9"))
+        self.assertFalse(is_valid_query("pokemon premier 9"))
+        self.assertFalse(is_valid_query("pokemon cards bundle"))
+        self.assertFalse(is_valid_query("pokemon card"))
+        self.assertTrue(is_valid_query("moramartik 003"))
+        self.assertTrue(is_valid_query("pokemon 003/182"))
+        self.assertTrue(is_valid_query("lugia v"))
+        self.assertTrue(is_valid_query("charizard pokemon card"))
 
 
 if __name__ == "__main__":

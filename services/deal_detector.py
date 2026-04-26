@@ -397,6 +397,24 @@ def _log_pricing_results(results_count: int, success: bool) -> None:
         print("[pricing] fallback_next_query=true", flush=True)
 
 
+def _prepare_pricing_queries(raw_queries: list[str]) -> list[str]:
+    cleaned_queries: list[str] = []
+    for raw_query in raw_queries:
+        cleaned_query = title_parser.clean_pricing_query(raw_query)
+        valid = title_parser.is_valid_query(cleaned_query)
+        print(f"[pricing] raw_query={raw_query}", flush=True)
+        print(f"[pricing] cleaned_query={cleaned_query}", flush=True)
+        print(f"[pricing] valid={str(valid).lower()}", flush=True)
+        if not valid:
+            print("[pricing] skipped_invalid_query=true", flush=True)
+            continue
+        if cleaned_query not in cleaned_queries:
+            cleaned_queries.append(cleaned_query)
+    if not cleaned_queries:
+        print("[pricing] no_valid_queries=true", flush=True)
+    return cleaned_queries
+
+
 def _fetch_best_recent_for_queries(queries: list[str], listing_kind: str | None) -> list[EbaySoldListing]:
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
@@ -482,6 +500,9 @@ def evaluate_listing(listing) -> DealResult:
             parser_queries=pricing_queries,
             parser_name=identity.extracted_name,
         )
+
+    pricing_queries = _prepare_pricing_queries(pricing_queries)
+    pricing_query = pricing_queries[0] if pricing_queries else pricing_query
 
     comparable_sales: list[EbaySoldListing] = []
     recent_sales_error: str | None = None

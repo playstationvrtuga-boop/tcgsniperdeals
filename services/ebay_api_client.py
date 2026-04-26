@@ -28,6 +28,7 @@ from services.ebay_sold_client import (
     _query_from_title,
     _title_overlap_score,
 )
+from services.pokemon_title_parser import clean_pricing_query, is_valid_query
 
 
 if EBAY_API_ENVIRONMENT == "SANDBOX":
@@ -106,22 +107,15 @@ def build_query_variants(product_name: str, listing_kind: str | None = None) -> 
         variants.append("pokemon " + " ".join(title_tokens[:4]))
         variants.append(" ".join(title_tokens[:5]))
 
-    if listing_kind == "etb":
-        variants.extend(["pokemon etb", "pokemon elite trainer box"])
-    elif listing_kind == "booster_box":
-        variants.extend(["pokemon booster box", "pokemon booster display"])
-    elif listing_kind == "sealed_product":
-        variants.extend(["pokemon sealed product", "pokemon collection box"])
-    else:
-        variants.extend(["pokemon card", "pokemon tcg card"])
-
     seen = set()
     unique = []
     for variant in variants:
-        clean = _clean_query_text(variant).lower()
+        clean = clean_pricing_query(variant)
+        if not is_valid_query(clean):
+            continue
         if clean and clean not in seen:
             seen.add(clean)
-            unique.append(_clean_query_text(variant))
+            unique.append(clean)
     return unique
 
 class EbayApiClient:

@@ -55,7 +55,7 @@ class ListingParserTests(unittest.TestCase):
 
         self.assertNotEqual(result.reason, "listing_not_precisely_identified")
         self.assertEqual(result.parser_confidence, "LOW")
-        self.assertEqual(result.parser_query, "pokemon charizard card")
+        self.assertEqual(result.parser_query, "pokemon charizard")
         self.assertEqual(result.status, "deal")
 
     def test_pokemon_without_known_name_is_low_confidence(self):

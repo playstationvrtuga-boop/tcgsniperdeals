@@ -274,6 +274,15 @@ Pricing now tries a cascade of broader queries instead of stopping after one fai
 [pricing] SUCCESS
 ```
 
+Before any query is sent to eBay, the worker now removes generic stopwords such as `des`, `premier`, `cards`, `bundle`, `lot`, `random`, `edition`, and other filler words. Junk queries are skipped and shown clearly:
+
+```text
+[pricing] raw_query=pokemon des 9
+[pricing] cleaned_query=pokemon 9
+[pricing] valid=false
+[pricing] skipped_invalid_query=true
+```
+
 ### Render setup: official eBay API pricing
 
 The old HTML lookup can be blocked by eBay anti-bot pages. For production, set these on the Render worker service:
