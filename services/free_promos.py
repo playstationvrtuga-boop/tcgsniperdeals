@@ -16,6 +16,7 @@ from config import (
     FREE_PROMO_INTERVAL_MINUTES,
     TOKEN,
 )
+from services.app_links import app_live_deals_url
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -211,7 +212,7 @@ def send_random_free_promo(chat_id: str | None = None, app_url: str | None = Non
         return False
 
     target_chat_id = str(chat_id or FREE_CHAT_ID or "").strip()
-    target_app_url = str(app_url or APP_PUBLIC_URL or "").strip()
+    target_app_url = app_live_deals_url(app_url or APP_PUBLIC_URL)
 
     if not target_chat_id:
         print("[free_promo] missing FREE_CHAT_ID")

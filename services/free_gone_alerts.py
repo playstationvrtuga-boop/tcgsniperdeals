@@ -16,6 +16,7 @@ from config import (
     FREE_GONE_PREFERRED_AGE_HOURS,
     FREE_GONE_WINDOWS,
 )
+from services.app_links import app_live_deals_url
 from services.alert_formatter import format_free_gone_alert_text
 from services.telegram_alerts import send_free_alert
 from vip_app.app.extensions import db
@@ -361,4 +362,4 @@ def format_gone_alert_payload(listing: Listing) -> dict:
 
 def post_gone_alert(listing: Listing, *, variant: int = 0) -> bool:
     message = format_free_gone_alert_text(format_gone_alert_payload(listing), variant=variant)
-    return send_free_alert(message, button_text="Get VIP Access", button_url=APP_PUBLIC_URL)
+    return send_free_alert(message, button_text="Get VIP Access", button_url=app_live_deals_url(APP_PUBLIC_URL))

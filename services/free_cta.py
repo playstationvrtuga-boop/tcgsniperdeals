@@ -6,6 +6,7 @@ from pathlib import Path
 from threading import Lock
 
 from config import FREE_CTA_APP_LINK, FREE_CTA_EVERY_N_POSTS
+from services.app_links import app_live_deals_url
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -50,7 +51,7 @@ def get_free_cta_sent_count() -> int:
 
 
 def should_attach_free_cta(next_post_index: int | None = None) -> bool:
-    if not FREE_CTA_APP_LINK:
+    if not app_live_deals_url(FREE_CTA_APP_LINK):
         return False
 
     every_n = max(int(FREE_CTA_EVERY_N_POSTS or 20), 1)
@@ -60,10 +61,11 @@ def should_attach_free_cta(next_post_index: int | None = None) -> bool:
 
 
 def build_free_cta_block() -> str:
-    if not FREE_CTA_APP_LINK:
+    app_link = app_live_deals_url(FREE_CTA_APP_LINK)
+    if not app_link:
         return ""
 
-    return random.choice(CTA_VARIANTS).replace("[APP LINK]", FREE_CTA_APP_LINK)
+    return random.choice(CTA_VARIANTS).replace("[APP LINK]", app_link)
 
 
 def record_free_cta_sent() -> int:
