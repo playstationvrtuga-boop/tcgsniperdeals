@@ -55,6 +55,18 @@ services:
         value: "1"
       - key: DB_MAX_OVERFLOW
         value: "1"
+      - key: EBAY_CLIENT_ID
+        sync: false
+      - key: EBAY_CLIENT_SECRET
+        sync: false
+      - key: EBAY_MARKETPLACE_ID
+        value: "EBAY_US"
+      - key: EBAY_ENABLE_OFFICIAL_API
+        value: "true"
+      - key: EBAY_API_ENVIRONMENT
+        value: "PRODUCTION"
+      - key: EBAY_API_TIMEOUT
+        value: "12"
       - key: SITE_URL
         sync: false
       - key: MOBILE_APP_URL
@@ -124,6 +136,8 @@ services:
         value: "EBAY_US"
       - key: EBAY_ENABLE_OFFICIAL_API
         value: "true"
+      - key: EBAY_API_ENVIRONMENT
+        value: "PRODUCTION"
       - key: EBAY_API_TIMEOUT
         value: "12"
   - type: worker

@@ -233,16 +233,18 @@ EBAY_ENABLE_OFFICIAL_API=true
 EBAY_CLIENT_ID=your-ebay-app-client-id
 EBAY_CLIENT_SECRET=your-ebay-app-client-secret
 EBAY_MARKETPLACE_ID=EBAY_US
+EBAY_API_ENVIRONMENT=PRODUCTION
 ```
 
-These variables belong on the worker, not only on the web service. With these values, the pricing worker uses the official eBay Browse API for active Buy Now comparables before trying the old fallback.
+These variables must be on the worker because the pricing worker uses them for Buy Now pricing. Add the same variables to the web service only if you want the protected `/api/debug/ebay` endpoint to test eBay from the live website process too.
 
 After changing them in Render:
 
 1. Open `tcg-sniper-deals-worker`
 2. Go to `Environment`
 3. Add or confirm the four variables above
-4. Run `Manual Deploy -> Deploy latest commit`
+4. Optional but recommended: repeat on the web service `tcg-sniper-deals` for `/api/debug/ebay`
+5. Run `Manual Deploy -> Deploy latest commit`
 
 In Render Shell, test the official eBay API directly with:
 
@@ -256,7 +258,13 @@ Confirm these logs:
 
 ```text
 [ebay_api] config enabled=True client_id=present client_secret=present marketplace=EBAY_US
+[ebay_api] environment=PRODUCTION
+[ebay_api] STARTUP_CHECK
 [ebay_api] token OK
+[ebay_api] search OK
+[ebay_api] results_count=...
+[ebay_api] first_item_title=...
+[ebay_api] first_item_price=...
 search OK
 [ebay_api] BUY_NOW_REFERENCE_FOUND
 ```
@@ -267,9 +275,20 @@ If something is wrong, look for:
 [ebay_api] API_DISABLED
 [ebay_api] API_KEYS_MISSING
 TOKEN_FAILED
+TOKEN_INVALID_OR_EXPIRED
+PERMISSION_DENIED
+RATE_LIMIT
 SEARCH_FAILED
 ZERO_RESULTS
 ```
+
+The web app also has a protected debug endpoint:
+
+```text
+GET /api/debug/ebay
+```
+
+Use it only while logged in as an admin or with the `X-API-Key` header. It returns JSON with `enabled`, `keys_present`, `token_status`, `search_status`, `results_count`, and sample items.
 
 Sold price history may require extra eBay Marketplace Insights access. If you get that access later, add:
 

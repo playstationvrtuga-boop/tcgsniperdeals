@@ -80,6 +80,7 @@ PRICING_RETRY_AFTER_MINUTES = int(_get_setting("PRICING_RETRY_AFTER_MINUTES", "6
 EBAY_CLIENT_ID = _get_setting("EBAY_CLIENT_ID", "")
 EBAY_CLIENT_SECRET = _get_setting("EBAY_CLIENT_SECRET", "")
 EBAY_MARKETPLACE_ID = _get_setting("EBAY_MARKETPLACE_ID", "EBAY_US")
+EBAY_API_ENVIRONMENT = str(_get_setting("EBAY_API_ENVIRONMENT", "PRODUCTION")).strip().upper()
 EBAY_OAUTH_SCOPE = _get_setting("EBAY_OAUTH_SCOPE", "https://api.ebay.com/oauth/api_scope")
 EBAY_API_TIMEOUT = float(_get_setting("EBAY_API_TIMEOUT", "12"))
 EBAY_ENABLE_OFFICIAL_API = _get_flag(

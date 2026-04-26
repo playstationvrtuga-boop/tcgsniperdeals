@@ -67,7 +67,7 @@ class EbayApiClientTests(unittest.TestCase):
         )
         client = EbayApiClient()
         client.session = session
-        client._get_access_token = lambda: "token"
+        client._get_access_token = lambda **_kwargs: "token"
 
         listings = client.fetch_active_buy_now("Charizard PFL 125/094", max_results=5, listing_kind="single_card")
 
@@ -95,11 +95,34 @@ class EbayApiClientTests(unittest.TestCase):
     def test_zero_results_return_empty_after_query_variants(self):
         client = EbayApiClient()
         client.session = FakeSession({"itemSummaries": []})
-        client._get_access_token = lambda: "token"
+        client._get_access_token = lambda **_kwargs: "token"
 
         listings = client.fetch_active_buy_now("No Such Pokemon Query", max_results=5)
 
         self.assertEqual(listings, [])
+
+    def test_startup_check_reports_ok_with_sample_items(self):
+        session = FakeSession(
+            {
+                "itemSummaries": [
+                    {
+                        "title": "Pokemon Charizard Card",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "99.99", "currency": "USD"},
+                    }
+                ]
+            }
+        )
+        client = EbayApiClient()
+        client.session = session
+        client._get_access_token = lambda **_kwargs: "token"
+
+        result = client.startup_check(log=False)
+
+        self.assertEqual(result["token_status"], "OK")
+        self.assertEqual(result["search_status"], "OK")
+        self.assertEqual(result["results_count"], 1)
+        self.assertEqual(result["sample_items"][0]["title"], "Pokemon Charizard Card")
 
 
 if __name__ == "__main__":

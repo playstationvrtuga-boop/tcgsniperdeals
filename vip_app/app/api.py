@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from flask import Blueprint, current_app, jsonify, request
+from flask_login import current_user
 
+from services.ebay_api_client import ebay_api_client
 from .extensions import db
 from .feed_cache import invalidate
 from .models import Listing
@@ -151,6 +153,10 @@ def check_api_key():
     supplied = request.headers.get("X-API-Key", "")
     expected = current_app.config["BOT_API_KEY"]
     return bool(expected and supplied and supplied == expected)
+
+
+def check_debug_access():
+    return check_api_key() or bool(getattr(current_user, "is_authenticated", False) and getattr(current_user, "is_admin", False))
 
 
 def build_listing_from_payload(payload):
@@ -323,3 +329,24 @@ def update_listing_status():
         db.session.rollback()
         current_app.logger.exception("Failed to update listing availability")
         return api_response("server_error", 500, message=str(error))
+
+
+@api_bp.route("/debug/ebay", methods=["GET"])
+def debug_ebay_api():
+    if not check_debug_access():
+        return api_response("unauthorized", 401, message="Admin login or X-API-Key required.")
+
+    result = ebay_api_client.startup_check(query=request.args.get("q", "pokemon"), limit=20, log=False)
+    return jsonify(
+        {
+            "enabled": result["enabled"],
+            "keys_present": result["keys_present"],
+            "environment": result["environment"],
+            "marketplace": result["marketplace"],
+            "token_status": result["token_status"],
+            "search_status": result["search_status"],
+            "results_count": result["results_count"],
+            "sample_items": result["sample_items"],
+            "error": result["error"],
+        }
+    )

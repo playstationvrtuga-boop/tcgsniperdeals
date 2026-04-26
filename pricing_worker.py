@@ -245,7 +245,7 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
             f"client_secret={_mask_config_value(EBAY_CLIENT_SECRET)} "
             f"marketplace={EBAY_MARKETPLACE_ID}"
         )
-        ebay_api_client.log_config_status()
+        ebay_api_client.startup_check(query="pokemon", limit=20, log=True)
         if "127.0.0.1" not in str(APP_API_URL) and "localhost" not in str(APP_API_URL) and str(database_uri).startswith("sqlite"):
             print("[pricing_worker] warning: bot is configured for online API, but this worker is reading local SQLite")
         while True:
