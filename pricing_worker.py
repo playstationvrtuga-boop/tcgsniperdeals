@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import time
 from datetime import timedelta
@@ -97,6 +98,20 @@ def _score_level(score: int | float | None) -> str:
 
 def _mask_config_value(value: str) -> str:
     return "present" if value else "missing"
+
+
+def _runtime_setting(name: str, fallback: str = "") -> str:
+    value = os.environ.get(name)
+    if value is None:
+        return str(fallback or "")
+    return str(value).strip()
+
+
+def _runtime_flag(name: str, fallback: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return bool(fallback)
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _pricing_reason(result) -> str:
@@ -246,17 +261,37 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
 
     with app.app_context():
         database_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+        ebay_enabled = _runtime_flag("EBAY_ENABLE_OFFICIAL_API", EBAY_ENABLE_OFFICIAL_API)
+        ebay_client_id = _runtime_setting("EBAY_CLIENT_ID", EBAY_CLIENT_ID)
+        ebay_client_secret = _runtime_setting("EBAY_CLIENT_SECRET", EBAY_CLIENT_SECRET)
+        ebay_marketplace = _runtime_setting("EBAY_MARKETPLACE_ID", EBAY_MARKETPLACE_ID) or "EBAY_US"
+        ebay_html_fallback = _runtime_flag(
+            "PRICING_ENABLE_EBAY_HTML_FALLBACK",
+            PRICING_ENABLE_EBAY_HTML_FALLBACK,
+        )
         print(f"[pricing_worker] database={database_uri}", flush=True)
         print(f"[pricing_worker] bot_app_api_url={APP_API_URL}", flush=True)
         print(
             "[pricing_worker] ebay_api "
-            f"enabled={EBAY_ENABLE_OFFICIAL_API} "
-            f"client_id={_mask_config_value(EBAY_CLIENT_ID)} "
-            f"client_secret={_mask_config_value(EBAY_CLIENT_SECRET)} "
-            f"marketplace={EBAY_MARKETPLACE_ID}"
-            f" html_fallback={PRICING_ENABLE_EBAY_HTML_FALLBACK}",
+            f"enabled={ebay_enabled} "
+            f"client_id={_mask_config_value(ebay_client_id)} "
+            f"client_secret={_mask_config_value(ebay_client_secret)} "
+            f"marketplace={ebay_marketplace}"
+            f" html_fallback={ebay_html_fallback}",
             flush=True,
         )
+        if ebay_client_id and ebay_client_secret:
+            print("[config] environment variables loaded successfully", flush=True)
+        else:
+            print("[config] required environment variables not found", flush=True)
+            print("[config] check deployment environment configuration", flush=True)
+        if ebay_enabled and (not ebay_client_id or not ebay_client_secret):
+            print("[ebay_api] API_KEYS_MISSING", flush=True)
+            print(
+                "[ebay_api] Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to Render service "
+                "tcg-sniper-deals-worker Environment Variables",
+                flush=True,
+            )
         ebay_api_client.startup_check(query="pokemon", limit=20, log=True)
         if "127.0.0.1" not in str(APP_API_URL) and "localhost" not in str(APP_API_URL) and str(database_uri).startswith("sqlite"):
             print("[pricing_worker] warning: bot is configured for online API, but this worker is reading local SQLite")

@@ -291,22 +291,35 @@ The old HTML lookup can be blocked by eBay anti-bot pages. For production, set t
 
 ```env
 EBAY_ENABLE_OFFICIAL_API=true
-EBAY_CLIENT_ID=your-ebay-app-client-id
-EBAY_CLIENT_SECRET=your-ebay-app-client-secret
+EBAY_CLIENT_ID=your_production_client_id
+EBAY_CLIENT_SECRET=your_production_client_secret
 EBAY_MARKETPLACE_ID=EBAY_US
 EBAY_API_ENVIRONMENT=PRODUCTION
 PRICING_ENABLE_EBAY_HTML_FALLBACK=false
 ```
 
+Do not put real eBay credentials in code, commits, screenshots, or README files. `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` must be configured directly in Render Environment Variables.
+
 These variables must be on the worker because the pricing worker uses them for Buy Now pricing. Add the same variables to the web service only if you want the protected `/api/debug/ebay` endpoint to test eBay from the live website process too.
 
 After changing them in Render:
 
-1. Open `tcg-sniper-deals-worker`
-2. Go to `Environment`
-3. Add or confirm the four variables above
-4. Optional but recommended: repeat on the web service `tcg-sniper-deals` for `/api/debug/ebay`
-5. Run `Manual Deploy -> Deploy latest commit`
+1. Open Render.
+2. Open `tcg-sniper-deals-worker`.
+3. Go to `Environment`.
+4. Click `Add Environment Variable`.
+5. Add:
+
+```env
+EBAY_ENABLE_OFFICIAL_API=true
+EBAY_CLIENT_ID=your_production_client_id
+EBAY_CLIENT_SECRET=your_production_client_secret
+EBAY_MARKETPLACE_ID=EBAY_US
+PRICING_ENABLE_EBAY_HTML_FALLBACK=false
+```
+
+6. Optional but recommended: repeat on the web service `tcg-sniper-deals` for `/api/debug/ebay`.
+7. Run `Manual Deploy -> Deploy latest commit`.
 
 In Render Shell, test the official eBay API directly with:
 
@@ -335,13 +348,18 @@ Also confirm this worker line:
 
 ```text
 [pricing_worker] ebay_api enabled=True client_id=present client_secret=present marketplace=EBAY_US html_fallback=False
+[config] environment variables loaded successfully
 ```
 
 If something is wrong, look for:
 
 ```text
+[pricing_worker] ebay_api enabled=True client_id=missing client_secret=missing marketplace=EBAY_US html_fallback=False
+[config] required environment variables not found
+[config] check deployment environment configuration
 [ebay_api] API_DISABLED
 [ebay_api] API_KEYS_MISSING
+[ebay_api] Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to Render service tcg-sniper-deals-worker Environment Variables
 TOKEN_FAILED
 TOKEN_INVALID_OR_EXPIRED
 PERMISSION_DENIED
@@ -366,6 +384,29 @@ EBAY_MARKETPLACE_INSIGHTS_SEARCH_URL=your-approved-search-endpoint
 ```
 
 Only turn `PRICING_ENABLE_EBAY_HTML_FALLBACK=true` for local debugging. Keep it `false` on Render so the worker does not get stuck on eBay anti-bot HTML pages.
+
+### Deployment configuration
+
+Some values are deployment secrets and must only exist in the runtime environment. They should never be hardcoded in Python files, committed to GitHub, or pasted into public docs.
+
+Configure required secrets in the service that uses them:
+
+- `tcg-sniper-deals-worker`: eBay API variables used by `pricing_worker`.
+- `tcg-sniper-deals`: app secrets, API key, VAPID keys, and optional `/api/debug/ebay` eBay variables.
+- `tcg-sniper-deals-gone-worker`: Telegram variables used by missed/gone alerts.
+
+If required variables are missing, workers stay alive in limited mode and print:
+
+```text
+[config] required environment variables not found
+[config] check deployment environment configuration
+```
+
+When configured correctly, workers print:
+
+```text
+[config] environment variables loaded successfully
+```
 
 ## 4. Test one demo listing into the app
 

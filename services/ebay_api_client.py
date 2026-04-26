@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import re
 import sys
 import time
@@ -62,6 +63,53 @@ class EbayApiRawItem:
 
 def _mask_secret(value: str) -> str:
     return "present" if value else "missing"
+
+
+def _env_setting(name: str, fallback: str = "") -> str:
+    value = os.environ.get(name)
+    if value is None:
+        return str(fallback or "")
+    return str(value).strip()
+
+
+def _env_flag(name: str, fallback: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return bool(fallback)
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _runtime_enabled() -> bool:
+    return _env_flag("EBAY_ENABLE_OFFICIAL_API", EBAY_ENABLE_OFFICIAL_API)
+
+
+def _runtime_client_id() -> str:
+    return _env_setting("EBAY_CLIENT_ID", EBAY_CLIENT_ID)
+
+
+def _runtime_client_secret() -> str:
+    return _env_setting("EBAY_CLIENT_SECRET", EBAY_CLIENT_SECRET)
+
+
+def _runtime_marketplace() -> str:
+    return _env_setting("EBAY_MARKETPLACE_ID", EBAY_MARKETPLACE_ID) or "EBAY_US"
+
+
+def _runtime_environment() -> str:
+    environment = _env_setting("EBAY_API_ENVIRONMENT", EBAY_API_ENVIRONMENT).upper()
+    return "SANDBOX" if environment == "SANDBOX" else "PRODUCTION"
+
+
+def _runtime_token_url() -> str:
+    if _runtime_environment() == "SANDBOX":
+        return "https://api.sandbox.ebay.com/identity/v1/oauth2/token"
+    return "https://api.ebay.com/identity/v1/oauth2/token"
+
+
+def _runtime_browse_search_url() -> str:
+    if _runtime_environment() == "SANDBOX":
+        return "https://api.sandbox.ebay.com/buy/browse/v1/item_summary/search"
+    return "https://api.ebay.com/buy/browse/v1/item_summary/search"
 
 
 def _log(message: str) -> None:
@@ -132,30 +180,42 @@ class EbayApiClient:
         self._access_token_expires_at = 0.0
 
     def is_configured(self) -> bool:
-        return bool(EBAY_ENABLE_OFFICIAL_API and EBAY_CLIENT_ID and EBAY_CLIENT_SECRET)
+        return bool(_runtime_enabled() and _runtime_client_id() and _runtime_client_secret())
 
     def config_status(self) -> str:
-        if not EBAY_ENABLE_OFFICIAL_API:
+        if not _runtime_enabled():
             return "API_DISABLED"
-        if not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
+        if not _runtime_client_id() or not _runtime_client_secret():
             return "API_KEYS_MISSING"
         return "API_READY"
 
     def log_config_status(self, *, log: bool = True) -> None:
         if not log:
             return
+        client_id = _runtime_client_id()
+        client_secret = _runtime_client_secret()
         _log(
             "config "
-            f"enabled={EBAY_ENABLE_OFFICIAL_API} "
-            f"client_id={_mask_secret(EBAY_CLIENT_ID)} "
-            f"client_secret={_mask_secret(EBAY_CLIENT_SECRET)} "
-            f"marketplace={EBAY_MARKETPLACE_ID}"
+            f"enabled={_runtime_enabled()} "
+            f"client_id={_mask_secret(client_id)} "
+            f"client_secret={_mask_secret(client_secret)} "
+            f"marketplace={_runtime_marketplace()}"
         )
-        _log(f"environment={EBAY_API_ENVIRONMENT if EBAY_API_ENVIRONMENT == 'SANDBOX' else 'PRODUCTION'}")
-        _log(f"endpoint={BROWSE_SEARCH_URL}")
+        if client_id and client_secret:
+            print("[config] environment variables loaded successfully", flush=True)
+        else:
+            print("[config] required environment variables not found", flush=True)
+            print("[config] check deployment environment configuration", flush=True)
+        _log(f"environment={_runtime_environment()}")
+        _log(f"endpoint={_runtime_browse_search_url()}")
         status = self.config_status()
         if status != "API_READY":
             _log(status)
+        if status == "API_KEYS_MISSING":
+            _log(
+                "Add EBAY_CLIENT_ID and EBAY_CLIENT_SECRET to Render service "
+                "tcg-sniper-deals-worker Environment Variables"
+            )
 
     def _get_access_token(self, *, force_refresh: bool = False) -> str:
         if not self.is_configured():
@@ -165,7 +225,7 @@ class EbayApiClient:
         if not force_refresh and self._access_token and now < self._access_token_expires_at:
             return self._access_token
 
-        raw_credentials = f"{EBAY_CLIENT_ID}:{EBAY_CLIENT_SECRET}".encode("utf-8")
+        raw_credentials = f"{_runtime_client_id()}:{_runtime_client_secret()}".encode("utf-8")
         basic_token = base64.b64encode(raw_credentials).decode("ascii")
         headers = {
             "Authorization": f"Basic {basic_token}",
@@ -177,13 +237,13 @@ class EbayApiClient:
         }
 
         try:
-            response = self.session.post(TOKEN_URL, headers=headers, data=data, timeout=self.timeout)
+            response = self.session.post(_runtime_token_url(), headers=headers, data=data, timeout=self.timeout)
         except requests.Timeout as error:
             raise EbaySoldError("TOKEN_FAILED: official eBay token request timed out.") from error
         except requests.RequestException as error:
             raise EbaySoldError(f"TOKEN_FAILED: official eBay token request failed: {error}") from error
 
-        _log(f"token endpoint={TOKEN_URL} status={response.status_code}")
+        _log(f"token endpoint={_runtime_token_url()} status={response.status_code}")
         if response.status_code in {400, 401}:
             raise EbaySoldError(f"TOKEN_FAILED: TOKEN_INVALID_OR_EXPIRED: official eBay token request failed with HTTP {response.status_code}: {response.text[:240]}")
         if response.status_code == 403:
@@ -208,7 +268,7 @@ class EbayApiClient:
         return {
             "Authorization": f"Bearer {self._get_access_token(force_refresh=force_token_refresh)}",
             "Accept": "application/json",
-            "X-EBAY-C-MARKETPLACE-ID": EBAY_MARKETPLACE_ID,
+            "X-EBAY-C-MARKETPLACE-ID": _runtime_marketplace(),
         }
 
     @staticmethod
@@ -243,10 +303,13 @@ class EbayApiClient:
             "filter": "buyingOptions:{FIXED_PRICE}",
             "sort": "price",
         }
-        _log(f"buy_now search endpoint={BROWSE_SEARCH_URL} marketplace={EBAY_MARKETPLACE_ID} query={query!r} params={params}")
+        _log(
+            f"buy_now search endpoint={_runtime_browse_search_url()} "
+            f"marketplace={_runtime_marketplace()} query={query!r} params={params}"
+        )
         try:
             response = self.session.get(
-                BROWSE_SEARCH_URL,
+                _runtime_browse_search_url(),
                 headers=self._api_headers(force_token_refresh=force_token_refresh),
                 params=params,
                 timeout=self.timeout,
@@ -279,10 +342,10 @@ class EbayApiClient:
                 _log(message)
 
         result: dict[str, Any] = {
-            "enabled": bool(EBAY_ENABLE_OFFICIAL_API),
-            "keys_present": bool(EBAY_CLIENT_ID and EBAY_CLIENT_SECRET),
-            "environment": EBAY_API_ENVIRONMENT if EBAY_API_ENVIRONMENT == "SANDBOX" else "PRODUCTION",
-            "marketplace": EBAY_MARKETPLACE_ID,
+            "enabled": bool(_runtime_enabled()),
+            "keys_present": bool(_runtime_client_id() and _runtime_client_secret()),
+            "environment": _runtime_environment(),
+            "marketplace": _runtime_marketplace(),
             "token_status": "FAILED",
             "search_status": "NOT_RUN",
             "results_count": 0,
@@ -292,13 +355,11 @@ class EbayApiClient:
 
         emit("STARTUP_CHECK")
         self.log_config_status(log=log)
-        if not EBAY_ENABLE_OFFICIAL_API:
+        if not _runtime_enabled():
             result["error"] = "API_DISABLED"
-            emit("API_DISABLED")
             return result
         if not result["keys_present"]:
             result["error"] = "API_KEYS_MISSING"
-            emit("API_KEYS_MISSING")
             return result
 
         token_error = None
