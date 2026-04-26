@@ -5,23 +5,28 @@ from services.ebay_api_client import EbayApiClient
 
 
 class FakeResponse:
-    status_code = 200
-
-    def __init__(self, payload):
+    def __init__(self, payload, status_code=200, text=""):
         self._payload = payload
+        self.status_code = status_code
+        self.text = text
 
     def json(self):
         return self._payload
 
 
 class FakeSession:
-    def __init__(self, payload):
+    def __init__(self, payload, status_code=200, text=""):
         self.payload = payload
+        self.status_code = status_code
+        self.text = text
         self.last_params = None
 
     def get(self, _url, headers=None, params=None, timeout=None):
         self.last_params = params
-        return FakeResponse(self.payload)
+        return FakeResponse(self.payload, status_code=self.status_code, text=self.text)
+
+    def post(self, _url, headers=None, data=None, timeout=None):
+        return FakeResponse(self.payload, status_code=self.status_code, text=self.text)
 
 
 class EbayApiClientTests(unittest.TestCase):
@@ -68,6 +73,33 @@ class EbayApiClientTests(unittest.TestCase):
 
         self.assertEqual([listing.price_eur for listing in listings], [88.0, 95.0])
         self.assertEqual(session.last_params["filter"], "buyingOptions:{FIXED_PRICE}")
+        self.assertEqual(session.last_params["limit"], "20")
+        self.assertEqual(session.last_params["sort"], "price")
+
+    def test_missing_api_keys_report_clear_status(self):
+        ebay_api_client.EBAY_ENABLE_OFFICIAL_API = True
+        ebay_api_client.EBAY_CLIENT_ID = ""
+        ebay_api_client.EBAY_CLIENT_SECRET = ""
+        client = EbayApiClient()
+
+        self.assertEqual(client.config_status(), "API_KEYS_MISSING")
+        self.assertEqual(client.fetch_active_buy_now("pokemon charizard"), [])
+
+    def test_token_failure_reports_token_failed(self):
+        client = EbayApiClient()
+        client.session = FakeSession({"error": "invalid_client"}, status_code=401, text="invalid_client")
+
+        with self.assertRaisesRegex(Exception, "TOKEN_FAILED"):
+            client._get_access_token()
+
+    def test_zero_results_return_empty_after_query_variants(self):
+        client = EbayApiClient()
+        client.session = FakeSession({"itemSummaries": []})
+        client._get_access_token = lambda: "token"
+
+        listings = client.fetch_active_buy_now("No Such Pokemon Query", max_results=5)
+
+        self.assertEqual(listings, [])
 
 
 if __name__ == "__main__":

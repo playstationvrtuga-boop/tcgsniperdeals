@@ -6,9 +6,19 @@ import time
 from datetime import timedelta
 from sqlalchemy import or_
 
-from config import APP_API_URL, PRICING_RETRY_AFTER_MINUTES, PRICING_WORKER_MAX_SLEEP, PRICING_WORKER_MIN_SLEEP
+from config import (
+    APP_API_URL,
+    EBAY_CLIENT_ID,
+    EBAY_CLIENT_SECRET,
+    EBAY_ENABLE_OFFICIAL_API,
+    EBAY_MARKETPLACE_ID,
+    PRICING_RETRY_AFTER_MINUTES,
+    PRICING_WORKER_MAX_SLEEP,
+    PRICING_WORKER_MIN_SLEEP,
+)
 from services.alert_formatter import format_vip_alert, make_partial_product_name
 from services.deal_detector import EbaySoldError, EbaySoldRateLimitError, evaluate_listing
+from services.ebay_api_client import ebay_api_client
 from vip_app.app import create_app
 from vip_app.app.extensions import db
 from vip_app.app.models import Listing, utcnow
@@ -84,6 +94,14 @@ def _score_level(score: int | float | None) -> str:
     return "LOW"
 
 
+def _mask_config_value(value: str) -> str:
+    if not value:
+        return "missing"
+    if len(value) <= 6:
+        return "present"
+    return f"present:{value[:3]}...{value[-3:]}"
+
+
 def _pricing_reason(result) -> str:
     parts = [
         f"source={result.price_source or 'unknown'}",
@@ -124,6 +142,12 @@ def _describe_result(result) -> str:
             f"score={result.score}"
         )
 
+    if result.status == "needs_review":
+        return (
+            f"NEEDS_REVIEW kind={kind} reason={result.reason or 'n/a'} "
+            f"sold={result.comparable_count} buy_now={buy_now_count}"
+        )
+
     if result.reason == "listing_not_precisely_identified":
         return f"SKIPPED kind={kind} reason=title_not_precise"
 
@@ -153,6 +177,8 @@ def process_listing(listing: Listing) -> str:
             f"title={_short_title(listing.title)}"
         )
         print(f"[pricing_worker] {_describe_result(result)}")
+        if result.reason:
+            print(f"[pricing_worker] diagnostic_reason={result.reason}")
         _mark_processed(listing, result)
 
         if result.is_deal and listing.deal_alert_sent_at is None:
@@ -216,6 +242,14 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
         database_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
         print(f"[pricing_worker] database={database_uri}")
         print(f"[pricing_worker] bot_app_api_url={APP_API_URL}")
+        print(
+            "[pricing_worker] ebay_api "
+            f"enabled={EBAY_ENABLE_OFFICIAL_API} "
+            f"client_id={_mask_config_value(EBAY_CLIENT_ID)} "
+            f"client_secret={_mask_config_value(EBAY_CLIENT_SECRET)} "
+            f"marketplace={EBAY_MARKETPLACE_ID}"
+        )
+        ebay_api_client.log_config_status()
         if "127.0.0.1" not in str(APP_API_URL) and "localhost" not in str(APP_API_URL) and str(database_uri).startswith("sqlite"):
             print("[pricing_worker] warning: bot is configured for online API, but this worker is reading local SQLite")
         while True:

@@ -309,22 +309,21 @@ def evaluate_listing(listing) -> DealResult:
     )
 
     if sold_reference_price is None and buy_now_reference_price is None:
-        if recent_sales_exception and buy_now_exception:
-            if isinstance(recent_sales_exception, EbaySoldRateLimitError):
-                raise recent_sales_exception
-            if isinstance(buy_now_exception, EbaySoldRateLimitError):
-                raise buy_now_exception
-            raise recent_sales_exception
-
-        reason = "not_enough_price_references"
+        reason_parts = ["DEAL_REJECTED_NO_REFERENCE"]
         if recent_sales_error:
-            reason = f"{reason}; recent_sales_error"
+            if isinstance(recent_sales_exception, EbaySoldRateLimitError):
+                reason_parts.append("SOLD_BLOCKED")
+            else:
+                reason_parts.append("SOLD_FAILED")
         if buy_now_error:
-            reason = f"{reason}; buy_now_error"
+            reason_parts.append("SEARCH_FAILED")
+        if not buy_now_listings:
+            reason_parts.append("ZERO_RESULTS")
+
         return DealResult(
-            status="skipped",
+            status="needs_review",
             listing_price=listing_price,
-            reason=reason,
+            reason="; ".join(reason_parts),
             price_source="ebay_sold+buy_now",
             listing_kind=listing_kind,
             comparable_count=len(comparable_sales),
@@ -336,19 +335,12 @@ def evaluate_listing(listing) -> DealResult:
     buy_now_prices = [listing.price_eur for listing in buy_now_listings[:PRICING_BUY_NOW_MIN_COMPARABLES]]
     buy_now_titles = [listing.title for listing in buy_now_listings[:PRICING_BUY_NOW_MIN_COMPARABLES]]
 
-    if sold_reference_price is not None and buy_now_reference_price is not None:
-        reference_price = min(sold_reference_price, buy_now_reference_price)
-        price_source = (
-            "ebay_sold_validated_by_buy_now"
-            if reference_price == sold_reference_price
-            else "ebay_sold_capped_by_buy_now"
-        )
-    elif sold_reference_price is not None:
+    if buy_now_reference_price is not None:
+        reference_price = buy_now_reference_price
+        price_source = "ebay_buy_now_with_sold_reference" if sold_reference_price is not None else "ebay_buy_now"
+    else:
         reference_price = sold_reference_price
         price_source = "ebay_sold"
-    else:
-        reference_price = buy_now_reference_price
-        price_source = "ebay_buy_now"
 
     if reference_price <= 0:
         return DealResult(
@@ -377,6 +369,11 @@ def evaluate_listing(listing) -> DealResult:
         and gross_margin >= PRICING_DEAL_MIN_MARGIN
         and score >= PRICING_DEAL_MIN_SCORE
     )
+    result_reason = "DEAL_ACCEPTED" if is_deal else "DEAL_REJECTED_THRESHOLDS"
+    if buy_now_reference_price is not None:
+        result_reason = f"{result_reason}; BUY_NOW_REFERENCE_FOUND"
+    if recent_sales_error:
+        result_reason = f"{result_reason}; SOLD_BLOCKED" if isinstance(recent_sales_exception, EbaySoldRateLimitError) else f"{result_reason}; SOLD_FAILED"
 
     return DealResult(
         status="deal" if is_deal else "priced",
@@ -395,7 +392,7 @@ def evaluate_listing(listing) -> DealResult:
         buy_now_titles=buy_now_titles,
         buy_now_count=len(buy_now_prices),
         buy_now_reference_price=buy_now_reference_price,
-        reason="active_buy_now_error" if buy_now_error else None,
+        reason=result_reason,
     )
 
 

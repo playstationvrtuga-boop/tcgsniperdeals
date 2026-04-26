@@ -35,7 +35,7 @@ class BuyNowReferenceTests(unittest.TestCase):
         result = deal_detector.evaluate_listing(self.listing())
 
         self.assertEqual(result.status, "priced")
-        self.assertEqual(result.price_source, "ebay_sold_capped_by_buy_now")
+        self.assertEqual(result.price_source, "ebay_buy_now_with_sold_reference")
         self.assertEqual(result.reference_price, 85.0)
         self.assertEqual(result.buy_now_count, 3)
         self.assertEqual(result.comparable_count, 3)
@@ -72,6 +72,24 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.assertEqual(result.status, "deal")
         self.assertEqual(result.price_source, "ebay_buy_now")
         self.assertEqual(result.reference_price, 110.0)
+        self.assertIn("SOLD_BLOCKED", result.reason)
+
+    def test_worker_style_result_needs_review_when_sold_and_buy_now_fail(self):
+        def blocked_recent(*_args, **_kwargs):
+            raise EbaySoldRateLimitError("SOLD_BLOCKED")
+
+        def failed_buy_now(*_args, **_kwargs):
+            raise EbaySoldRateLimitError("SEARCH_FAILED")
+
+        deal_detector.fetch_recent_comparables = blocked_recent
+        deal_detector.fetch_active_buy_now_comparables = failed_buy_now
+
+        result = deal_detector.evaluate_listing(self.listing())
+
+        self.assertEqual(result.status, "needs_review")
+        self.assertIn("DEAL_REJECTED_NO_REFERENCE", result.reason)
+        self.assertIn("SOLD_BLOCKED", result.reason)
+        self.assertIn("SEARCH_FAILED", result.reason)
 
 
 if __name__ == "__main__":

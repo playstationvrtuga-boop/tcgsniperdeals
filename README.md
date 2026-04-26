@@ -235,6 +235,14 @@ EBAY_MARKETPLACE_ID=EBAY_US
 
 With these values, the pricing worker uses the official eBay Browse API for active Buy Now comparables before trying the old fallback.
 
+Test the official eBay API directly with:
+
+```powershell
+python -m services.ebay_api_client "pokemon charizard"
+```
+
+The command prints whether the token worked, which marketplace and endpoint were used, the search status, total results, and the first returned listings. Secrets are masked in logs.
+
 Sold price history may require extra eBay Marketplace Insights access. If you get that access later, add:
 
 ```env
