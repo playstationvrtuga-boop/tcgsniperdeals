@@ -40,6 +40,22 @@ SET_CODES = {
 
 RARITIES = {"AR", "SAR", "SR", "UR", "IR", "SIR", "HR", "RR"}
 VARIANTS = {"ex", "gx", "v", "vmax", "vstar", "mega", "tag team"}
+SET_CODE_EXCLUDES = {"PSA", "CGC", "BGS", "ACE", "EX", "GX", "VMAX", "VSTAR", "TAG", "TEAM"}
+POKEMON_KEYWORDS = {
+    "pokemon", "tcg", "pokemon card", "carte pokemon", "carta pokemon",
+    "tarjeta pokemon", "cartas pokemon", "cartes pokemon",
+}
+GENERIC_QUERY_TERMS = {
+    "pokemon", "tcg", "card", "cards", "carta", "cartas", "carte", "cartes",
+    "tarjeta", "tarjetas", "rare", "reverse", "holo", "ultra", "secret",
+    "full", "art", "near", "mint", "nm", "played", "graded", "slab", "psa",
+    "cgc", "bgs", "beckett", "ace", "aura", "japanese", "japonais",
+    "japones", "english", "ingles", "francais", "french", "spanish",
+    "espanol", "portuguese", "portugues", "lot", "bundle", "lote", "pack",
+    "de", "des", "du", "la", "le", "les", "of", "the", "and", "with",
+    "sem", "com", "sans", "avec", "originais", "variadas", "neuf", "neuve",
+    "novo", "nova", "nuevo", "nueva", "condition", "edition",
+}
 LANGUAGE_HINTS = {
     "japanese": {"japanese", "japonais", "japones", "japonesas", "japan", "jp"},
     "english": {"english", "ingles", "anglais", "eng"},
@@ -69,6 +85,7 @@ class CardSignals:
     raw_title: str
     normalized_title: str
     pokemon_name: str | None = None
+    keyword_name: str | None = None
     card_number: str | None = None
     set_total: str | None = None
     full_number: str | None = None
@@ -169,7 +186,7 @@ def _extract_set_code(normalized: str) -> str | None:
         if re.search(rf"\b{re.escape(code)}\b", upper_text):
             return code
     code_match = re.search(r"\b([A-Z]{2,5}\d?)\s*\d{1,3}(?:/\d{1,3})?\b", upper_text)
-    if code_match and code_match.group(1) not in {"PSA", "CGC", "BGS", "ACE"}:
+    if code_match and code_match.group(1) not in SET_CODE_EXCLUDES:
         return code_match.group(1)
     return None
 
@@ -205,6 +222,29 @@ def _extract_set_name(normalized: str) -> str | None:
     return _extract_first_known(normalized, SET_NAME_TERMS)
 
 
+def _contains_pokemon_keyword(normalized: str) -> bool:
+    return any(keyword in normalized for keyword in POKEMON_KEYWORDS)
+
+
+def _extract_keyword_name(normalized: str, pokemon_name: str | None) -> str | None:
+    if pokemon_name:
+        return pokemon_name
+    tokens = normalized.split()
+    for token in tokens:
+        if not token.isalpha():
+            continue
+        if len(token) < 3:
+            continue
+        if token in GENERIC_QUERY_TERMS:
+            continue
+        if token in VARIANTS:
+            continue
+        if token.upper() in SET_CODES or token.upper() in RARITIES or token.upper() in SET_CODE_EXCLUDES:
+            continue
+        return token
+    return None
+
+
 def classify_listing_kind(signals: CardSignals) -> str:
     text = signals.normalized_title
     if any(term in text for term in SEALED_TERMS):
@@ -215,13 +255,13 @@ def classify_listing_kind(signals: CardSignals) -> str:
         return "lot_bundle"
     if signals.pokemon_name or signals.full_number or signals.card_number:
         return "single_card"
-    if "pokemon" in text:
+    if _contains_pokemon_keyword(text):
         return "unknown_pokemon"
     return "unknown"
 
 
 def _classify_confidence(signals: CardSignals) -> str:
-    has_pokemon_word = "pokemon" in signals.normalized_title
+    has_pokemon_word = _contains_pokemon_keyword(signals.normalized_title)
     if signals.pokemon_name and signals.full_number:
         return "HIGH"
     if signals.pokemon_name and signals.set_code and signals.card_number:
@@ -244,6 +284,8 @@ def _classify_confidence(signals: CardSignals) -> str:
         return "LOW"
     if has_pokemon_word:
         return "LOW"
+    if signals.full_number or signals.card_number:
+        return "LOW"
     return "UNKNOWN"
 
 
@@ -252,10 +294,16 @@ def extract_card_signals(title: str) -> CardSignals:
     card_number, set_total, full_number = _extract_numbers(normalized)
     rarity_value = _extract_first_known(normalized, {rarity.lower() for rarity in RARITIES})
     rarity = rarity_value.upper() if rarity_value else None
+    pokemon_name = detect_pokemon_name(normalized)
+    keyword_name = None
+    if pokemon_name or card_number or full_number or _contains_pokemon_keyword(normalized):
+        keyword_name = _extract_keyword_name(normalized, pokemon_name)
+
     signals = CardSignals(
         raw_title=title or "",
         normalized_title=normalized,
-        pokemon_name=detect_pokemon_name(normalized),
+        pokemon_name=pokemon_name,
+        keyword_name=keyword_name,
         card_number=card_number,
         set_total=set_total,
         full_number=full_number,
@@ -282,11 +330,22 @@ def _append_unique(queries: list[str], value: str | None) -> None:
 
 def generate_generic_alias_queries(signals: CardSignals) -> list[str]:
     queries: list[str] = []
-    name = signals.pokemon_name
+    name = signals.pokemon_name or signals.keyword_name
     number = signals.card_number
     full_number = signals.full_number
     code = signals.set_code
     variant = signals.variant
+
+    if name and variant and full_number:
+        _append_unique(queries, f"{name} {variant} {full_number}")
+        _append_unique(queries, f"{name} {full_number}")
+        _append_unique(queries, f"{name} {variant} {number}")
+        _append_unique(queries, f"{name} {number}")
+        _append_unique(queries, f"pokemon {name}")
+        _append_unique(queries, f"pokemon card {name}")
+        _append_unique(queries, f"pokemon {full_number}")
+        _append_unique(queries, f"pokemon {number}")
+        _append_unique(queries, "pokemon card")
 
     if name and full_number:
         _append_unique(queries, f"{name} {full_number}")
@@ -301,8 +360,12 @@ def generate_generic_alias_queries(signals: CardSignals) -> list[str]:
         _append_unique(queries, f"pokemon {code} {number}")
 
     if name and number:
+        if variant:
+            _append_unique(queries, f"{name} {variant} {number}")
         _append_unique(queries, f"{name} {number}")
         _append_unique(queries, f"pokemon {name} {number}")
+        _append_unique(queries, f"pokemon {name}")
+        _append_unique(queries, f"pokemon card {name}")
 
     if full_number:
         _append_unique(queries, f"pokemon {full_number}")
@@ -314,6 +377,7 @@ def generate_generic_alias_queries(signals: CardSignals) -> list[str]:
     if name and variant:
         _append_unique(queries, f"{name} {variant}")
         _append_unique(queries, f"pokemon {name} {variant}")
+        _append_unique(queries, f"pokemon {name}")
 
     if signals.kind == "sealed_product":
         if signals.set_name:
@@ -331,13 +395,21 @@ def generate_generic_alias_queries(signals: CardSignals) -> list[str]:
 
     if name:
         _append_unique(queries, f"pokemon {name} card")
+        _append_unique(queries, f"pokemon {name}")
     if code:
         _append_unique(queries, f"pokemon {code}")
-    if not queries and "pokemon" in signals.normalized_title:
+    is_pokemon_candidate = bool(
+        name or number or full_number or code or _contains_pokemon_keyword(signals.normalized_title)
+    )
+    if number:
+        _append_unique(queries, f"pokemon {number}")
+    if is_pokemon_candidate:
+        _append_unique(queries, "pokemon card")
+    if not queries and _contains_pokemon_keyword(signals.normalized_title):
         _append_unique(queries, signals.normalized_title)
         _append_unique(queries, "pokemon card")
 
-    return queries[:8]
+    return queries[:12]
 
 
 def parse_listing_identity(title: str) -> ParsedListingIdentity:
@@ -347,7 +419,7 @@ def parse_listing_identity(title: str) -> ParsedListingIdentity:
         confidence=signals.confidence,
         query=query,
         listing_kind=signals.kind if signals.kind != "unknown" else None,
-        extracted_name=signals.pokemon_name,
+        extracted_name=signals.pokemon_name or signals.keyword_name,
         extracted_number=signals.full_number or signals.card_number,
         extracted_set=signals.set_code or signals.set_name,
         fallback_query_used=signals.confidence == "LOW",

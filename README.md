@@ -246,9 +246,33 @@ It assigns confidence:
 - `LOW`: Pokemon-related but incomplete
 - `UNKNOWN`: no Pokemon signal
 
-`LOW` confidence listings still go to pricing with safer generic queries. Only `UNKNOWN` non-Pokemon listings are skipped. To expand name detection later, edit:
+Important rule: if the title contains `pokemon` / `pokémon`, the listing is processed. It becomes `unknown_pokemon` with `LOW` confidence if the parser cannot identify a precise card. Number-only signals such as `003/182` are also processed with `LOW` confidence.
+
+`LOW` confidence listings still go to pricing with safer generic queries. Only listings with no Pokemon word, no recognized Pokemon name, and no card-number signal are skipped. To expand name detection later, edit:
 
 `C:\Users\Trabalho\Desktop\bot_pokemon\data\pokemon_names.json`
+
+In worker logs, confirm this parser flow:
+
+```text
+[parser] raw_title=...
+[parser] normalized_title=...
+[parser] kind=unknown_pokemon
+[parser] confidence=LOW
+[parser] decision=process
+[parser] fallback_mode=true
+```
+
+Pricing now tries a cascade of broader queries instead of stopping after one failed search. Example:
+
+```text
+[pricing] query_attempt=1 source=buy_now query="moramartik ex 003/182"
+[pricing] results=0
+[pricing] fallback_next_query=true
+[pricing] query_attempt=2 source=buy_now query="moramartik 003/182"
+[pricing] results=5
+[pricing] SUCCESS
+```
 
 ### Render setup: official eBay API pricing
 

@@ -100,6 +100,51 @@ class PokemonTitleParserTests(unittest.TestCase):
         self.assertEqual(signals.confidence, "UNKNOWN")
         self.assertEqual(signals.decision, "skip")
 
+    def test_pokemon_word_is_never_auto_skipped(self):
+        examples = [
+            "Stufful Pokemon TCG AR",
+            "Carte pokemon forces temporelles",
+            "Assortimento carte Pokemon",
+        ]
+
+        for title in examples:
+            with self.subTest(title=title):
+                signals = extract_card_signals(title)
+                self.assertNotEqual(signals.confidence, "UNKNOWN")
+                self.assertEqual(signals.kind, "unknown_pokemon")
+                self.assertEqual(signals.confidence, "LOW")
+                self.assertEqual(signals.decision, "process")
+
+    def test_known_name_without_pokemon_word_is_processed(self):
+        signals = extract_card_signals("Gengar reverse vintage")
+
+        self.assertEqual(signals.pokemon_name, "gengar")
+        self.assertEqual(signals.confidence, "LOW")
+        self.assertEqual(signals.decision, "process")
+
+    def test_number_only_signal_is_processed_low_confidence(self):
+        signals = extract_card_signals("Moramartik ex 003/182")
+
+        self.assertEqual(signals.keyword_name, "moramartik")
+        self.assertEqual(signals.full_number, "003/182")
+        self.assertEqual(signals.variant, "ex")
+        self.assertEqual(signals.confidence, "LOW")
+        self.assertEqual(signals.decision, "process")
+
+    def test_aggressive_query_cascade_for_specific_title(self):
+        signals = extract_card_signals("Moramartik ex 003/182")
+
+        self.assertGreaterEqual(len(signals.queries), 9)
+        self.assertEqual(signals.queries[0], "moramartik ex 003/182")
+        self.assertIn("moramartik 003/182", signals.queries)
+        self.assertIn("moramartik ex 003", signals.queries)
+        self.assertIn("moramartik 003", signals.queries)
+        self.assertIn("pokemon moramartik", signals.queries)
+        self.assertIn("pokemon card moramartik", signals.queries)
+        self.assertIn("pokemon 003/182", signals.queries)
+        self.assertIn("pokemon 003", signals.queries)
+        self.assertIn("pokemon card", signals.queries)
+
 
 if __name__ == "__main__":
     unittest.main()

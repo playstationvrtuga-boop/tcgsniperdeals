@@ -207,6 +207,7 @@ def _log_parser(identity: ParsedListingIdentity) -> None:
         print(f"[parser] variant={signals.variant or ''}", flush=True)
         print(f"[parser] generated_queries={signals.queries}", flush=True)
         print(f"[parser] decision={signals.decision}", flush=True)
+        print(f"[parser] fallback_mode={str(identity.fallback_query_used).lower()}", flush=True)
         print(f"[parser] skip_reason={signals.skip_reason or ''}", flush=True)
         return
 
@@ -384,25 +385,65 @@ def _median_price(listings: list[EbaySoldListing]) -> float | None:
     return round(float(median(prices)), 2)
 
 
+def _log_pricing_attempt(source: str, attempt: int, query: str) -> None:
+    print(f"[pricing] query_attempt={attempt} source={source} query=\"{query}\"", flush=True)
+
+
+def _log_pricing_results(results_count: int, success: bool) -> None:
+    print(f"[pricing] results={results_count}", flush=True)
+    if success:
+        print("[pricing] SUCCESS", flush=True)
+    else:
+        print("[pricing] fallback_next_query=true", flush=True)
+
+
 def _fetch_best_recent_for_queries(queries: list[str], listing_kind: str | None) -> list[EbaySoldListing]:
     best: list[EbaySoldListing] = []
-    for query in queries:
-        listings = fetch_recent_comparables(query, listing_kind=listing_kind)
+    last_error: EbaySoldError | None = None
+    for attempt, query in enumerate(queries, start=1):
+        _log_pricing_attempt("sold", attempt, query)
+        try:
+            listings = fetch_recent_comparables(query, listing_kind=listing_kind)
+        except EbaySoldError as error:
+            last_error = error
+            print(f"[pricing] source=sold query_error={error}", flush=True)
+            _log_pricing_results(0, success=False)
+            continue
         if len(listings) > len(best):
             best = listings
-        if len(listings) >= 3:
+        success = len(listings) >= 3
+        _log_pricing_results(len(listings), success=success)
+        if success:
             return listings
+    if best:
+        return best
+    if last_error is not None:
+        raise last_error
     return best
 
 
 def _fetch_best_buy_now_for_queries(queries: list[str], listing_kind: str | None) -> list[EbaySoldListing]:
     best: list[EbaySoldListing] = []
-    for query in queries:
-        listings = fetch_active_buy_now_comparables(query, listing_kind=listing_kind)
+    last_error: EbaySoldError | None = None
+    for attempt, query in enumerate(queries, start=1):
+        _log_pricing_attempt("buy_now", attempt, query)
+        try:
+            listings = fetch_active_buy_now_comparables(query, listing_kind=listing_kind)
+        except EbaySoldError as error:
+            last_error = error
+            print(f"[pricing] source=buy_now query_error={error}", flush=True)
+            _log_pricing_results(0, success=False)
+            continue
         if len(listings) > len(best):
             best = listings
-        if len(listings) >= PRICING_BUY_NOW_MIN_COMPARABLES:
+        success = len(listings) >= PRICING_BUY_NOW_MIN_COMPARABLES
+        _log_pricing_results(len(listings), success=success)
+        if success:
             return listings
+    if best:
+        return best
+    if last_error is not None:
+        raise last_error
     return best
 
 
