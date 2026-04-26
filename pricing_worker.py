@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 import random
 import time
+from datetime import timedelta
 from sqlalchemy import or_
 
-from config import APP_API_URL, PRICING_WORKER_MAX_SLEEP, PRICING_WORKER_MIN_SLEEP
+from config import APP_API_URL, PRICING_RETRY_AFTER_MINUTES, PRICING_WORKER_MAX_SLEEP, PRICING_WORKER_MIN_SLEEP
 from services.alert_formatter import format_vip_alert, make_partial_product_name
 from services.deal_detector import EbaySoldError, EbaySoldRateLimitError, evaluate_listing
 from vip_app.app import create_app
@@ -18,12 +19,20 @@ app = create_app()
 
 
 def _pending_listing_query():
+    retry_before = utcnow() - timedelta(minutes=PRICING_RETRY_AFTER_MINUTES)
     return (
         Listing.query.filter(
             or_(
                 Listing.pricing_status.is_(None),
                 Listing.pricing_status == "",
                 Listing.pricing_status == "pending",
+                (
+                    Listing.pricing_status.in_(["rate_limited", "api_error"])
+                    & (
+                        (Listing.pricing_checked_at.is_(None))
+                        | (Listing.pricing_checked_at <= retry_before)
+                    )
+                ),
             )
         )
         .order_by(Listing.detected_at.asc(), Listing.created_at.asc(), Listing.id.asc())

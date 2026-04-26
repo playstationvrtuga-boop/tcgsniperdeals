@@ -88,6 +88,16 @@ def _extract_item_blocks(html: str) -> list[str]:
     return re.findall(r'(<li[^>]+class="s-item[^"]*"[\s\S]*?</li>)', html, flags=re.IGNORECASE)
 
 
+def _is_ebay_interruption_page(html: str) -> bool:
+    text = html[:20000].lower()
+    return (
+        "pardon our interruption" in text
+        or "please verify yourself" in text
+        or "verify that you are not a robot" in text
+        or "captcha" in text
+    )
+
+
 def _extract_title(block: str) -> str:
     match = re.search(r'<h3[^>]*class="s-item__title[^"]*"[^>]*>([\s\S]*?)</h3>', block, flags=re.IGNORECASE)
     return _clean_text(re.sub(r"<[^>]+>", " ", match.group(1))) if match else ""
@@ -180,6 +190,8 @@ class EbaySoldClient:
             raise EbaySoldRateLimitError(f"eBay sold lookup refused with HTTP {response.status_code}.")
         if response.status_code >= 400:
             raise EbaySoldError(f"eBay sold lookup failed with HTTP {response.status_code}.")
+        if _is_ebay_interruption_page(response.text):
+            raise EbaySoldRateLimitError("eBay sold lookup returned an anti-bot interruption page.")
 
         listings: list[EbaySoldListing] = []
         for block in _extract_item_blocks(response.text):
@@ -226,6 +238,8 @@ class EbaySoldClient:
             raise EbaySoldRateLimitError(f"eBay Buy Now lookup refused with HTTP {response.status_code}.")
         if response.status_code >= 400:
             raise EbaySoldError(f"eBay Buy Now lookup failed with HTTP {response.status_code}.")
+        if _is_ebay_interruption_page(response.text):
+            raise EbaySoldRateLimitError("eBay Buy Now lookup returned an anti-bot interruption page.")
 
         listings: list[EbaySoldListing] = []
         for block in _extract_item_blocks(response.text):
