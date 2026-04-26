@@ -64,7 +64,7 @@ def _mask_secret(value: str) -> str:
 
 
 def _log(message: str) -> None:
-    print(f"[ebay_api] {message}")
+    print(f"[ebay_api] {message}", flush=True)
 
 
 def _status_reason(status_code: int) -> str:

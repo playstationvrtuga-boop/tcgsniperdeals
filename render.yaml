@@ -67,6 +67,8 @@ services:
         value: "PRODUCTION"
       - key: EBAY_API_TIMEOUT
         value: "12"
+      - key: PRICING_ENABLE_EBAY_HTML_FALLBACK
+        value: "false"
       - key: SITE_URL
         sync: false
       - key: MOBILE_APP_URL
@@ -140,6 +142,8 @@ services:
         value: "PRODUCTION"
       - key: EBAY_API_TIMEOUT
         value: "12"
+      - key: PRICING_ENABLE_EBAY_HTML_FALLBACK
+        value: "false"
   - type: worker
     name: tcg-sniper-deals-gone-worker
     env: python

@@ -214,7 +214,7 @@ The worker:
 
 - reads one pending listing at a time from the app database
 - checks official eBay API Buy Now prices first when credentials are configured
-- uses lightweight `eBay sold`/Buy Now HTML lookup only as a fallback
+- keeps the old `eBay sold`/Buy Now HTML lookup disabled by default in production, because eBay can return anti-bot pages
 - falls back to similar listings already stored in the local app database
 - uses a lightweight TTL cache in memory
 - stores `reference_price`, `discount_percent`, `gross_margin`, `pricing_score`, `is_deal`
@@ -234,6 +234,7 @@ EBAY_CLIENT_ID=your-ebay-app-client-id
 EBAY_CLIENT_SECRET=your-ebay-app-client-secret
 EBAY_MARKETPLACE_ID=EBAY_US
 EBAY_API_ENVIRONMENT=PRODUCTION
+PRICING_ENABLE_EBAY_HTML_FALLBACK=false
 ```
 
 These variables must be on the worker because the pricing worker uses them for Buy Now pricing. Add the same variables to the web service only if you want the protected `/api/debug/ebay` endpoint to test eBay from the live website process too.
@@ -252,7 +253,7 @@ In Render Shell, test the official eBay API directly with:
 python -m services.ebay_api_client "pokemon charizard"
 ```
 
-The command prints whether the API is enabled, whether the keys exist, whether the token worked, which marketplace and endpoint were used, the search status, total results, and the first three returned listings. Secrets are never printed.
+The command prints whether the API is enabled, whether the keys exist, whether the token worked, which marketplace and endpoint were used, the search status, total results, and the first three returned listings. Secrets are never printed. The pricing worker also prints the same startup check automatically after each deploy.
 
 Confirm these logs:
 
@@ -267,6 +268,12 @@ Confirm these logs:
 [ebay_api] first_item_price=...
 search OK
 [ebay_api] BUY_NOW_REFERENCE_FOUND
+```
+
+Also confirm this worker line:
+
+```text
+[pricing_worker] ebay_api enabled=True client_id=present client_secret=present marketplace=EBAY_US html_fallback=False
 ```
 
 If something is wrong, look for:
@@ -296,6 +303,8 @@ Sold price history may require extra eBay Marketplace Insights access. If you ge
 EBAY_ENABLE_MARKETPLACE_INSIGHTS=true
 EBAY_MARKETPLACE_INSIGHTS_SEARCH_URL=your-approved-search-endpoint
 ```
+
+Only turn `PRICING_ENABLE_EBAY_HTML_FALLBACK=true` for local debugging. Keep it `false` on Render so the worker does not get stuck on eBay anti-bot HTML pages.
 
 ## 4. Test one demo listing into the app
 

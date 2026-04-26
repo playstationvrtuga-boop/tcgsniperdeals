@@ -11,6 +11,7 @@ from config import (
     PRICING_DEAL_MIN_MARGIN,
     PRICING_DEAL_MIN_SCORE,
     PRICING_ENABLE_BUY_NOW_REFERENCE,
+    PRICING_ENABLE_EBAY_HTML_FALLBACK,
 )
 from services.ebay_sold_client import (
     EbaySoldError,
@@ -202,7 +203,7 @@ def fetch_recent_comparables(product_name: str, listing_kind: str | None) -> lis
     sales = []
     if official_ebay_api_configured():
         sales = get_official_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
-    if not sales:
+    if not sales and PRICING_ENABLE_EBAY_HTML_FALLBACK:
         sales = get_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
     if sales:
         price_cache.set(cache_key, [sale.price_eur for sale in sales])
@@ -228,7 +229,7 @@ def fetch_active_buy_now_comparables(product_name: str, listing_kind: str | None
             max_results=PRICING_BUY_NOW_MAX_RESULTS,
             listing_kind=listing_kind,
         )
-    if not listings:
+    if not listings and PRICING_ENABLE_EBAY_HTML_FALLBACK:
         listings = get_active_buy_now(
             product_name,
             max_results=PRICING_BUY_NOW_MAX_RESULTS,

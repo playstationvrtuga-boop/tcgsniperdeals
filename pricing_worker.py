@@ -12,6 +12,7 @@ from config import (
     EBAY_CLIENT_SECRET,
     EBAY_ENABLE_OFFICIAL_API,
     EBAY_MARKETPLACE_ID,
+    PRICING_ENABLE_EBAY_HTML_FALLBACK,
     PRICING_RETRY_AFTER_MINUTES,
     PRICING_WORKER_MAX_SLEEP,
     PRICING_WORKER_MIN_SLEEP,
@@ -236,14 +237,16 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
 
     with app.app_context():
         database_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
-        print(f"[pricing_worker] database={database_uri}")
-        print(f"[pricing_worker] bot_app_api_url={APP_API_URL}")
+        print(f"[pricing_worker] database={database_uri}", flush=True)
+        print(f"[pricing_worker] bot_app_api_url={APP_API_URL}", flush=True)
         print(
             "[pricing_worker] ebay_api "
             f"enabled={EBAY_ENABLE_OFFICIAL_API} "
             f"client_id={_mask_config_value(EBAY_CLIENT_ID)} "
             f"client_secret={_mask_config_value(EBAY_CLIENT_SECRET)} "
             f"marketplace={EBAY_MARKETPLACE_ID}"
+            f" html_fallback={PRICING_ENABLE_EBAY_HTML_FALLBACK}",
+            flush=True,
         )
         ebay_api_client.startup_check(query="pokemon", limit=20, log=True)
         if "127.0.0.1" not in str(APP_API_URL) and "localhost" not in str(APP_API_URL) and str(database_uri).startswith("sqlite"):
