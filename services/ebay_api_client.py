@@ -55,11 +55,7 @@ class EbayApiRawItem:
 
 
 def _mask_secret(value: str) -> str:
-    if not value:
-        return "missing"
-    if len(value) <= 6:
-        return "present-short"
-    return f"present:{value[:3]}...{value[-3:]}"
+    return "present" if value else "missing"
 
 
 def _log(message: str) -> None:
@@ -140,9 +136,12 @@ class EbayApiClient:
             f"enabled={EBAY_ENABLE_OFFICIAL_API} "
             f"client_id={_mask_secret(EBAY_CLIENT_ID)} "
             f"client_secret={_mask_secret(EBAY_CLIENT_SECRET)} "
-            f"marketplace={EBAY_MARKETPLACE_ID} "
-            f"endpoint={BROWSE_SEARCH_URL}"
+            f"marketplace={EBAY_MARKETPLACE_ID}"
         )
+        _log(f"endpoint={BROWSE_SEARCH_URL}")
+        status = self.config_status()
+        if status != "API_READY":
+            _log(status)
 
     def _get_access_token(self) -> str:
         if not self.is_configured():
@@ -434,7 +433,7 @@ def _run_manual_test(argv: list[str]) -> int:
 
     print("search OK")
     print(f"total results: {len(items)}")
-    for idx, item in enumerate(items[:10], start=1):
+    for idx, item in enumerate(items[:3], start=1):
         print(
             f"{idx}. {item.title}\n"
             f"   price: {item.price_value} {item.price_currency}\n"

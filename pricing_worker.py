@@ -95,11 +95,7 @@ def _score_level(score: int | float | None) -> str:
 
 
 def _mask_config_value(value: str) -> str:
-    if not value:
-        return "missing"
-    if len(value) <= 6:
-        return "present"
-    return f"present:{value[:3]}...{value[-3:]}"
+    return "present" if value else "missing"
 
 
 def _pricing_reason(result) -> str:

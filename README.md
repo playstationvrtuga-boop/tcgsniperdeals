@@ -222,26 +222,54 @@ The worker:
 - sleeps between loops to keep RAM and API load low
 - does not manage the Free Telegram delay queue anymore
 
-### Optional official eBay API pricing
+### Render setup: official eBay API pricing
 
-The old HTML lookup can be blocked by eBay anti-bot pages. For production, set these on the Render pricing worker:
+The old HTML lookup can be blocked by eBay anti-bot pages. For production, set these on the Render worker service:
+
+`tcg-sniper-deals-worker`
 
 ```env
+EBAY_ENABLE_OFFICIAL_API=true
 EBAY_CLIENT_ID=your-ebay-app-client-id
 EBAY_CLIENT_SECRET=your-ebay-app-client-secret
-EBAY_ENABLE_OFFICIAL_API=true
 EBAY_MARKETPLACE_ID=EBAY_US
 ```
 
-With these values, the pricing worker uses the official eBay Browse API for active Buy Now comparables before trying the old fallback.
+These variables belong on the worker, not only on the web service. With these values, the pricing worker uses the official eBay Browse API for active Buy Now comparables before trying the old fallback.
 
-Test the official eBay API directly with:
+After changing them in Render:
+
+1. Open `tcg-sniper-deals-worker`
+2. Go to `Environment`
+3. Add or confirm the four variables above
+4. Run `Manual Deploy -> Deploy latest commit`
+
+In Render Shell, test the official eBay API directly with:
 
 ```powershell
 python -m services.ebay_api_client "pokemon charizard"
 ```
 
-The command prints whether the token worked, which marketplace and endpoint were used, the search status, total results, and the first returned listings. Secrets are masked in logs.
+The command prints whether the API is enabled, whether the keys exist, whether the token worked, which marketplace and endpoint were used, the search status, total results, and the first three returned listings. Secrets are never printed.
+
+Confirm these logs:
+
+```text
+[ebay_api] config enabled=True client_id=present client_secret=present marketplace=EBAY_US
+[ebay_api] token OK
+search OK
+[ebay_api] BUY_NOW_REFERENCE_FOUND
+```
+
+If something is wrong, look for:
+
+```text
+[ebay_api] API_DISABLED
+[ebay_api] API_KEYS_MISSING
+TOKEN_FAILED
+SEARCH_FAILED
+ZERO_RESULTS
+```
 
 Sold price history may require extra eBay Marketplace Insights access. If you get that access later, add:
 
