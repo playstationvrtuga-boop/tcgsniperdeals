@@ -46,6 +46,7 @@ FX_TO_EUR = {
 }
 EBAY_TOKEN_REQUEST_TIMEOUT = 20
 EBAY_TOKEN_MAX_ATTEMPTS = 2
+EBAY_TOKEN_FAILURE_COOLDOWN_SECONDS = 300
 
 NOISY_QUERY_TERMS = {
     "psa", "graded", "grade", "slab", "bgs", "cgc", "beckett",
@@ -180,6 +181,8 @@ class EbayApiClient:
         self.session = requests.Session()
         self._access_token: str | None = None
         self._access_token_expires_at = 0.0
+        self._token_failure_until = 0.0
+        self._last_token_failure_reason = ""
 
     def is_configured(self) -> bool:
         return bool(_runtime_enabled() and _runtime_client_id() and _runtime_client_secret())
@@ -226,6 +229,12 @@ class EbayApiClient:
         now = time.time()
         if not force_refresh and self._access_token and now < self._access_token_expires_at:
             return self._access_token
+        if not force_refresh and now < self._token_failure_until:
+            retry_after = max(1, int(self._token_failure_until - now))
+            raise EbaySoldError(
+                "TOKEN_FAILED: token request in cooldown after previous failure "
+                f"reason={self._last_token_failure_reason or 'unknown'} retry_after={retry_after}s"
+            )
 
         raw_credentials = f"{_runtime_client_id()}:{_runtime_client_secret()}".encode("utf-8")
         basic_token = base64.b64encode(raw_credentials).decode("ascii")
@@ -253,43 +262,61 @@ class EbayApiClient:
                 _log(f"token FAILED reason=request_timeout attempt={attempt}")
                 if attempt < EBAY_TOKEN_MAX_ATTEMPTS:
                     continue
+                self._remember_token_failure("request_timeout")
                 raise EbaySoldError("TOKEN_FAILED: official eBay token request timed out.") from error
             except requests.RequestException as error:
                 last_error = error
                 _log(f"token FAILED reason=request_exception attempt={attempt} error={error}")
                 if attempt < EBAY_TOKEN_MAX_ATTEMPTS:
                     continue
+                self._remember_token_failure("request_exception")
                 raise EbaySoldError(f"TOKEN_FAILED: official eBay token request failed: {error}") from error
             break
         else:
+            self._remember_token_failure("request_failed")
             raise EbaySoldError(f"TOKEN_FAILED: official eBay token request failed: {last_error}")
 
         _log(f"oauth_response_status={response.status_code}")
         _log(f"token endpoint={_runtime_token_url()} status={response.status_code}")
         if response.status_code in {400, 401}:
             _log("token FAILED reason=TOKEN_INVALID_OR_EXPIRED")
+            self._remember_token_failure("TOKEN_INVALID_OR_EXPIRED")
             raise EbaySoldError(f"TOKEN_FAILED: TOKEN_INVALID_OR_EXPIRED: official eBay token request failed with HTTP {response.status_code}: {response.text[:240]}")
         if response.status_code == 403:
             _log("token FAILED reason=PERMISSION_DENIED")
+            self._remember_token_failure("PERMISSION_DENIED")
             raise EbaySoldError(f"TOKEN_FAILED: PERMISSION_DENIED: official eBay API credentials or scopes were rejected: {response.text[:240]}")
         if response.status_code == 429:
             _log("token FAILED reason=RATE_LIMIT")
+            self._remember_token_failure("RATE_LIMIT")
             raise EbaySoldRateLimitError(f"TOKEN_FAILED: RATE_LIMIT: official eBay token request was rate-limited: {response.text[:240]}")
         if response.status_code >= 400:
             _log(f"token FAILED reason=HTTP_{response.status_code}")
+            self._remember_token_failure(f"HTTP_{response.status_code}")
             raise EbaySoldError(f"TOKEN_FAILED: official eBay token request failed with HTTP {response.status_code}: {response.text[:240]}")
 
         payload = self._json_response(response, "Official eBay token response was invalid.")
         token = str(payload.get("access_token") or "")
         if not token:
             _log("token FAILED reason=missing_access_token")
+            self._remember_token_failure("missing_access_token")
             raise EbaySoldError("TOKEN_FAILED: official eBay token response did not include an access token.")
 
         expires_in = int(payload.get("expires_in") or 7200)
         self._access_token = token
         self._access_token_expires_at = now + max(60, expires_in - 60)
+        self._token_failure_until = 0.0
+        self._last_token_failure_reason = ""
         _log("token OK")
         return token
+
+    def _remember_token_failure(self, reason: str) -> None:
+        self._last_token_failure_reason = reason
+        self._token_failure_until = time.time() + EBAY_TOKEN_FAILURE_COOLDOWN_SECONDS
+        _log(
+            "token FAILED "
+            f"reason={reason} cooldown_seconds={EBAY_TOKEN_FAILURE_COOLDOWN_SECONDS}"
+        )
 
     def _api_headers(self, *, force_token_refresh: bool = False) -> dict[str, str]:
         return {

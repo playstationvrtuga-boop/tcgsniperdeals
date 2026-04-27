@@ -1,8 +1,9 @@
 import base64
+import time
 import unittest
 
 import services.ebay_api_client as ebay_api_client
-from services.ebay_api_client import EBAY_TOKEN_REQUEST_TIMEOUT, EbayApiClient
+from services.ebay_api_client import EBAY_TOKEN_FAILURE_COOLDOWN_SECONDS, EBAY_TOKEN_REQUEST_TIMEOUT, EbayApiClient
 
 
 class FakeResponse:
@@ -25,12 +26,14 @@ class FakeSession:
         self.last_post_headers = None
         self.last_post_data = None
         self.last_post_timeout = None
+        self.post_count = 0
 
     def get(self, _url, headers=None, params=None, timeout=None):
         self.last_params = params
         return FakeResponse(self.payload, status_code=self.status_code, text=self.text)
 
     def post(self, _url, headers=None, data=None, timeout=None):
+        self.post_count += 1
         self.last_post_url = _url
         self.last_post_headers = headers or {}
         self.last_post_data = data or {}
@@ -100,6 +103,20 @@ class EbayApiClientTests(unittest.TestCase):
 
         with self.assertRaisesRegex(Exception, "TOKEN_FAILED"):
             client._get_access_token()
+
+    def test_token_failure_enters_short_cooldown(self):
+        session = FakeSession({"error": "invalid_client"}, status_code=401, text="invalid_client")
+        client = EbayApiClient()
+        client.session = session
+
+        with self.assertRaisesRegex(Exception, "TOKEN_FAILED"):
+            client._get_access_token()
+        with self.assertRaisesRegex(Exception, "cooldown"):
+            client._get_access_token()
+
+        self.assertEqual(session.post_count, 1)
+        self.assertGreater(client._token_failure_until, 0)
+        self.assertLessEqual(client._token_failure_until - time.time(), EBAY_TOKEN_FAILURE_COOLDOWN_SECONDS)
 
     def test_token_request_uses_basic_auth_form_data_and_timeout(self):
         session = FakeSession({"access_token": "access-token", "expires_in": 7200})
