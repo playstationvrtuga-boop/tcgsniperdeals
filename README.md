@@ -134,10 +134,11 @@ python gone_alert_worker.py --once
 The gone-alert worker is lightweight:
 
 - no browser automation
-- no scraping
-- only database queries
+- no heavy scraping
+- only small database queries and limited HTTP checks
 - one post at a time
 - state persists per day in the database
+- it marks recently detected listings as `sold`, `removed` or `unavailable` only when the listing page gives a clear signal
 
 It uses these default windows:
 
@@ -146,6 +147,23 @@ It uses these default windows:
 - 20:00-23:00
 
 It randomly picks a small daily target and spreads that target across the allowed windows.
+
+Availability checks are deliberately small so the worker stays light:
+
+```env
+FREE_GONE_AVAILABILITY_CHECK_LIMIT=10
+FREE_GONE_AVAILABILITY_MIN_AGE_MINUTES=5
+FREE_GONE_AVAILABILITY_RECHECK_MINUTES=180
+```
+
+Useful logs:
+
+```text
+[availability] checking id=123 platform=Vinted
+[availability] gone id=123 status=sold reason=text_marker:item sold
+[availability] scanned=10 marked_gone=1
+[gone_worker] discovered_gone=1
+```
 
 ## 3.1 Online production flow (Render)
 
@@ -503,13 +521,21 @@ Responses:
 
 ## 8. Gone-alert status sync
 
-The bot can now report when a tracked listing becomes unavailable, so the app database keeps the gone-alert pool fresh.
+The bot can report when a tracked listing becomes unavailable, and the gone-alert worker also performs lightweight availability checks on recent listings. This keeps the Missed Deals page and the FREE gone-alert pool fresh without browser automation.
 
 Status updates are sent to:
 
 `POST /api/listings/status`
 
-This lets the FREE gone-alert worker find real previously detected listings that are now unavailable.
+The worker also checks a small number of recent listing URLs per cycle. If a listing is clearly sold, removed or unavailable, it updates:
+
+- `status`
+- `available_status`
+- `status_updated_at`
+- `gone_detected_at`
+- `sold_after_seconds`
+
+This is separate from eBay sold-price lookup. Sold-price data helps pricing, while availability status feeds Missed Deals.
 
 ## 7. What still remains manual
 

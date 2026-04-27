@@ -41,6 +41,7 @@ def ensure_runtime_schema(app):
             "pricing_analyzed_at": "ALTER TABLE listings ADD COLUMN pricing_analyzed_at DATETIME",
             "status": "ALTER TABLE listings ADD COLUMN status VARCHAR(40)",
             "status_updated_at": "ALTER TABLE listings ADD COLUMN status_updated_at DATETIME",
+            "availability_checked_at": "ALTER TABLE listings ADD COLUMN availability_checked_at DATETIME",
             "gone_detected_at": "ALTER TABLE listings ADD COLUMN gone_detected_at DATETIME",
             "gone_alert_sent_at": "ALTER TABLE listings ADD COLUMN gone_alert_sent_at DATETIME",
             "sold_after_seconds": "ALTER TABLE listings ADD COLUMN sold_after_seconds INTEGER",
@@ -77,6 +78,7 @@ def ensure_runtime_schema(app):
             "pricing_analyzed_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_analyzed_at TIMESTAMP WITH TIME ZONE",
             "status": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS status VARCHAR(40)",
             "status_updated_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS status_updated_at TIMESTAMP WITH TIME ZONE",
+            "availability_checked_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS availability_checked_at TIMESTAMP WITH TIME ZONE",
             "gone_detected_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS gone_detected_at TIMESTAMP WITH TIME ZONE",
             "gone_alert_sent_at": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS gone_alert_sent_at TIMESTAMP WITH TIME ZONE",
             "sold_after_seconds": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS sold_after_seconds INTEGER",
@@ -106,6 +108,7 @@ def ensure_runtime_schema(app):
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_score_level ON listings (score_level)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_gone_detected_at ON listings (gone_detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_status_updated_at ON listings (status_updated_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_availability_checked_at ON listings (availability_checked_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_platform_detected_at ON listings (platform, detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_is_deal_detected_at ON listings (is_deal, detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_badge_label_detected_at ON listings (badge_label, detected_at)"))

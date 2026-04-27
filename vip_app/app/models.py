@@ -107,6 +107,7 @@ class Listing(TimestampMixin, db.Model):
     pricing_analyzed_at = db.Column(db.DateTime(timezone=True))
     status = db.Column(db.String(40))
     status_updated_at = db.Column(db.DateTime(timezone=True))
+    availability_checked_at = db.Column(db.DateTime(timezone=True))
     gone_detected_at = db.Column(db.DateTime(timezone=True))
     gone_alert_sent_at = db.Column(db.DateTime(timezone=True))
     sold_after_seconds = db.Column(db.Integer)

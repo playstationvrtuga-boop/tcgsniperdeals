@@ -177,6 +177,12 @@ services:
         value: "48"
       - key: FREE_GONE_PREFERRED_AGE_HOURS
         value: "24"
+      - key: FREE_GONE_AVAILABILITY_CHECK_LIMIT
+        value: "10"
+      - key: FREE_GONE_AVAILABILITY_MIN_AGE_MINUTES
+        value: "5"
+      - key: FREE_GONE_AVAILABILITY_RECHECK_MINUTES
+        value: "180"
 
 databases:
   - name: tcg-sniper-deals-db

@@ -9,6 +9,7 @@ from config import APP_API_URL, ENABLE_FREE_GONE_ALERTS, FREE_GONE_WORKER_INTERV
 from services.free_gone_alerts import (
     find_next_gone_candidate,
     get_or_create_state,
+    mark_recent_gone_listings,
     next_due_window_slot,
     post_gone_alert,
     record_gone_alert_post,
@@ -57,6 +58,9 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
 
             state = get_or_create_state()
             now = datetime.now().astimezone()
+            marked_gone = mark_recent_gone_listings(now)
+            if marked_gone:
+                print(f"[gone_worker] discovered_gone={marked_gone}")
             window, due_at = next_due_window_slot(state, now)
 
             if state.daily_posted_count >= state.daily_target_count:
