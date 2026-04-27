@@ -108,6 +108,10 @@ class Listing(TimestampMixin, db.Model):
     pricing_basis = db.Column(db.String(40))
     confidence_score = db.Column(db.Integer)
     listing_type = db.Column(db.String(40))
+    cardmarket_trending_score = db.Column(db.Integer)
+    cardmarket_trend_rank = db.Column(db.Integer)
+    cardmarket_trend_category = db.Column(db.String(40))
+    ai_market_intel_verdict = db.Column(db.String(40))
     estimated_profit = db.Column(db.Float)
     discount_percent = db.Column(db.Float)
     profit_margin = db.Column(db.Float)
@@ -383,3 +387,39 @@ class FreeGoneAlertState(TimestampMixin, db.Model):
 
     def set_used_listing_ids(self, values: list[int]) -> None:
         self.used_listing_ids_json = json.dumps(sorted({int(value) for value in values}), ensure_ascii=False)
+
+
+class CardmarketTrend(TimestampMixin, db.Model):
+    __tablename__ = "cardmarket_trends"
+
+    id = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(40), nullable=False, index=True)
+    rank = db.Column(db.Integer, nullable=False)
+    product_name = db.Column(db.String(255), nullable=False)
+    expansion = db.Column(db.String(120))
+    card_number = db.Column(db.String(40))
+    price = db.Column(db.Float)
+    currency = db.Column(db.String(8), default="EUR", nullable=False)
+    image_url = db.Column(db.String(1000))
+    product_url = db.Column(db.String(1000))
+    source_url = db.Column(db.String(1000), nullable=False, default="https://www.cardmarket.com/en/Pokemon")
+    collected_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
+    raw_payload_json = db.Column(db.Text)
+
+    __table_args__ = (
+        db.Index("ix_cardmarket_trends_category_collected_rank", "category", "collected_at", "rank"),
+        db.Index("ix_cardmarket_trends_product_name", "product_name"),
+    )
+
+    @property
+    def set_or_number(self) -> str:
+        parts = [value for value in (self.expansion, self.card_number) if value]
+        return " ".join(parts)
+
+    @property
+    def liquidity_label(self) -> str:
+        if self.rank <= 3:
+            return "FAST"
+        if self.rank <= 7:
+            return "MEDIUM"
+        return "SLOW"

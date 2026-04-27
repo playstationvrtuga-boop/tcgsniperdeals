@@ -8,6 +8,8 @@ from flask_login import current_user, login_required
 from sqlalchemy import and_, case, or_
 from sqlalchemy.orm import defer
 
+from services.ai_market_intel import build_ai_market_intel_payload
+
 from .decorators import vip_required
 from .extensions import db
 from .feed_cache import get_or_set
@@ -735,6 +737,24 @@ def missed_deals():
         board_intro="Sold, removed or unavailable listings detected earlier by TCG Sniper Deals.",
         stat_label="Missed stream",
     )
+
+
+@main_bp.route("/ai-market-intel")
+@vip_required
+def ai_market_intel():
+    payload = build_ai_market_intel_payload()
+    return render_template(
+        "ai_market_intel.html",
+        intel=payload,
+        active_tab="ai",
+        push_enabled=push_enabled(),
+    )
+
+
+@main_bp.route("/api/vip/ai-market-intel")
+@vip_required
+def ai_market_intel_api():
+    return jsonify(build_ai_market_intel_payload())
 
 
 @main_bp.route("/feed/updates")

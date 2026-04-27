@@ -20,6 +20,7 @@ from config import (
     PRICING_WORKER_MIN_SLEEP,
 )
 from services.alert_formatter import format_vip_alert, make_partial_product_name
+from services.ai_market_intel import apply_ai_market_intel_to_listing
 from services.deal_detector import EbaySoldError, EbaySoldRateLimitError, evaluate_listing
 from services.ebay_api_client import ebay_api_client
 from vip_app.app import create_app
@@ -227,6 +228,10 @@ def process_listing(listing: Listing) -> str:
         if result.reason:
             print(f"[pricing_worker] diagnostic_reason={result.reason}")
         _mark_processed(listing, result)
+        try:
+            apply_ai_market_intel_to_listing(listing)
+        except Exception as intel_error:
+            print(f"[pricing_worker] ai market intel skipped for listing {listing.id}: {intel_error}")
 
         if result.is_deal and listing.deal_alert_sent_at is None:
             vip_alert = format_vip_alert(

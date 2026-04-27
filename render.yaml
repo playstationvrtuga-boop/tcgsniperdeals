@@ -183,6 +183,41 @@ services:
         value: "5"
       - key: FREE_GONE_AVAILABILITY_RECHECK_MINUTES
         value: "180"
+  - type: worker
+    name: tcg-sniper-deals-market-intel-worker
+    env: python
+    plan: starter
+    rootDir: vip_app
+    buildCommand: pip install -r requirements.txt
+    startCommand: python cardmarket_trends_worker_entry.py
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tcg-sniper-deals-db
+          property: connectionString
+      - key: RUN_STARTUP_SCHEMA_CHECK
+        value: "true"
+      - key: RUN_DB_CREATE_ALL
+        value: "false"
+      - key: LOG_STARTUP_TIMING
+        value: "false"
+      - key: DB_POOL_SIZE
+        value: "1"
+      - key: DB_MAX_OVERFLOW
+        value: "1"
+      - key: CARDMARKET_TRENDS_ENABLED
+        value: "true"
+      - key: CARDMARKET_TRENDS_INTERVAL_HOURS
+        value: "24"
+      - key: CARDMARKET_TRENDS_MAX_ITEMS
+        value: "20"
+      - key: CARDMARKET_TRENDS_SOURCE_URL
+        value: "https://www.cardmarket.com/en/Pokemon"
+      - key: CARDMARKET_TRENDS_TIMEOUT_SECONDS
+        value: "20"
+      - key: CARDMARKET_TRENDS_USER_AGENT
+        value: "TCGSniperDealsBot/1.0"
 
 databases:
   - name: tcg-sniper-deals-db

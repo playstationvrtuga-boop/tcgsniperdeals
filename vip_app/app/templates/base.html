@@ -100,6 +100,7 @@
       <a class="bottom-nav-item {% if request.endpoint == 'main.feed' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">⚡ Live</a>
       <a class="bottom-nav-item {% if request.endpoint == 'main.smart_deals' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Sniper</a>
       <a class="bottom-nav-item {% if request.endpoint == 'main.missed_deals' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">💀 Missed</a>
+      <a class="bottom-nav-item {% if request.endpoint == 'main.ai_market_intel' %}is-active{% endif %}" href="{{ url_for('main.ai_market_intel') }}">AI Intel</a>
     </nav>
     {% endif %}
   </div>

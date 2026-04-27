@@ -667,3 +667,70 @@ gunicorn --config gunicorn_conf.py wsgi:app
 ```
 
 These settings keep startup lighter, keep `/health` instant, and give the web service two workers by default without moving heavy work into the request path.
+
+## AI Market Intel
+
+VIP users now have an `AI Market Intel` tab inside the app.
+
+Purpose:
+
+- collect a lightweight daily Cardmarket public trends snapshot
+- show Best Sellers and Best Bargains inside the VIP app
+- connect those trends to Sniper Deals when a live listing matches the market movement
+- add an `AI Market Intel: Trending on Cardmarket` badge to matched Sniper Deals
+
+The collector is intentionally conservative:
+
+- it runs once every 24 hours
+- it uses the public Cardmarket Pokemon page only
+- it does not bypass login, CAPTCHA, paywalls or anti-bot systems
+- if Cardmarket blocks or fails, the app keeps showing the last successful snapshot
+
+Local commands:
+
+```powershell
+cd C:\Users\Trabalho\Desktop\bot_pokemon
+python cardmarket_trends_worker.py --once
+python cardmarket_trends_worker.py
+```
+
+Render setup:
+
+Create or keep the background worker:
+
+`tcg-sniper-deals-market-intel-worker`
+
+Command from `vip_app`:
+
+```powershell
+python cardmarket_trends_worker_entry.py
+```
+
+Environment variables:
+
+```env
+CARDMARKET_TRENDS_ENABLED=true
+CARDMARKET_TRENDS_INTERVAL_HOURS=24
+CARDMARKET_TRENDS_MAX_ITEMS=20
+CARDMARKET_TRENDS_SOURCE_URL=https://www.cardmarket.com/en/Pokemon
+CARDMARKET_TRENDS_TIMEOUT_SECONDS=20
+CARDMARKET_TRENDS_USER_AGENT=TCGSniperDealsBot/1.0
+```
+
+Expected logs:
+
+```text
+[ai_market_intel] AI_MARKET_INTEL_STARTED
+[ai_market_intel] CARDMARKET_TRENDS_FETCH_OK
+[ai_market_intel] CARDMARKET_TRENDS_PARSE_OK count=...
+[ai_market_intel] CARDMARKET_TRENDS_SAVED count=...
+[ai_market_intel] AI_MARKET_INTEL_MATCHED_LISTING listing_id=...
+[ai_market_intel] AI_MARKET_INTEL_SNIPER_SCORE_BOOSTED listing_id=...
+```
+
+If Cardmarket is unavailable, look for:
+
+```text
+[ai_market_intel] CARDMARKET_TRENDS_FAILED error=...
+[ai_market_intel] AI_MARKET_INTEL_USING_LAST_SNAPSHOT
+```

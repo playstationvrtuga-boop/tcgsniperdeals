@@ -5,6 +5,7 @@
   <a class="vip-tab {% if active_tab == 'live' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">⚡ Live Deals</a>
   <a class="vip-tab {% if active_tab == 'smart' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Sniper Deals</a>
   <a class="vip-tab {% if active_tab == 'missed' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">💀 Missed Deals</a>
+  <a class="vip-tab {% if active_tab == 'ai' %}is-active{% endif %}" href="{{ url_for('main.ai_market_intel') }}">AI Market Intel</a>
 </nav>
 
 <section class="feed-command-center feed-mode-{{ page_mode|default('live') }}{% if not enable_live_radar %} is-radar-off{% endif %}">

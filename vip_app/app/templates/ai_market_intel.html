@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}AI Market Intel - TCG Sniper Deals{% endblock %}
+{% block content %}
+<nav class="vip-tab-nav" aria-label="VIP deal sections">
+  <a class="vip-tab" href="{{ url_for('main.feed') }}">Live Deals</a>
+  <a class="vip-tab" href="{{ url_for('main.smart_deals') }}">Sniper Deals</a>
+  <a class="vip-tab" href="{{ url_for('main.missed_deals') }}">Missed Deals</a>
+  <a class="vip-tab is-active" href="{{ url_for('main.ai_market_intel') }}">AI Market Intel</a>
+</nav>
+
+<section class="ai-intel-page">
+  <header class="ai-intel-hero">
+    <div>
+      <span class="ai-intel-kicker">Market intelligence</span>
+      <h1>AI Market Intel</h1>
+      <p>See where the market moves before everyone else.</p>
+    </div>
+    <div class="ai-intel-meta-card">
+      <span>Data source</span>
+      <strong>Cardmarket</strong>
+      <small>
+        {% if intel.last_updated %}
+          Last updated {{ intel.last_updated|datetime_format }}
+        {% else %}
+          Waiting for first snapshot
+        {% endif %}
+      </small>
+      <small>Updated every 24h</small>
+      {% if intel.stale %}
+      <em>Using latest saved snapshot</em>
+      {% endif %}
+    </div>
+  </header>
+
+  <section class="ai-market-direction">
+    <span class="ai-intel-kicker">Market direction</span>
+    <h2>{{ intel.market_summary.market_status|replace("_", " ")|title }}</h2>
+    <p>{{ intel.market_summary.summary_text }}</p>
+    <div class="ai-direction-grid">
+      <div>
+        <span>Top demand</span>
+        <strong>{{ intel.market_summary.top_demand }}</strong>
+      </div>
+      <div>
+        <span>Rising category</span>
+        <strong>{{ intel.market_summary.rising_category|title }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="ai-intel-section">
+    <div class="ai-section-heading">
+      <span class="ai-intel-kicker">Trending now</span>
+      <h2>Best Sellers</h2>
+    </div>
+    <div class="ai-trend-grid">
+      {% for item in intel.best_sellers %}
+      <article class="ai-trend-card">
+        <div class="ai-trend-image">
+          {% if item.image_url %}
+          <img src="{{ item.image_url }}" alt="{{ item.product_name }}">
+          {% else %}
+          <span class="ai-trend-placeholder">TCG</span>
+          {% endif %}
+          <span class="ai-rank">#{{ item.rank }}</span>
+        </div>
+        <div class="ai-trend-body">
+          <div class="ai-trend-topline">
+            <span class="ai-liquidity ai-liquidity-{{ item.liquidity|lower }}">{{ item.liquidity }}</span>
+            {% if item.price is not none %}<strong>{{ "%.2f"|format(item.price) }} {{ item.currency }}</strong>{% endif %}
+          </div>
+          <h3>{{ item.product_name }}</h3>
+          <p>{{ item.expansion or "Pokemon TCG" }}{% if item.card_number %} · {{ item.card_number }}{% endif %}</p>
+        </div>
+      </article>
+      {% else %}
+      <article class="ai-empty-card">Not enough data yet. Showing latest Cardmarket snapshot when available.</article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="ai-intel-section">
+    <div class="ai-section-heading">
+      <span class="ai-intel-kicker">Market bargains</span>
+      <h2>Best Bargains</h2>
+    </div>
+    <div class="ai-trend-grid">
+      {% for item in intel.best_bargains %}
+      <article class="ai-trend-card ai-bargain-card">
+        <div class="ai-trend-image">
+          {% if item.image_url %}
+          <img src="{{ item.image_url }}" alt="{{ item.product_name }}">
+          {% else %}
+          <span class="ai-trend-placeholder">TCG</span>
+          {% endif %}
+          <span class="ai-rank">#{{ item.rank }}</span>
+        </div>
+        <div class="ai-trend-body">
+          <div class="ai-trend-topline">
+            <span class="ai-bargain-badge">Bargain Signal</span>
+            {% if item.price is not none %}<strong>{{ "%.2f"|format(item.price) }} {{ item.currency }}</strong>{% endif %}
+          </div>
+          <h3>{{ item.product_name }}</h3>
+          <p>{{ item.expansion or "Pokemon TCG" }}{% if item.card_number %} · {{ item.card_number }}{% endif %}</p>
+        </div>
+      </article>
+      {% else %}
+      <article class="ai-empty-card">No bargain signals collected yet.</article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="ai-intel-section">
+    <div class="ai-section-heading">
+      <span class="ai-intel-kicker">Sniper link</span>
+      <h2>Smart Opportunities</h2>
+    </div>
+    <div class="ai-opportunity-list">
+      {% for opportunity in intel.smart_opportunities %}
+      <article class="ai-opportunity-card">
+        <div>
+          <span class="ai-verdict">{{ opportunity.ai_verdict }}</span>
+          <h3>{{ opportunity.listing_title }}</h3>
+          <p>{{ opportunity.marketplace or "Marketplace" }} · Cardmarket rank #{{ opportunity.cardmarket_rank }}</p>
+        </div>
+        <div class="ai-opportunity-metrics">
+          <span>Listing {{ opportunity.listing_price or "n/a" }}</span>
+          <strong>
+            {% if opportunity.potential_profit is not none %}
+              +{{ "%.2f"|format(opportunity.potential_profit) }} EUR
+            {% else %}
+              Profit pending
+            {% endif %}
+          </strong>
+          <small>Confidence {{ opportunity.confidence_score or "Low" }}</small>
+        </div>
+      </article>
+      {% else %}
+      <article class="ai-empty-card">No live Sniper Deals match the current Cardmarket trend snapshot yet.</article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="ai-intel-section">
+    <div class="ai-section-heading">
+      <span class="ai-intel-kicker">Hidden signals</span>
+      <h2>What the data hints at</h2>
+    </div>
+    <div class="ai-signal-grid">
+      {% for signal in intel.hidden_signals %}
+      <article class="ai-signal-card">
+        <strong>{{ signal.title }}</strong>
+        <p>{{ signal.body }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+</section>
+{% endblock %}

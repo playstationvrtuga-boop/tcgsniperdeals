@@ -42,6 +42,10 @@ def ensure_runtime_schema(app):
             "pricing_basis": "ALTER TABLE listings ADD COLUMN pricing_basis VARCHAR(40)",
             "confidence_score": "ALTER TABLE listings ADD COLUMN confidence_score INTEGER",
             "listing_type": "ALTER TABLE listings ADD COLUMN listing_type VARCHAR(40)",
+            "cardmarket_trending_score": "ALTER TABLE listings ADD COLUMN cardmarket_trending_score INTEGER",
+            "cardmarket_trend_rank": "ALTER TABLE listings ADD COLUMN cardmarket_trend_rank INTEGER",
+            "cardmarket_trend_category": "ALTER TABLE listings ADD COLUMN cardmarket_trend_category VARCHAR(40)",
+            "ai_market_intel_verdict": "ALTER TABLE listings ADD COLUMN ai_market_intel_verdict VARCHAR(40)",
             "estimated_profit": "ALTER TABLE listings ADD COLUMN estimated_profit FLOAT",
             "discount_percent": "ALTER TABLE listings ADD COLUMN discount_percent FLOAT",
             "profit_margin": "ALTER TABLE listings ADD COLUMN profit_margin FLOAT",
@@ -90,6 +94,10 @@ def ensure_runtime_schema(app):
             "pricing_basis": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS pricing_basis VARCHAR(40)",
             "confidence_score": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS confidence_score INTEGER",
             "listing_type": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS listing_type VARCHAR(40)",
+            "cardmarket_trending_score": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS cardmarket_trending_score INTEGER",
+            "cardmarket_trend_rank": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS cardmarket_trend_rank INTEGER",
+            "cardmarket_trend_category": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS cardmarket_trend_category VARCHAR(40)",
+            "ai_market_intel_verdict": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS ai_market_intel_verdict VARCHAR(40)",
             "estimated_profit": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS estimated_profit DOUBLE PRECISION",
             "discount_percent": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS discount_percent DOUBLE PRECISION",
             "profit_margin": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS profit_margin DOUBLE PRECISION",
@@ -134,6 +142,7 @@ def ensure_runtime_schema(app):
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_platform_detected_at ON listings (platform, detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_is_deal_detected_at ON listings (is_deal, detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_badge_label_detected_at ON listings (badge_label, detected_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_cardmarket_trend ON listings (cardmarket_trend_category, cardmarket_trend_rank)"))
         connection.execute(text("UPDATE listings SET normalized_url = external_url WHERE normalized_url IS NULL"))
         connection.execute(text("UPDATE listings SET available_status = 'available' WHERE available_status IS NULL"))
         connection.execute(text("UPDATE listings SET status = available_status WHERE status IS NULL"))
@@ -142,6 +151,10 @@ def ensure_runtime_schema(app):
         connection.execute(text("UPDATE listings SET is_vip_only = true WHERE is_vip_only IS NULL"))
         connection.execute(text("UPDATE listings SET free_sent = false WHERE free_sent IS NULL"))
         connection.execute(text("UPDATE listings SET detected_at = posted_at WHERE detected_at IS NULL"))
+
+    from .models import CardmarketTrend
+
+    CardmarketTrend.__table__.create(db.engine, checkfirst=True)
 
 
 def create_app(minimal=False, skip_db=False, skip_blueprints=False):

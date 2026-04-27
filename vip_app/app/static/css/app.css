@@ -3031,6 +3031,325 @@ select { font: inherit; }
   background: rgba(53, 224, 255, 0.1);
 }
 
+.ai-intel-inline-badge {
+  display: inline-flex;
+  width: fit-content;
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(124, 92, 255, 0.36);
+  border-radius: 999px;
+  color: #dcd6ff;
+  background: linear-gradient(90deg, rgba(124, 92, 255, 0.16), rgba(53, 224, 255, 0.08));
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ai-intel-page {
+  display: grid;
+  gap: 18px;
+}
+
+.ai-intel-hero,
+.ai-market-direction,
+.ai-intel-section {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(53, 224, 255, 0.16);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(124, 92, 255, 0.18), transparent 30%),
+    radial-gradient(circle at 86% 10%, rgba(0, 255, 166, 0.09), transparent 34%),
+    linear-gradient(180deg, rgba(13, 20, 32, 0.98), rgba(7, 12, 20, 0.98));
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.34);
+}
+
+.ai-intel-hero::before,
+.ai-market-direction::before,
+.ai-intel-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(53, 224, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(53, 224, 255, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.42), transparent 80%);
+}
+
+.ai-intel-hero {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+
+.ai-intel-hero > *,
+.ai-market-direction > *,
+.ai-intel-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ai-intel-kicker {
+  display: inline-flex;
+  width: fit-content;
+  padding: 6px 10px;
+  border: 1px solid rgba(53, 224, 255, 0.18);
+  border-radius: 999px;
+  color: #35e0ff;
+  background: rgba(53, 224, 255, 0.07);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ai-intel-hero h1,
+.ai-market-direction h2,
+.ai-intel-section h2 {
+  margin: 12px 0 0;
+}
+
+.ai-intel-hero h1 {
+  font-size: clamp(2.4rem, 7vw, 4.8rem);
+  line-height: 0.98;
+  max-width: 9ch;
+}
+
+.ai-intel-hero p,
+.ai-market-direction p {
+  max-width: 62ch;
+  color: var(--muted-strong);
+  line-height: 1.65;
+}
+
+.ai-intel-meta-card {
+  display: grid;
+  gap: 7px;
+  align-content: center;
+  padding: 18px;
+  border: 1px solid rgba(124, 92, 255, 0.24);
+  border-radius: var(--radius-md);
+  background: rgba(6, 11, 18, 0.64);
+}
+
+.ai-intel-meta-card span,
+.ai-intel-meta-card small,
+.ai-intel-meta-card em,
+.ai-direction-grid span {
+  color: var(--muted);
+}
+
+.ai-intel-meta-card strong {
+  font-size: 1.4rem;
+}
+
+.ai-intel-meta-card em {
+  font-style: normal;
+  color: #ffca6a;
+}
+
+.ai-market-direction,
+.ai-intel-section {
+  padding: 22px;
+}
+
+.ai-direction-grid,
+.ai-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.ai-direction-grid > div,
+.ai-signal-card,
+.ai-empty-card {
+  padding: 16px;
+  border: 1px solid rgba(159, 176, 199, 0.12);
+  border-radius: var(--radius-md);
+  background: rgba(6, 11, 18, 0.58);
+}
+
+.ai-direction-grid strong,
+.ai-signal-card strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--text);
+}
+
+.ai-section-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.ai-trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.ai-trend-card {
+  overflow: hidden;
+  border: 1px solid rgba(53, 224, 255, 0.14);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(18, 28, 43, 0.96), rgba(8, 13, 22, 0.98));
+}
+
+.ai-bargain-card {
+  border-color: rgba(0, 255, 166, 0.18);
+}
+
+.ai-trend-image {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(53, 224, 255, 0.16), transparent 45%),
+    rgba(3, 7, 12, 0.72);
+}
+
+.ai-trend-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 10px;
+}
+
+.ai-trend-placeholder {
+  color: rgba(243, 247, 255, 0.42);
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
+.ai-rank {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  display: inline-flex;
+  min-width: 42px;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(53, 224, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(6, 11, 18, 0.78);
+  color: var(--text);
+  font-weight: 900;
+}
+
+.ai-trend-body {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.ai-trend-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ai-liquidity,
+.ai-bargain-badge,
+.ai-verdict {
+  display: inline-flex;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ai-liquidity-fast {
+  color: #001b12;
+  background: #00ffa6;
+}
+
+.ai-liquidity-medium {
+  color: #06121b;
+  background: #35e0ff;
+}
+
+.ai-liquidity-slow {
+  color: #f3f7ff;
+  background: rgba(124, 92, 255, 0.42);
+}
+
+.ai-bargain-badge {
+  color: #001b12;
+  background: linear-gradient(90deg, #00ffa6, #35e0ff);
+}
+
+.ai-trend-body h3,
+.ai-opportunity-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.ai-trend-body p,
+.ai-opportunity-card p,
+.ai-signal-card p,
+.ai-empty-card {
+  margin: 0;
+  color: var(--muted-strong);
+  line-height: 1.55;
+}
+
+.ai-opportunity-list {
+  display: grid;
+  gap: 12px;
+}
+
+.ai-opportunity-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(124, 92, 255, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(6, 11, 18, 0.58);
+}
+
+.ai-verdict {
+  margin-bottom: 8px;
+  color: #f3f7ff;
+  background: rgba(124, 92, 255, 0.36);
+}
+
+.ai-opportunity-metrics {
+  display: grid;
+  gap: 3px;
+}
+
+.ai-opportunity-metrics span,
+.ai-opportunity-metrics small {
+  color: var(--muted);
+}
+
+.ai-opportunity-metrics strong {
+  color: #00ffa6;
+  font-size: 1.25rem;
+}
+
+@media (min-width: 760px) {
+  .ai-intel-hero {
+    grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.65fr);
+    align-items: stretch;
+  }
+
+  .ai-opportunity-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
 @media (min-width: 860px) {
   .seo-hero {
     grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);

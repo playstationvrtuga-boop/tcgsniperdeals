@@ -68,6 +68,9 @@
       <span class="market-dot" aria-hidden="true"></span>
       <span>Marketplace: {{ listing.platform }}</span>
     </p>
+    {% if listing.cardmarket_trending_score %}
+    <p class="ai-intel-inline-badge">AI Market Intel: Trending on Cardmarket</p>
+    {% endif %}
 
     <div class="listing-price-row">
       <strong class="listing-price">{{ listing.price_display }}</strong>
@@ -118,6 +121,12 @@
         <span class="signal-label">Signal</span>
         <strong>{% if mode == "missed" %}{{ listing.effective_status }}{% else %}{{ listing.display_signal }}{% endif %}</strong>
       </div>
+      {% if listing.cardmarket_trending_score %}
+      <div>
+        <span class="signal-label">AI Market Intel</span>
+        <strong>{{ listing.ai_market_intel_verdict or "WATCH" }}</strong>
+      </div>
+      {% endif %}
       {% if mode == "missed" %}
       <div>
         <span class="signal-label">Gone detected</span>
