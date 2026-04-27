@@ -157,6 +157,74 @@ class EbayApiClientTests(unittest.TestCase):
 
         self.assertEqual(listings, [])
 
+    def test_graded_buy_now_keeps_grading_company_separate(self):
+        session = FakeSession(
+            {
+                "itemSummaries": [
+                    {
+                        "title": "Mega Charizard X EX PSA 9.5 Graded Slab",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "800.00", "currency": "EUR"},
+                    },
+                    {
+                        "title": "Mega Charizard X EX CGC 9.5 Graded Slab",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "650.00", "currency": "EUR"},
+                    },
+                    {
+                        "title": "Mega Charizard X EX Beckett 9.5 Graded Slab",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "520.00", "currency": "EUR"},
+                    },
+                    {
+                        "title": "Mega Charizard X EX BGS 9.5 Graded Slab",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "500.00", "currency": "EUR"},
+                    },
+                ]
+            }
+        )
+        client = EbayApiClient()
+        client.session = session
+        client._get_access_token = lambda **_kwargs: "token"
+
+        listings = client.fetch_active_buy_now(
+            "Mega charizard x ex BGS 9.5",
+            max_results=5,
+            listing_kind="graded_card",
+        )
+
+        self.assertEqual([listing.price_eur for listing in listings], [520.0, 500.0])
+
+    def test_graded_buy_now_accepts_bgs_for_beckett_listing(self):
+        session = FakeSession(
+            {
+                "itemSummaries": [
+                    {
+                        "title": "Mega Charizard X EX BGS 9.5 Graded Slab",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "500.00", "currency": "EUR"},
+                    },
+                    {
+                        "title": "Mega Charizard X EX PSA 9.5 Graded Slab",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "800.00", "currency": "EUR"},
+                    },
+                ]
+            }
+        )
+        client = EbayApiClient()
+        client.session = session
+        client._get_access_token = lambda **_kwargs: "token"
+
+        listings = client.fetch_active_buy_now(
+            "Mega charizard x ex Beckett 9.5",
+            max_results=5,
+            listing_kind="graded_card",
+        )
+
+        self.assertEqual([listing.price_eur for listing in listings], [500.0])
+
     def test_missing_api_keys_report_clear_status(self):
         ebay_api_client.EBAY_ENABLE_OFFICIAL_API = True
         ebay_api_client.EBAY_CLIENT_ID = ""

@@ -60,6 +60,12 @@ NOISY_QUERY_TERMS = {
 GRADED_REFERENCE_TERMS = {
     "psa", "bgs", "cgc", "beckett", "graded", "grade", "graad", "slab",
 }
+GRADING_COMPANY_ALIASES = {
+    "psa": "psa",
+    "bgs": "bgs",
+    "beckett": "bgs",
+    "cgc": "cgc",
+}
 DISALLOWED_REFERENCE_TERMS = {
     "proxy", "custom", "fake", "replica", "reprint", "fan art", "fanart",
     "digital", "orica", "metal card", "gold card",
@@ -215,6 +221,14 @@ def _extract_grade(value: str) -> float | None:
         return None
 
 
+def _extract_grading_company(value: str) -> str | None:
+    normalized = _normalized_words(value)
+    for alias, company in GRADING_COMPANY_ALIASES.items():
+        if re.search(rf"\b{re.escape(alias)}\b", normalized):
+            return company
+    return None
+
+
 def _reference_rejection_reason(product_name: str, candidate_title: str, listing_kind: str | None) -> str | None:
     if not candidate_title:
         return "missing_title"
@@ -233,11 +247,13 @@ def _reference_rejection_reason(product_name: str, candidate_title: str, listing
     if listing_kind != "graded_card":
         return None
 
-    product_norm = _normalized_words(product_name)
-    candidate_norm = _normalized_words(candidate_title)
-    for grading_company in ("psa", "bgs", "cgc", "beckett"):
-        if grading_company in product_norm and grading_company not in candidate_norm:
-            return f"{grading_company}_missing"
+    expected_company = _extract_grading_company(product_name)
+    if expected_company is not None:
+        candidate_company = _extract_grading_company(candidate_title)
+        if candidate_company is None:
+            return f"{expected_company}_missing"
+        if candidate_company != expected_company:
+            return "grading_company_mismatch"
 
     expected_grade = _extract_grade(product_name)
     if expected_grade is not None:
