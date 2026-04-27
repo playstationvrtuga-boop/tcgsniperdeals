@@ -1,7 +1,8 @@
+import base64
 import unittest
 
 import services.ebay_api_client as ebay_api_client
-from services.ebay_api_client import EbayApiClient
+from services.ebay_api_client import EBAY_TOKEN_REQUEST_TIMEOUT, EbayApiClient
 
 
 class FakeResponse:
@@ -20,12 +21,20 @@ class FakeSession:
         self.status_code = status_code
         self.text = text
         self.last_params = None
+        self.last_post_url = None
+        self.last_post_headers = None
+        self.last_post_data = None
+        self.last_post_timeout = None
 
     def get(self, _url, headers=None, params=None, timeout=None):
         self.last_params = params
         return FakeResponse(self.payload, status_code=self.status_code, text=self.text)
 
     def post(self, _url, headers=None, data=None, timeout=None):
+        self.last_post_url = _url
+        self.last_post_headers = headers or {}
+        self.last_post_data = data or {}
+        self.last_post_timeout = timeout
         return FakeResponse(self.payload, status_code=self.status_code, text=self.text)
 
 
@@ -91,6 +100,22 @@ class EbayApiClientTests(unittest.TestCase):
 
         with self.assertRaisesRegex(Exception, "TOKEN_FAILED"):
             client._get_access_token()
+
+    def test_token_request_uses_basic_auth_form_data_and_timeout(self):
+        session = FakeSession({"access_token": "access-token", "expires_in": 7200})
+        client = EbayApiClient()
+        client.session = session
+
+        token = client._get_access_token(force_refresh=True)
+
+        expected_basic = base64.b64encode(b"client-id:client-secret").decode("ascii")
+        self.assertEqual(token, "access-token")
+        self.assertEqual(session.last_post_headers["Authorization"], f"Basic {expected_basic}")
+        self.assertEqual(session.last_post_headers["Content-Type"], "application/x-www-form-urlencoded")
+        self.assertEqual(session.last_post_data["grant_type"], "client_credentials")
+        self.assertEqual(session.last_post_data["scope"], "https://api.ebay.com/oauth/api_scope")
+        self.assertEqual(session.last_post_timeout, EBAY_TOKEN_REQUEST_TIMEOUT)
+        self.assertEqual(session.last_post_url, "https://api.ebay.com/identity/v1/oauth2/token")
 
     def test_zero_results_return_empty_after_query_variants(self):
         client = EbayApiClient()

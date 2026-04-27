@@ -44,6 +44,8 @@ FX_TO_EUR = {
     "USD": 0.88,
     "GBP": 1.17,
 }
+EBAY_TOKEN_REQUEST_TIMEOUT = 20
+EBAY_TOKEN_MAX_ATTEMPTS = 2
 
 NOISY_QUERY_TERMS = {
     "psa", "graded", "grade", "slab", "bgs", "cgc", "beckett",
@@ -236,26 +238,51 @@ class EbayApiClient:
             "scope": EBAY_OAUTH_SCOPE,
         }
 
-        try:
-            response = self.session.post(_runtime_token_url(), headers=headers, data=data, timeout=self.timeout)
-        except requests.Timeout as error:
-            raise EbaySoldError("TOKEN_FAILED: official eBay token request timed out.") from error
-        except requests.RequestException as error:
-            raise EbaySoldError(f"TOKEN_FAILED: official eBay token request failed: {error}") from error
+        last_error: Exception | None = None
+        for attempt in range(1, EBAY_TOKEN_MAX_ATTEMPTS + 1):
+            _log("oauth_request_start")
+            try:
+                response = self.session.post(
+                    _runtime_token_url(),
+                    headers=headers,
+                    data=data,
+                    timeout=EBAY_TOKEN_REQUEST_TIMEOUT,
+                )
+            except requests.Timeout as error:
+                last_error = error
+                _log(f"token FAILED reason=request_timeout attempt={attempt}")
+                if attempt < EBAY_TOKEN_MAX_ATTEMPTS:
+                    continue
+                raise EbaySoldError("TOKEN_FAILED: official eBay token request timed out.") from error
+            except requests.RequestException as error:
+                last_error = error
+                _log(f"token FAILED reason=request_exception attempt={attempt} error={error}")
+                if attempt < EBAY_TOKEN_MAX_ATTEMPTS:
+                    continue
+                raise EbaySoldError(f"TOKEN_FAILED: official eBay token request failed: {error}") from error
+            break
+        else:
+            raise EbaySoldError(f"TOKEN_FAILED: official eBay token request failed: {last_error}")
 
+        _log(f"oauth_response_status={response.status_code}")
         _log(f"token endpoint={_runtime_token_url()} status={response.status_code}")
         if response.status_code in {400, 401}:
+            _log("token FAILED reason=TOKEN_INVALID_OR_EXPIRED")
             raise EbaySoldError(f"TOKEN_FAILED: TOKEN_INVALID_OR_EXPIRED: official eBay token request failed with HTTP {response.status_code}: {response.text[:240]}")
         if response.status_code == 403:
+            _log("token FAILED reason=PERMISSION_DENIED")
             raise EbaySoldError(f"TOKEN_FAILED: PERMISSION_DENIED: official eBay API credentials or scopes were rejected: {response.text[:240]}")
         if response.status_code == 429:
+            _log("token FAILED reason=RATE_LIMIT")
             raise EbaySoldRateLimitError(f"TOKEN_FAILED: RATE_LIMIT: official eBay token request was rate-limited: {response.text[:240]}")
         if response.status_code >= 400:
+            _log(f"token FAILED reason=HTTP_{response.status_code}")
             raise EbaySoldError(f"TOKEN_FAILED: official eBay token request failed with HTTP {response.status_code}: {response.text[:240]}")
 
         payload = self._json_response(response, "Official eBay token response was invalid.")
         token = str(payload.get("access_token") or "")
         if not token:
+            _log("token FAILED reason=missing_access_token")
             raise EbaySoldError("TOKEN_FAILED: official eBay token response did not include an access token.")
 
         expires_in = int(payload.get("expires_in") or 7200)
@@ -594,8 +621,20 @@ def get_official_recent_sales(
 
 
 def _run_manual_test(argv: list[str]) -> int:
-    query = " ".join(argv).strip() or "pokemon charizard"
+    token_only = "--token-test" in argv
+    query_args = [arg for arg in argv if arg != "--token-test"]
+    query = " ".join(query_args).strip() or "pokemon charizard"
     client = EbayApiClient()
+    if token_only:
+        client.log_config_status(log=True)
+        try:
+            client._get_access_token(force_refresh=True)
+        except Exception as error:
+            print(f"token FAILED: {error}")
+            return 1
+        print("token OK")
+        return 0
+
     result = client.startup_check(query=query, limit=20, log=True)
     print(f"token {result['token_status']}")
     print(f"search {result['search_status']}")
