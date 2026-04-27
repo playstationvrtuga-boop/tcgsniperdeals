@@ -233,6 +233,9 @@ The worker:
 - reads one pending listing at a time from the app database
 - parses imperfect titles with a generic Pokemon title parser before pricing
 - creates multiple alias queries such as `charizard 125/094`, `pokemon 125/094`, `pfl 125`, or `pokemon charizard card`
+- detects whether the original listing is RAW, graded/slab, sealed, lot/bundle, accessory or unknown before comparing prices
+- never prices a RAW card using PSA/BGS/CGC/Beckett/Aura/RPA/slab comparables
+- only compares graded listings against graded references, preferring the same grading company and grade
 - checks official eBay API Buy Now prices first when credentials are configured
 - keeps the old `eBay sold`/Buy Now HTML lookup disabled by default in production, because eBay can return anti-bot pages
 - falls back to similar listings already stored in the local app database
@@ -300,6 +303,16 @@ Before any query is sent to eBay, the worker now removes generic stopwords such 
 [pricing] valid=false
 [pricing] skipped_invalid_query=true
 ```
+
+RAW vs graded protection is enforced after eBay returns results, so inflated graded references are rejected even if the API search returns them:
+
+```text
+[pricing] LISTING_TYPE_DETECTED_RAW
+[pricing] COMPARABLE_REJECTED_GRADED_FOR_RAW source=buy_now title=PSA 10 Zapdos Fossil 15/62
+[pricing] PRICE_COMPARE_INSUFFICIENT_RAW_COMPARABLES
+```
+
+If a RAW card has no usable RAW comparables after filtering, Sniper Deals shows low confidence and `Market: Not enough RAW comparables` instead of showing a fake market price or inflated profit.
 
 ### Render setup: official eBay API pricing
 

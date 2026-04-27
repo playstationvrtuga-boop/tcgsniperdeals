@@ -37,7 +37,10 @@ TYPE_KEYWORDS = {
     "single_card": {"single_card", "card", "raw"},
     "etb": {"etb", "elite trainer box"},
     "booster_box": {"booster box", "display"},
-    "graded_card": {"psa", "bgs", "cgc", "beckett", "graded", "slab"},
+    "graded_card": {
+        "psa", "bgs", "cgc", "beckett", "ace", "sgc", "tag", "aura", "rpa",
+        "graded", "grade", "graad", "slab", "gem mint", "encapsulated", "cert",
+    },
     "sealed_product": {"sealed", "booster bundle", "tin", "collection box"},
 }
 

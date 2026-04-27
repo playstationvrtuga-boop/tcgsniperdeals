@@ -58,7 +58,8 @@ NOISY_QUERY_TERMS = {
     "holo", "reverse", "english", "japanese", "sealed",
 }
 GRADED_REFERENCE_TERMS = {
-    "psa", "bgs", "cgc", "beckett", "graded", "grade", "graad", "slab",
+    "psa", "bgs", "cgc", "beckett", "ace", "sgc", "tag", "aura", "rpa",
+    "graded", "grade", "graad", "slab", "gem mint", "encapsulated", "cert",
 }
 GRADING_COMPANY_ALIASES = {
     "psa": "psa",
@@ -70,6 +71,10 @@ DISALLOWED_REFERENCE_TERMS = {
     "proxy", "custom", "fake", "replica", "reprint", "fan art", "fanart",
     "digital", "orica", "metal card", "gold card",
 }
+RAW_SEARCH_EXCLUSIONS = (
+    "-PSA", "-BGS", "-Beckett", "-CGC", "-ACE", "-SGC", "-TAG", "-Aura",
+    "-RPA", "-graded", "-slab", "-\"gem mint\"", "-\"grade 10\"", "-\"PSA 10\"",
+)
 
 
 @dataclass
@@ -175,6 +180,14 @@ def _without_noisy_terms(query: str) -> str:
     return " ".join(tokens).strip()
 
 
+def _with_raw_negative_filters(query: str, listing_kind: str | None) -> str:
+    if listing_kind not in {"single_card", "unknown_pokemon"}:
+        return query
+    if not query:
+        return query
+    return f"{query} {' '.join(RAW_SEARCH_EXCLUSIONS)}"
+
+
 def build_query_variants(product_name: str, listing_kind: str | None = None) -> list[str]:
     base_query = _query_from_title(product_name, listing_kind=listing_kind)
     cleaned_title = _clean_query_text(product_name)
@@ -193,9 +206,10 @@ def build_query_variants(product_name: str, listing_kind: str | None = None) -> 
         clean = clean_pricing_query(variant)
         if not is_valid_query(clean):
             continue
-        if clean and clean not in seen:
-            seen.add(clean)
-            unique.append(clean)
+        search_query = _with_raw_negative_filters(clean, listing_kind)
+        if search_query and search_query not in seen:
+            seen.add(search_query)
+            unique.append(search_query)
     return unique
 
 

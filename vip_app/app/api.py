@@ -230,6 +230,7 @@ def build_listing_from_payload(payload):
         estimated_fair_value=None,
         pricing_basis=None,
         confidence_score=None,
+        listing_type=None,
         discount_percent=None,
         gross_margin=None,
         pricing_score=None,

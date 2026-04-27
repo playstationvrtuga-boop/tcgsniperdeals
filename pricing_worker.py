@@ -69,6 +69,7 @@ def _mark_processed(listing: Listing, result) -> None:
     listing.estimated_fair_value = result.estimated_fair_value or result.reference_price
     listing.pricing_basis = result.pricing_basis
     listing.confidence_score = result.confidence_score
+    listing.listing_type = result.listing_type
     listing.discount_percent = result.discount_percent
     listing.gross_margin = result.gross_margin
     listing.estimated_profit = result.gross_margin
@@ -141,6 +142,8 @@ def _pricing_reason(result) -> str:
         parts.append(f"fair_value={result.estimated_fair_value:.2f}eur")
     if getattr(result, "pricing_basis", None):
         parts.append(f"basis={result.pricing_basis}")
+    if getattr(result, "listing_type", None):
+        parts.append(f"listing_type={result.listing_type}")
     if getattr(result, "confidence_score", None) is not None:
         parts.append(f"confidence_score={result.confidence_score}")
     if getattr(result, "last_2_sales", None):

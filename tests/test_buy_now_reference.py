@@ -22,14 +22,14 @@ class BuyNowReferenceTests(unittest.TestCase):
 
     def test_sold_reference_has_priority_over_lower_buy_now(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: [
-            EbaySoldListing("sold one", 100.0),
-            EbaySoldListing("sold two", 110.0),
-            EbaySoldListing("sold three", 120.0),
+            EbaySoldListing("Charizard PFL 125/094 sold one", 100.0),
+            EbaySoldListing("Charizard PFL 125/094 sold two", 110.0),
+            EbaySoldListing("Charizard PFL 125/094 sold three", 120.0),
         ]
         deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
-            EbaySoldListing("active one", 80.0),
-            EbaySoldListing("active two", 85.0),
-            EbaySoldListing("active three", 90.0),
+            EbaySoldListing("Charizard PFL 125/094 active one", 80.0),
+            EbaySoldListing("Charizard PFL 125/094 active two", 85.0),
+            EbaySoldListing("Charizard PFL 125/094 active three", 90.0),
         ]
 
         result = deal_detector.evaluate_listing(self.listing())
@@ -47,12 +47,12 @@ class BuyNowReferenceTests(unittest.TestCase):
 
     def test_one_recent_sale_sets_medium_confidence_fair_value(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: [
-            EbaySoldListing("sold one", 100.0),
+            EbaySoldListing("Charizard PFL 125/094 sold one", 100.0),
         ]
         deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
-            EbaySoldListing("active one", 130.0),
-            EbaySoldListing("active two", 140.0),
-            EbaySoldListing("active three", 150.0),
+            EbaySoldListing("Charizard PFL 125/094 active one", 130.0),
+            EbaySoldListing("Charizard PFL 125/094 active two", 140.0),
+            EbaySoldListing("Charizard PFL 125/094 active three", 150.0),
         ]
 
         result = deal_detector.evaluate_listing(self.listing())
@@ -64,9 +64,9 @@ class BuyNowReferenceTests(unittest.TestCase):
     def test_buy_now_can_price_listing_when_recent_sales_are_missing(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
         deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
-            EbaySoldListing("active one", 100.0),
-            EbaySoldListing("active two", 110.0),
-            EbaySoldListing("active three", 120.0),
+            EbaySoldListing("Charizard PFL 125/094 active one", 100.0),
+            EbaySoldListing("Charizard PFL 125/094 active two", 110.0),
+            EbaySoldListing("Charizard PFL 125/094 active three", 120.0),
         ]
 
         result = deal_detector.evaluate_listing(self.listing())
@@ -84,9 +84,9 @@ class BuyNowReferenceTests(unittest.TestCase):
 
         deal_detector.fetch_recent_comparables = blocked_recent
         deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
-            EbaySoldListing("active one", 100.0),
-            EbaySoldListing("active two", 110.0),
-            EbaySoldListing("active three", 120.0),
+            EbaySoldListing("Charizard PFL 125/094 active one", 100.0),
+            EbaySoldListing("Charizard PFL 125/094 active two", 110.0),
+            EbaySoldListing("Charizard PFL 125/094 active three", 120.0),
         ]
 
         result = deal_detector.evaluate_listing(self.listing())
@@ -108,7 +108,7 @@ class BuyNowReferenceTests(unittest.TestCase):
 
         result = deal_detector.evaluate_listing(self.listing())
 
-        self.assertEqual(result.status, "needs_review")
+        self.assertEqual(result.status, "insufficient_comparables")
         self.assertIn("DEAL_REJECTED_NO_REFERENCE", result.reason)
         self.assertIn("SOLD_BLOCKED", result.reason)
         self.assertIn("SEARCH_FAILED", result.reason)

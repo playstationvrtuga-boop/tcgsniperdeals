@@ -1,6 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Deal Detail - TCG Sniper Deals{% endblock %}
 {% block content %}
+{% set listing_type = (listing.listing_type or '')|lower %}
+{% set insufficient_raw = listing_type == 'raw_card' and listing.pricing_status == 'insufficient_comparables' %}
+{% if listing_type == 'graded_card' %}
+  {% set market_basis_label = 'Graded market' %}
+{% elif listing_type == 'raw_card' and listing.pricing_basis == 'sold' %}
+  {% set market_basis_label = 'RAW comparable sales' %}
+{% elif listing_type == 'raw_card' and listing.pricing_basis == 'buy_now' %}
+  {% set market_basis_label = 'RAW Buy Now references' %}
+{% elif listing_type == 'raw_card' %}
+  {% set market_basis_label = 'RAW market' %}
+{% else %}
+  {% set market_basis_label = (listing.pricing_basis or 'pending')|replace('_', ' ')|title %}
+{% endif %}
 <a class="ghost-link back-link" href="{{ url_for('main.feed') }}">Back to live feed</a>
 
 <section class="detail-card">
@@ -49,7 +62,7 @@
       </div>
       <div class="meta-tile">
         <span class="label">Estimated fair value</span>
-        <strong>{% if listing.estimated_fair_value is not none %}{{ "%.2f"|format(listing.estimated_fair_value) }} EUR{% elif listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
+        <strong>{% if insufficient_raw %}Not enough RAW comparables{% elif listing.estimated_fair_value is not none %}{{ "%.2f"|format(listing.estimated_fair_value) }} EUR{% elif listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Market / Buy Now</span>
@@ -60,8 +73,8 @@
         <strong>{% if listing.last_2_sales %}{% for price in listing.last_2_sales[:2] %}{{ "%.2f"|format(price) }}{% if not loop.last %} / {% endif %}{% endfor %} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div class="meta-tile">
-        <span class="label">Pricing basis</span>
-        <strong>{{ (listing.pricing_basis or "pending")|replace("_", " ")|title }}</strong>
+        <span class="label">Market basis</span>
+        <strong>{{ market_basis_label }}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Potential profit</span>
@@ -73,7 +86,7 @@
       </div>
       <div class="meta-tile">
         <span class="label">Confidence</span>
-        <strong>{% if listing.confidence_score is not none %}{{ listing.confidence_score }}/100{% else %}{{ listing.display_confidence }}{% endif %}</strong>
+        <strong>{% if insufficient_raw %}Low{% elif listing.confidence_score is not none %}{{ listing.confidence_score }}/100{% else %}{{ listing.display_confidence }}{% endif %}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Status</span>

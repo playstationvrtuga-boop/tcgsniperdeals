@@ -107,6 +107,7 @@ class Listing(TimestampMixin, db.Model):
     estimated_fair_value = db.Column(db.Float)
     pricing_basis = db.Column(db.String(40))
     confidence_score = db.Column(db.Integer)
+    listing_type = db.Column(db.String(40))
     estimated_profit = db.Column(db.Float)
     discount_percent = db.Column(db.Float)
     profit_margin = db.Column(db.Float)

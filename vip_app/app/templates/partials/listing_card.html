@@ -7,6 +7,19 @@
   {% set public_preview = public_preview if public_preview is defined else false %}
   {% set mode = page_mode|default('live') %}
   {% set profit_value = listing.effective_profit %}
+  {% set listing_type = (listing.listing_type or '')|lower %}
+  {% set insufficient_raw = listing_type == 'raw_card' and listing.pricing_status == 'insufficient_comparables' %}
+  {% if listing_type == 'graded_card' %}
+    {% set market_basis_label = 'Graded market' %}
+  {% elif listing_type == 'raw_card' and listing.pricing_basis == 'sold' %}
+    {% set market_basis_label = 'RAW comparable sales' %}
+  {% elif listing_type == 'raw_card' and listing.pricing_basis == 'buy_now' %}
+    {% set market_basis_label = 'RAW Buy Now references' %}
+  {% elif listing_type == 'raw_card' %}
+    {% set market_basis_label = 'RAW market' %}
+  {% else %}
+    {% set market_basis_label = (listing.pricing_basis or 'pending')|replace('_', ' ')|title %}
+  {% endif %}
   <div class="listing-image-wrap">
     {% if listing.image_url %}
       <img class="listing-image" src="{{ listing.image_url }}" alt="{{ listing.title }}" loading="lazy">
@@ -75,11 +88,11 @@
     <div class="listing-signal-grid">
       <div>
         <span class="signal-label">Fair value</span>
-        <strong>{% if listing.estimated_fair_value is not none %}{{ "%.2f"|format(listing.estimated_fair_value) }} EUR{% elif listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
+        <strong>{% if insufficient_raw %}Not enough RAW comparables{% elif listing.estimated_fair_value is not none %}{{ "%.2f"|format(listing.estimated_fair_value) }} EUR{% elif listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div>
-        <span class="signal-label">Basis</span>
-        <strong>{{ (listing.pricing_basis or "pending")|replace("_", " ")|title }}</strong>
+        <span class="signal-label">Market basis</span>
+        <strong>{{ market_basis_label }}</strong>
       </div>
       <div>
         <span class="signal-label">Buy Now median</span>
@@ -99,7 +112,7 @@
       </div>
       <div>
         <span class="signal-label">Confidence</span>
-        <strong>{% if listing.confidence_score is not none %}{{ listing.confidence_score }}/100{% else %}{{ listing.display_confidence }}{% endif %}</strong>
+        <strong>{% if insufficient_raw %}Low{% elif listing.confidence_score is not none %}{{ listing.confidence_score }}/100{% else %}{{ listing.display_confidence }}{% endif %}</strong>
       </div>
       <div>
         <span class="signal-label">Signal</span>
