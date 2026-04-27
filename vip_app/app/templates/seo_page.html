@@ -1,11 +1,17 @@
 {% extends "base.html" %}
 {% block title %}{{ page.title }}{% endblock %}
 {% block meta_description %}{{ page.meta_description }}{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ canonical_url }}">{% endblock %}
 {% block head %}
-<link rel="canonical" href="{{ canonical_url }}">
 <meta property="og:title" content="{{ page.title }}">
 <meta property="og:description" content="{{ page.meta_description }}">
 <meta property="og:type" content="website">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta property="og:image" content="{{ url_for('static', filename='icons/app-icon-512.png', _external=True) }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ page.title }}">
+<meta name="twitter:description" content="{{ page.meta_description }}">
+<meta name="twitter:image" content="{{ url_for('static', filename='icons/app-icon-512.png', _external=True) }}">
 <meta name="robots" content="index,follow">
 {% endblock %}
 {% block content %}
@@ -15,6 +21,9 @@
       <span class="pill">VIP access</span>
       <h1>{{ page.h1 }}</h1>
       <p class="seo-intro">{{ page.intro }}</p>
+      <p class="seo-intro seo-intro-secondary">
+        This public page is designed to help users understand {{ page.h1|lower }} before opening the paid VIP app. Use it as a guide to the types of listings the system watches, then review every live marketplace listing carefully before buying. Prices, seller feedback, shipping, condition, language and marketplace availability can change quickly, so the app focuses on faster discovery while leaving the final buying decision with the user.
+      </p>
       <div class="seo-cta-row">
         <a class="primary-button" href="{{ vip_access_url }}">Get VIP Access</a>
         <a class="ghost-button" href="{{ app_url }}">Open App</a>
@@ -28,7 +37,7 @@
       </div>
       <div class="seo-summary-line">
         <span class="seo-summary-label">Focus</span>
-        <strong>Pokémon TCG</strong>
+        <strong>Pokemon TCG</strong>
       </div>
       <div class="seo-summary-line">
         <span class="seo-summary-label">Flow</span>
@@ -63,7 +72,7 @@
   </section>
 
   <footer class="seo-footer-note">
-    TCG Sniper Deals is an unofficial Pokémon TCG deal tracking tool and is not affiliated with Pokémon, Nintendo, Creatures or Game Freak.
+    TCG Sniper Deals is an unofficial Pokemon TCG deal tracking tool and is not affiliated with Pokemon, Nintendo, Creatures or Game Freak.
   </footer>
 </section>
 {% endblock %}

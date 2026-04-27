@@ -301,6 +301,17 @@ SEO_HOME_CONTENT = {
     ],
 }
 
+from .seo_content import SEO_HOME_CONTENT, SEO_PAGE_ALIASES, SEO_PAGES, SEO_PUBLIC_PATHS
+
+
+def site_root_url():
+    return (current_app.config.get("SITE_URL") or request.url_root).rstrip("/")
+
+
+def canonical_for_path(path):
+    normalized_path = path if path.startswith("/") else f"/{path}"
+    return f"{site_root_url()}{normalized_path}"
+
 
 def build_seo_page_context(slug):
     data = SEO_PAGES[slug]
@@ -329,7 +340,7 @@ def render_seo_page(slug):
     return render_template(
         "seo_page.html",
         page=page,
-        canonical_url=request.url,
+        canonical_url=canonical_for_path(f"/{slug}"),
         vip_access_url=url_for("main.billing"),
         app_url=url_for("main.index"),
     )
@@ -345,30 +356,28 @@ def register_seo_page_routes():
         view.__name__ = endpoint
         main_bp.add_url_rule(f"/{slug}", endpoint=endpoint, view_func=view)
 
+    for alias_slug, target_slug in SEO_PAGE_ALIASES.items():
+        endpoint = f"seo_alias_{alias_slug.replace('-', '_')}"
+
+        def alias_view(page_slug=target_slug):
+            return redirect(url_for(f"main.seo_page_{page_slug.replace('-', '_')}"), code=301)
+
+        alias_view.__name__ = endpoint
+        main_bp.add_url_rule(f"/{alias_slug}", endpoint=endpoint, view_func=alias_view)
+
 
 register_seo_page_routes()
 
 
 def build_sitemap_urls():
-    site_root = (current_app.config.get("SITE_URL") or request.url_root).rstrip("/")
-    public_paths = [
-        "/",
-        "/download-app",
-        "/pokemon-deals",
-        "/charizard-deals",
-        "/pokemon-etb-deals",
-        "/pokemon-booster-deals",
-        "/pokemon-ebay-deals",
-        "/pokemon-vinted-deals",
-        "/cheap-pokemon-cards",
-    ]
+    site_root = site_root_url()
     today = datetime.now(timezone.utc).date().isoformat()
     return [
         {
             "loc": f"{site_root}{path}",
             "lastmod": today,
         }
-        for path in public_paths
+        for path in SEO_PUBLIC_PATHS
     ]
 
 
@@ -628,6 +637,7 @@ def index():
         feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
         feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
         seo_home=SEO_HOME_CONTENT,
+        canonical_url=canonical_for_path("/"),
     )
 
 

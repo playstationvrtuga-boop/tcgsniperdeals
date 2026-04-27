@@ -1,13 +1,26 @@
 {% extends "base.html" %}
-{% block title %}TCG Sniper Deals{% endblock %}
-{% block meta_description %}TCG Sniper Deals tracks real-time Pokémon TCG deals across Vinted and eBay so collectors and resellers can react faster.{% endblock %}
+{% block title %}Real-Time Pokemon TCG Deals | TCG Sniper Deals{% endblock %}
+{% block meta_description %}Track real-time Pokemon TCG deals from eBay and Vinted, including Charizard cards, ETBs, booster boxes, PSA slabs and graded cards.{% endblock %}
+{% block canonical %}<link rel="canonical" href="{{ canonical_url }}">{% endblock %}
+{% block head %}
+<meta property="og:title" content="Real-Time Pokemon TCG Deals | TCG Sniper Deals">
+<meta property="og:description" content="Track Pokemon TCG deals from eBay and Vinted with a live VIP app for fresh listings, sealed products, Charizard cards and graded slabs.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta property="og:image" content="{{ url_for('static', filename='icons/app-icon-512.png', _external=True) }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Real-Time Pokemon TCG Deals | TCG Sniper Deals">
+<meta name="twitter:description" content="Live Pokemon TCG deal tracking across eBay and Vinted for collectors and resellers.">
+<meta name="twitter:image" content="{{ url_for('static', filename='icons/app-icon-512.png', _external=True) }}">
+<meta name="robots" content="index,follow">
+{% endblock %}
 {% block content %}
 <section class="feed-command-center public-dashboard-shell{% if not enable_live_radar %} is-radar-off{% endif %}">
   <section class="section-header section-header-feed public-dashboard-header">
     <div>
       <span class="pill">LIVE</span>
-      <h1>Scanning marketplaces...</h1>
-      <p>Fresh opportunities appear here first. No landing page, just the product.</p>
+      <h1>Real-time Pokemon TCG deals</h1>
+      <p>Fresh eBay and Vinted Pokemon listings appear here first, including cards, ETBs, booster boxes and graded slabs.</p>
       <div class="feed-hero-meta">
         <span class="mini-stat">LIVE</span>
         <span class="mini-stat">{{ live_stats.count }} items</span>
