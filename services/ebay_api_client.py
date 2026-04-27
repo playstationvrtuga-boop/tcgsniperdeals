@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import re
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
@@ -62,6 +66,18 @@ class EbayApiRawItem:
     price_currency: str
     item_url: str
     buying_options: list[str]
+
+
+@dataclass
+class _SimpleHttpResponse:
+    status_code: int
+    text: str
+
+    def json(self) -> dict[str, Any]:
+        payload = json.loads(self.text)
+        if not isinstance(payload, dict):
+            raise ValueError("Response JSON was not an object")
+        return payload
 
 
 def _mask_secret(value: str) -> str:
@@ -179,6 +195,7 @@ class EbayApiClient:
     def __init__(self, timeout: float = EBAY_API_TIMEOUT):
         self.timeout = timeout
         self.session = requests.Session()
+        self.session.trust_env = False
         self._access_token: str | None = None
         self._access_token_expires_at = 0.0
         self._token_failure_until = 0.0
@@ -249,24 +266,28 @@ class EbayApiClient:
 
         last_error: Exception | None = None
         for attempt in range(1, EBAY_TOKEN_MAX_ATTEMPTS + 1):
-            _log("oauth_request_start")
+            method = "requests" if attempt == 1 else "urllib"
+            _log(f"oauth_request_start method={method}")
             try:
-                response = self.session.post(
-                    _runtime_token_url(),
-                    headers=headers,
-                    data=data,
-                    timeout=EBAY_TOKEN_REQUEST_TIMEOUT,
-                )
-            except requests.Timeout as error:
+                if method == "requests":
+                    response = self.session.post(
+                        _runtime_token_url(),
+                        headers=headers,
+                        data=data,
+                        timeout=EBAY_TOKEN_REQUEST_TIMEOUT,
+                    )
+                else:
+                    response = self._post_oauth_token_with_urllib(headers=headers, data=data)
+            except (requests.Timeout, TimeoutError) as error:
                 last_error = error
-                _log(f"token FAILED reason=request_timeout attempt={attempt}")
+                _log(f"token FAILED reason=request_timeout attempt={attempt} method={method}")
                 if attempt < EBAY_TOKEN_MAX_ATTEMPTS:
                     continue
                 self._remember_token_failure("request_timeout")
                 raise EbaySoldError("TOKEN_FAILED: official eBay token request timed out.") from error
-            except requests.RequestException as error:
+            except (requests.RequestException, urllib.error.URLError, OSError) as error:
                 last_error = error
-                _log(f"token FAILED reason=request_exception attempt={attempt} error={error}")
+                _log(f"token FAILED reason=request_exception attempt={attempt} method={method} error={error}")
                 if attempt < EBAY_TOKEN_MAX_ATTEMPTS:
                     continue
                 self._remember_token_failure("request_exception")
@@ -310,6 +331,28 @@ class EbayApiClient:
         _log("token OK")
         return token
 
+    def _post_oauth_token_with_urllib(self, *, headers: dict[str, str], data: dict[str, str]) -> _SimpleHttpResponse:
+        encoded_data = urllib.parse.urlencode(data).encode("ascii")
+        request = urllib.request.Request(
+            _runtime_token_url(),
+            data=encoded_data,
+            headers=headers,
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=EBAY_TOKEN_REQUEST_TIMEOUT) as response:
+                text = response.read().decode("utf-8", errors="replace")
+                return _SimpleHttpResponse(status_code=response.getcode(), text=text)
+        except urllib.error.HTTPError as error:
+            text = error.read().decode("utf-8", errors="replace")
+            return _SimpleHttpResponse(status_code=error.code, text=text)
+        except TimeoutError:
+            raise
+        except urllib.error.URLError as error:
+            if isinstance(error.reason, TimeoutError):
+                raise TimeoutError(str(error.reason)) from error
+            raise
+
     def _remember_token_failure(self, reason: str) -> None:
         self._last_token_failure_reason = reason
         self._token_failure_until = time.time() + EBAY_TOKEN_FAILURE_COOLDOWN_SECONDS
@@ -326,7 +369,7 @@ class EbayApiClient:
         }
 
     @staticmethod
-    def _json_response(response: requests.Response, error_message: str) -> dict[str, Any]:
+    def _json_response(response: Any, error_message: str) -> dict[str, Any]:
         try:
             payload = response.json()
         except ValueError as error:
@@ -417,18 +460,16 @@ class EbayApiClient:
             return result
 
         token_error = None
-        for attempt in range(2):
-            try:
-                self._get_access_token(force_refresh=attempt > 0)
-                result["token_status"] = "OK"
-                emit("token OK")
-                emit("auth_header_format=Bearer")
-                break
-            except Exception as error:
-                token_error = error
-                emit(f"TOKEN_FAILED attempt={attempt + 1} error={error}")
-                self._access_token = None
-                self._access_token_expires_at = 0.0
+        try:
+            self._get_access_token(force_refresh=True)
+            result["token_status"] = "OK"
+            emit("token OK")
+            emit("auth_header_format=Bearer")
+        except Exception as error:
+            token_error = error
+            emit(f"TOKEN_FAILED error={error}")
+            self._access_token = None
+            self._access_token_expires_at = 0.0
 
         if result["token_status"] != "OK":
             result["error"] = f"TOKEN_FAILED: {token_error}"

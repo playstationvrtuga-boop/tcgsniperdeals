@@ -41,6 +41,12 @@ class FakeSession:
         return FakeResponse(self.payload, status_code=self.status_code, text=self.text)
 
 
+class TimeoutTokenSession(FakeSession):
+    def post(self, _url, headers=None, data=None, timeout=None):
+        self.post_count += 1
+        raise ebay_api_client.requests.Timeout("simulated timeout")
+
+
 class EbayApiClientTests(unittest.TestCase):
     def setUp(self):
         self.original_enabled = ebay_api_client.EBAY_ENABLE_OFFICIAL_API
@@ -133,6 +139,19 @@ class EbayApiClientTests(unittest.TestCase):
         self.assertEqual(session.last_post_data["scope"], "https://api.ebay.com/oauth/api_scope")
         self.assertEqual(session.last_post_timeout, EBAY_TOKEN_REQUEST_TIMEOUT)
         self.assertEqual(session.last_post_url, "https://api.ebay.com/identity/v1/oauth2/token")
+
+    def test_token_request_falls_back_to_urllib_after_requests_timeout(self):
+        session = TimeoutTokenSession({})
+        client = EbayApiClient()
+        client.session = session
+        client._post_oauth_token_with_urllib = lambda **_kwargs: FakeResponse(
+            {"access_token": "fallback-token", "expires_in": 7200}
+        )
+
+        token = client._get_access_token(force_refresh=True)
+
+        self.assertEqual(token, "fallback-token")
+        self.assertEqual(session.post_count, 1)
 
     def test_zero_results_return_empty_after_query_variants(self):
         client = EbayApiClient()
