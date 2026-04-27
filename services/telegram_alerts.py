@@ -10,21 +10,36 @@ from config import FREE_CHAT_ID, TOKEN, VIP_CHAT_ID
 def format_alert(listing, result) -> str:
     title = getattr(listing, "title", "Unknown listing")
     price_display = getattr(listing, "price_display", "n/a")
-    reference_price = f"{result.reference_price:.2f}" if result.reference_price is not None else "n/a"
+    fair_value = getattr(result, "estimated_fair_value", None) or result.reference_price
+    fair_value_text = f"{fair_value:.2f}" if fair_value is not None else "n/a"
+    buy_now_min = getattr(result, "market_buy_now_min", None)
+    buy_now_median = getattr(result, "market_buy_now_median", None)
+    if buy_now_min is not None and buy_now_median is not None:
+        buy_now_range = f"{buy_now_min:.2f}-{buy_now_median:.2f}"
+    elif buy_now_median is not None:
+        buy_now_range = f"{buy_now_median:.2f}"
+    else:
+        buy_now_range = "n/a"
+    last_2_sales = " / ".join(
+        f"{price:.2f}" for price in (getattr(result, "last_2_sales", []) or [])[:2]
+    ) or "n/a"
     discount = f"{result.discount_percent:.1f}" if result.discount_percent is not None else "n/a"
     margin = f"{result.gross_margin:.2f}" if result.gross_margin is not None else "n/a"
+    confidence_score = getattr(result, "confidence_score", 0) or 0
+    pricing_basis = getattr(result, "pricing_basis", None) or result.price_source or "unknown"
     url = getattr(listing, "external_url", "")
-    last_three = ", ".join(f"{price:.2f}€" for price in (result.comparable_prices or [])[:3]) or "n/a"
 
     return (
-        "POSSIBLE DEAL DETECTED\n\n"
+        "DEAL DETECTED\n\n"
         f"Product: {title}\n"
-        f"Listing price: {price_display}\n"
-        f"Last 3 sales: {last_three}\n"
-        f"Market reference: {reference_price} EUR\n"
-        f"Discount: {discount}%\n"
-        f"Potential profit: {margin} EUR\n"
-        f"Score: {result.score}/100\n"
+        f"Listing Price: {price_display}\n\n"
+        f"Market / Buy Now: EUR {buy_now_range}\n"
+        f"Last 2 Sales: EUR {last_2_sales}\n"
+        f"Estimated Fair Value: EUR {fair_value_text}\n\n"
+        f"Potential Profit: +EUR {margin} ({discount}%)\n"
+        f"Confidence: {confidence_score}/100\n"
+        f"Basis: {pricing_basis}\n\n"
+        "Fast movers disappear quickly.\n\n"
         f"Link: {url}"
     )
 

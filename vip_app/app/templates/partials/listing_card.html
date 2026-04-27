@@ -74,8 +74,20 @@
 
     <div class="listing-signal-grid">
       <div>
-        <span class="signal-label">Market</span>
-        <strong>{% if listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
+        <span class="signal-label">Fair value</span>
+        <strong>{% if listing.estimated_fair_value is not none %}{{ "%.2f"|format(listing.estimated_fair_value) }} EUR{% elif listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
+      </div>
+      <div>
+        <span class="signal-label">Basis</span>
+        <strong>{{ (listing.pricing_basis or "pending")|replace("_", " ")|title }}</strong>
+      </div>
+      <div>
+        <span class="signal-label">Buy Now median</span>
+        <strong>{% if listing.market_buy_now_median is not none %}{{ "%.2f"|format(listing.market_buy_now_median) }} EUR{% else %}Pending{% endif %}</strong>
+      </div>
+      <div>
+        <span class="signal-label">Last 2 sales</span>
+        <strong>{% if listing.last_2_sales %}{% for price in listing.last_2_sales[:2] %}{{ "%.2f"|format(price) }}{% if not loop.last %} / {% endif %}{% endfor %} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div>
         <span class="signal-label">Potential profit</span>
@@ -87,7 +99,7 @@
       </div>
       <div>
         <span class="signal-label">Confidence</span>
-        <strong>{{ listing.display_confidence }}</strong>
+        <strong>{% if listing.confidence_score is not none %}{{ listing.confidence_score }}/100{% else %}{{ listing.display_confidence }}{% endif %}</strong>
       </div>
       <div>
         <span class="signal-label">Signal</span>

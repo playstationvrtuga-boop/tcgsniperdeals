@@ -56,7 +56,10 @@ class ListingParserTests(unittest.TestCase):
         self.assertNotEqual(result.reason, "listing_not_precisely_identified")
         self.assertEqual(result.parser_confidence, "LOW")
         self.assertEqual(result.parser_query, "pokemon charizard")
-        self.assertEqual(result.status, "deal")
+        self.assertEqual(result.status, "priced")
+        self.assertEqual(result.pricing_basis, "buy_now")
+        self.assertEqual(result.estimated_fair_value, 110.0)
+        self.assertLess(result.confidence_score, 60)
 
     def test_pokemon_without_known_name_is_low_confidence(self):
         identity = deal_detector.parse_listing_identity("Carta pokemon brilhante francesa")

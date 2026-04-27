@@ -48,8 +48,20 @@
         <strong>{{ listing.display_badge }}</strong>
       </div>
       <div class="meta-tile">
-        <span class="label">Market price</span>
-        <strong>{% if listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
+        <span class="label">Estimated fair value</span>
+        <strong>{% if listing.estimated_fair_value is not none %}{{ "%.2f"|format(listing.estimated_fair_value) }} EUR{% elif listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Market / Buy Now</span>
+        <strong>{% if listing.market_buy_now_min is not none and listing.market_buy_now_median is not none %}{{ "%.2f"|format(listing.market_buy_now_min) }}-{{ "%.2f"|format(listing.market_buy_now_median) }} EUR{% elif listing.market_buy_now_median is not none %}{{ "%.2f"|format(listing.market_buy_now_median) }} EUR{% else %}Pending{% endif %}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Last 2 sales</span>
+        <strong>{% if listing.last_2_sales %}{% for price in listing.last_2_sales[:2] %}{{ "%.2f"|format(price) }}{% if not loop.last %} / {% endif %}{% endfor %} EUR{% else %}Pending{% endif %}</strong>
+      </div>
+      <div class="meta-tile">
+        <span class="label">Pricing basis</span>
+        <strong>{{ (listing.pricing_basis or "pending")|replace("_", " ")|title }}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Potential profit</span>
@@ -61,7 +73,7 @@
       </div>
       <div class="meta-tile">
         <span class="label">Confidence</span>
-        <strong>{{ listing.display_confidence }}</strong>
+        <strong>{% if listing.confidence_score is not none %}{{ listing.confidence_score }}/100{% else %}{{ listing.display_confidence }}{% endif %}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Status</span>
@@ -84,10 +96,11 @@
     <section class="detail-insight-block">
       {% if listing.is_deal %}
       <h2>Why the bot flagged this</h2>
-      <p>This listing is trading below the recent sold median and still has enough margin to justify a fast look.</p>
+      <p>This listing is trading below the estimated fair value and still has enough margin to justify a fast look.</p>
       <ul class="detail-insight-list">
-        <li>Recent sold reference is based on the latest comparable sales the worker accepted.</li>
-        <li>Confidence reflects how clean the title match and price gap look right now.</li>
+        <li>Sold prices and active Buy Now listings are shown separately.</li>
+        <li>Sold prices have priority for fair value. Buy Now is only a secondary asking-price signal.</li>
+        <li>Confidence reflects the source quality, title match and price gap right now.</li>
         <li>Always verify condition, language and seller quality before buying.</li>
       </ul>
       {% else %}

@@ -97,6 +97,16 @@ class Listing(TimestampMixin, db.Model):
     pricing_checked_at = db.Column(db.DateTime(timezone=True))
     pricing_error = db.Column(db.String(255))
     reference_price = db.Column(db.Float)
+    market_buy_now_min = db.Column(db.Float)
+    market_buy_now_avg = db.Column(db.Float)
+    market_buy_now_median = db.Column(db.Float)
+    last_sold_prices_json = db.Column(db.Text)
+    last_2_sales_json = db.Column(db.Text)
+    sold_avg_price = db.Column(db.Float)
+    sold_median_price = db.Column(db.Float)
+    estimated_fair_value = db.Column(db.Float)
+    pricing_basis = db.Column(db.String(40))
+    confidence_score = db.Column(db.Integer)
     estimated_profit = db.Column(db.Float)
     discount_percent = db.Column(db.Float)
     profit_margin = db.Column(db.Float)
@@ -223,6 +233,22 @@ class Listing(TimestampMixin, db.Model):
         if self.profit_margin is not None:
             return self.profit_margin
         return self.gross_margin
+
+    @property
+    def last_sold_prices(self):
+        try:
+            values = json.loads(self.last_sold_prices_json or "[]")
+            return [float(value) for value in values]
+        except Exception:
+            return []
+
+    @property
+    def last_2_sales(self):
+        try:
+            values = json.loads(self.last_2_sales_json or "[]")
+            return [float(value) for value in values]
+        except Exception:
+            return []
 
     @property
     def effective_status(self):

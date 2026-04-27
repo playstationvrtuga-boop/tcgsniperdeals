@@ -65,6 +65,13 @@ SET_HINT_TERMS = {
     "flammes", "fantasmagoriques", "crepuscolo", "mascherato", "ascended",
     "heroes",
 }
+LANGUAGE_TERMS = {
+    "japanese": ("japanese", "japonais", "japones", "japan", " jp "),
+    "english": ("english", "ingles", "anglais", " eng "),
+    "portuguese": ("portuguese", "portugues", "português", " pt "),
+    "french": ("french", "francais", "français", "fr "),
+    "spanish": ("spanish", "espanol", "español", "es "),
+}
 
 NAME_ALIASES = {
     "dracaufeu": "charizard",
@@ -98,6 +105,16 @@ class DealResult:
     parser_query: str | None = None
     parser_queries: list[str] = field(default_factory=list)
     parser_name: str | None = None
+    market_buy_now_min: float | None = None
+    market_buy_now_avg: float | None = None
+    market_buy_now_median: float | None = None
+    last_sold_prices: list[float] = field(default_factory=list)
+    last_2_sales: list[float] = field(default_factory=list)
+    sold_avg_price: float | None = None
+    sold_median_price: float | None = None
+    estimated_fair_value: float | None = None
+    pricing_basis: str | None = None
+    confidence_score: int = 0
 
 
 @dataclass
@@ -391,6 +408,90 @@ def _median_price(listings: list[EbaySoldListing]) -> float | None:
     return round(float(median(prices)), 2)
 
 
+def _clean_price_values(listings: list[EbaySoldListing]) -> list[float]:
+    prices = [float(listing.price_eur) for listing in listings if listing.price_eur and listing.price_eur > 0]
+    if len(prices) < 3:
+        return prices
+    center = float(median(prices))
+    if center <= 0:
+        return prices
+    # Keep obvious bad matches from dominating tiny samples without being too aggressive.
+    filtered = [price for price in prices if center * 0.35 <= price <= center * 2.75]
+    return filtered or prices
+
+
+def _price_stats(listings: list[EbaySoldListing]) -> tuple[float | None, float | None, float | None, list[float]]:
+    prices = _clean_price_values(listings)
+    if not prices:
+        return None, None, None, []
+    return (
+        round(min(prices), 2),
+        round(sum(prices) / len(prices), 2),
+        round(float(median(prices)), 2),
+        [round(price, 2) for price in prices],
+    )
+
+
+def _pricing_basis_and_confidence(
+    *,
+    sold_prices: list[float],
+    buy_now_prices: list[float],
+    sold_median_price: float | None,
+    buy_now_median_price: float | None,
+    parser_confidence: str | None,
+) -> tuple[float | None, str | None, int]:
+    if len(sold_prices) >= 2 and sold_median_price is not None:
+        fair_value = sold_median_price
+        basis = "sold"
+        confidence = 88
+    elif len(sold_prices) == 1:
+        fair_value = sold_prices[0]
+        basis = "sold"
+        confidence = 72
+    elif buy_now_prices and buy_now_median_price is not None:
+        fair_value = buy_now_median_price
+        basis = "buy_now"
+        confidence = 58 if len(buy_now_prices) >= 3 else 48
+    else:
+        return None, None, 0
+
+    if sold_prices and buy_now_prices:
+        basis = "sold"
+
+    parser_confidence = (parser_confidence or "").upper()
+    if parser_confidence == "MEDIUM":
+        confidence -= 6
+    elif parser_confidence == "LOW":
+        confidence -= 14
+
+    if sold_prices and buy_now_median_price is not None and fair_value:
+        spread = abs(buy_now_median_price - fair_value) / fair_value
+        if spread > 0.75:
+            confidence -= 12
+        elif spread > 0.4:
+            confidence -= 6
+
+    return round(fair_value, 2), basis, max(0, min(100, int(round(confidence))))
+
+
+def _detect_language_hint(value: str) -> str | None:
+    normalized = f" {_normalize_title(value)} "
+    for language, terms in LANGUAGE_TERMS.items():
+        if any(term.strip() in normalized for term in terms):
+            return language
+    return None
+
+
+def _language_confidence_penalty(expected_language: str | None, listings: list[EbaySoldListing]) -> int:
+    if not expected_language:
+        return 0
+    for listing in listings:
+        candidate_language = _detect_language_hint(listing.title)
+        if candidate_language and candidate_language != expected_language:
+            return 8
+    return 0
+
+
 def _log_pricing_attempt(source: str, attempt: int, query: str) -> None:
     print(f"[pricing] query_attempt={attempt} source={source} query=\"{query}\"", flush=True)
 
@@ -510,6 +611,8 @@ def evaluate_listing(listing) -> DealResult:
 
     pricing_queries = _prepare_pricing_queries(pricing_queries)
     pricing_query = pricing_queries[0] if pricing_queries else pricing_query
+    signals = getattr(identity, "signals", None)
+    expected_language = getattr(signals, "language", None)
 
     comparable_sales: list[EbaySoldListing] = []
     recent_sales_error: str | None = None
@@ -529,15 +632,55 @@ def evaluate_listing(listing) -> DealResult:
         buy_now_error = str(error)
         buy_now_exception = error
 
-    sold_reference_price = _median_price(comparable_sales[:3]) if len(comparable_sales) >= 3 else None
     required_buy_now_count = _buy_now_min_comparables(listing_kind)
+    _sold_min, sold_avg_price, sold_median_price, sold_prices = _price_stats(comparable_sales[:3])
+    market_buy_now_min, market_buy_now_avg, market_buy_now_median, buy_now_prices_all = _price_stats(
+        buy_now_listings[:PRICING_BUY_NOW_MAX_RESULTS]
+    )
     buy_now_reference_price = (
-        _median_price(buy_now_listings[:required_buy_now_count])
-        if len(buy_now_listings) >= required_buy_now_count
+        market_buy_now_median
+        if len(buy_now_prices_all) >= required_buy_now_count
         else None
     )
+    estimated_fair_value, pricing_basis, confidence_score = _pricing_basis_and_confidence(
+        sold_prices=sold_prices,
+        buy_now_prices=buy_now_prices_all,
+        sold_median_price=sold_median_price,
+        buy_now_median_price=buy_now_reference_price,
+        parser_confidence=identity.confidence,
+    )
+    language_penalty = _language_confidence_penalty(
+        expected_language,
+        comparable_sales[:3] if sold_prices else buy_now_listings[:PRICING_BUY_NOW_MAX_RESULTS],
+    )
+    if language_penalty:
+        confidence_score = max(0, confidence_score - language_penalty)
+        print(
+            "[pricing] PRICING_LOW_CONFIDENCE "
+            f"reason=language_mismatch expected={expected_language} penalty={language_penalty}",
+            flush=True,
+        )
 
-    if sold_reference_price is None and buy_now_reference_price is None:
+    if buy_now_prices_all:
+        print(
+            "[pricing] PRICING_BUY_NOW_FOUND "
+            f"count={len(buy_now_prices_all)} min={market_buy_now_min} median={market_buy_now_median} avg={market_buy_now_avg}",
+            flush=True,
+        )
+    if sold_prices:
+        print(
+            "[pricing] PRICING_SOLD_FOUND "
+            f"count={len(sold_prices)} last_2={sold_prices[:2]} median={sold_median_price} avg={sold_avg_price}",
+            flush=True,
+        )
+    if pricing_basis == "sold":
+        print(f"[pricing] PRICING_FAIR_VALUE_FROM_SOLD value={estimated_fair_value}", flush=True)
+    elif pricing_basis == "buy_now":
+        print(f"[pricing] PRICING_FAIR_VALUE_FROM_BUY_NOW value={estimated_fair_value}", flush=True)
+    if confidence_score < 60:
+        print(f"[pricing] PRICING_LOW_CONFIDENCE score={confidence_score}", flush=True)
+
+    if estimated_fair_value is None:
         reason_parts = ["DEAL_REJECTED_NO_REFERENCE"]
         if recent_sales_error:
             if isinstance(recent_sales_exception, EbaySoldRateLimitError):
@@ -557,23 +700,31 @@ def evaluate_listing(listing) -> DealResult:
             listing_kind=listing_kind,
             comparable_count=len(comparable_sales),
             buy_now_count=len(buy_now_listings),
+            buy_now_prices=buy_now_prices_all,
+            comparable_prices=sold_prices,
+            last_sold_prices=sold_prices,
+            last_2_sales=sold_prices[:2],
+            sold_avg_price=sold_avg_price,
+            sold_median_price=sold_median_price,
+            market_buy_now_min=market_buy_now_min,
+            market_buy_now_avg=market_buy_now_avg,
+            market_buy_now_median=market_buy_now_median,
+            buy_now_reference_price=buy_now_reference_price,
+            estimated_fair_value=estimated_fair_value,
+            pricing_basis=pricing_basis,
+            confidence_score=confidence_score,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
             parser_name=identity.extracted_name,
         )
 
-    comparable_prices = [sale.price_eur for sale in comparable_sales[:3]]
+    comparable_prices = sold_prices
     comparable_titles = [sale.title for sale in comparable_sales[:3]]
-    buy_now_prices = [listing.price_eur for listing in buy_now_listings[:required_buy_now_count]]
-    buy_now_titles = [listing.title for listing in buy_now_listings[:required_buy_now_count]]
-
-    if buy_now_reference_price is not None:
-        reference_price = buy_now_reference_price
-        price_source = "ebay_buy_now_with_sold_reference" if sold_reference_price is not None else "ebay_buy_now"
-    else:
-        reference_price = sold_reference_price
-        price_source = "ebay_sold"
+    buy_now_prices = buy_now_prices_all
+    buy_now_titles = [listing.title for listing in buy_now_listings[:PRICING_BUY_NOW_MAX_RESULTS]]
+    reference_price = estimated_fair_value
+    price_source = pricing_basis
 
     if reference_price <= 0:
         return DealResult(
@@ -589,6 +740,16 @@ def evaluate_listing(listing) -> DealResult:
             comparable_count=len(comparable_prices),
             buy_now_count=len(buy_now_prices),
             buy_now_reference_price=buy_now_reference_price,
+            market_buy_now_min=market_buy_now_min,
+            market_buy_now_avg=market_buy_now_avg,
+            market_buy_now_median=market_buy_now_median,
+            last_sold_prices=comparable_prices,
+            last_2_sales=comparable_prices[:2],
+            sold_avg_price=sold_avg_price,
+            sold_median_price=sold_median_price,
+            estimated_fair_value=estimated_fair_value,
+            pricing_basis=pricing_basis,
+            confidence_score=confidence_score,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -598,8 +759,10 @@ def evaluate_listing(listing) -> DealResult:
     gross_margin = round(reference_price - listing_price, 2)
     discount_percent = round((gross_margin / reference_price) * 100, 2)
     score = calculate_score(discount_percent, gross_margin)
-    if price_source == "ebay_buy_now":
+    if pricing_basis == "buy_now":
         score = max(0, score - 10)
+    if confidence_score < 60:
+        score = max(0, score - 8)
     if identity.confidence == "MEDIUM":
         score = max(0, score - 3)
     elif identity.confidence == "LOW":
@@ -613,9 +776,14 @@ def evaluate_listing(listing) -> DealResult:
     result_reason = "DEAL_ACCEPTED" if is_deal else "DEAL_REJECTED_THRESHOLDS"
     if buy_now_reference_price is not None:
         result_reason = f"{result_reason}; BUY_NOW_REFERENCE_FOUND"
+    if sold_prices:
+        result_reason = f"{result_reason}; PRICING_SOLD_FOUND"
+    result_reason = f"{result_reason}; pricing_basis={pricing_basis}; confidence_score={confidence_score}"
     if recent_sales_error:
         result_reason = f"{result_reason}; SOLD_BLOCKED" if isinstance(recent_sales_exception, EbaySoldRateLimitError) else f"{result_reason}; SOLD_FAILED"
     result_reason = f"{result_reason}; confidence={identity.confidence}; query={pricing_query}"
+    if is_deal:
+        print("[pricing] PRICING_ACCEPTED", flush=True)
 
     return DealResult(
         status="deal" if is_deal else "priced",
@@ -634,6 +802,16 @@ def evaluate_listing(listing) -> DealResult:
         buy_now_titles=buy_now_titles,
         buy_now_count=len(buy_now_prices),
         buy_now_reference_price=buy_now_reference_price,
+        market_buy_now_min=market_buy_now_min,
+        market_buy_now_avg=market_buy_now_avg,
+        market_buy_now_median=market_buy_now_median,
+        last_sold_prices=comparable_prices,
+        last_2_sales=comparable_prices[:2],
+        sold_avg_price=sold_avg_price,
+        sold_median_price=sold_median_price,
+        estimated_fair_value=estimated_fair_value,
+        pricing_basis=pricing_basis,
+        confidence_score=confidence_score,
         reason=result_reason,
         parser_confidence=identity.confidence,
         parser_query=pricing_query,

@@ -20,7 +20,7 @@ class BuyNowReferenceTests(unittest.TestCase):
     def listing(self, title="Charizard PFL 125/094", price="70,00 EUR"):
         return SimpleNamespace(title=title, price_display=price)
 
-    def test_buy_now_caps_sold_reference_when_active_market_is_lower(self):
+    def test_sold_reference_has_priority_over_lower_buy_now(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: [
             EbaySoldListing("sold one", 100.0),
             EbaySoldListing("sold two", 110.0),
@@ -34,11 +34,32 @@ class BuyNowReferenceTests(unittest.TestCase):
 
         result = deal_detector.evaluate_listing(self.listing())
 
-        self.assertEqual(result.status, "priced")
-        self.assertEqual(result.price_source, "ebay_buy_now_with_sold_reference")
-        self.assertEqual(result.reference_price, 85.0)
+        self.assertEqual(result.status, "deal")
+        self.assertEqual(result.price_source, "sold")
+        self.assertEqual(result.pricing_basis, "sold")
+        self.assertEqual(result.reference_price, 110.0)
+        self.assertEqual(result.estimated_fair_value, 110.0)
+        self.assertEqual(result.sold_median_price, 110.0)
+        self.assertEqual(result.market_buy_now_median, 85.0)
+        self.assertEqual(result.last_2_sales, [100.0, 110.0])
         self.assertEqual(result.buy_now_count, 3)
         self.assertEqual(result.comparable_count, 3)
+
+    def test_one_recent_sale_sets_medium_confidence_fair_value(self):
+        deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: [
+            EbaySoldListing("sold one", 100.0),
+        ]
+        deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
+            EbaySoldListing("active one", 130.0),
+            EbaySoldListing("active two", 140.0),
+            EbaySoldListing("active three", 150.0),
+        ]
+
+        result = deal_detector.evaluate_listing(self.listing())
+
+        self.assertEqual(result.pricing_basis, "sold")
+        self.assertEqual(result.estimated_fair_value, 100.0)
+        self.assertEqual(result.confidence_score, 72)
 
     def test_buy_now_can_price_listing_when_recent_sales_are_missing(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
@@ -51,7 +72,8 @@ class BuyNowReferenceTests(unittest.TestCase):
         result = deal_detector.evaluate_listing(self.listing())
 
         self.assertEqual(result.status, "deal")
-        self.assertEqual(result.price_source, "ebay_buy_now")
+        self.assertEqual(result.price_source, "buy_now")
+        self.assertEqual(result.pricing_basis, "buy_now")
         self.assertEqual(result.reference_price, 110.0)
         self.assertEqual(result.buy_now_reference_price, 110.0)
         self.assertEqual(result.buy_now_count, 3)
@@ -70,7 +92,7 @@ class BuyNowReferenceTests(unittest.TestCase):
         result = deal_detector.evaluate_listing(self.listing())
 
         self.assertEqual(result.status, "deal")
-        self.assertEqual(result.price_source, "ebay_buy_now")
+        self.assertEqual(result.price_source, "buy_now")
         self.assertEqual(result.reference_price, 110.0)
         self.assertIn("SOLD_BLOCKED", result.reason)
 

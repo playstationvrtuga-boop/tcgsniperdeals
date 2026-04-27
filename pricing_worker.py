@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import random
 import time
@@ -57,7 +58,17 @@ def fetch_next_pending_listing() -> Listing | None:
 
 def _mark_processed(listing: Listing, result) -> None:
     checked_at = utcnow()
-    listing.reference_price = result.reference_price
+    listing.reference_price = result.estimated_fair_value or result.reference_price
+    listing.market_buy_now_min = result.market_buy_now_min
+    listing.market_buy_now_avg = result.market_buy_now_avg
+    listing.market_buy_now_median = result.market_buy_now_median
+    listing.last_sold_prices_json = json.dumps(result.last_sold_prices or [], ensure_ascii=False)
+    listing.last_2_sales_json = json.dumps(result.last_2_sales or [], ensure_ascii=False)
+    listing.sold_avg_price = result.sold_avg_price
+    listing.sold_median_price = result.sold_median_price
+    listing.estimated_fair_value = result.estimated_fair_value or result.reference_price
+    listing.pricing_basis = result.pricing_basis
+    listing.confidence_score = result.confidence_score
     listing.discount_percent = result.discount_percent
     listing.gross_margin = result.gross_margin
     listing.estimated_profit = result.gross_margin
@@ -126,6 +137,14 @@ def _pricing_reason(result) -> str:
         parts.append(f"query={result.parser_query}")
     if getattr(result, "buy_now_reference_price", None) is not None:
         parts.append(f"buy_now_ref={result.buy_now_reference_price:.2f}eur")
+    if getattr(result, "estimated_fair_value", None) is not None:
+        parts.append(f"fair_value={result.estimated_fair_value:.2f}eur")
+    if getattr(result, "pricing_basis", None):
+        parts.append(f"basis={result.pricing_basis}")
+    if getattr(result, "confidence_score", None) is not None:
+        parts.append(f"confidence_score={result.confidence_score}")
+    if getattr(result, "last_2_sales", None):
+        parts.append("last_2_sales=" + ",".join(f"{price:.2f}" for price in result.last_2_sales[:2]))
     if result.reason:
         parts.append(f"note={result.reason}")
     return "; ".join(parts)[:255]
@@ -136,26 +155,30 @@ def _describe_result(result) -> str:
     source = result.price_source or "unknown"
     buy_now_count = getattr(result, "buy_now_count", 0) or 0
     buy_now_reference = getattr(result, "buy_now_reference_price", None)
+    sold_median = getattr(result, "sold_median_price", None)
+    fair_value = getattr(result, "estimated_fair_value", None) or result.reference_price
     buy_now_part = f" buy_now={buy_now_count}"
     if buy_now_reference is not None:
         buy_now_part += f" buy_now_ref={buy_now_reference:.2f}eur"
+    if sold_median is not None:
+        buy_now_part += f" sold_median={sold_median:.2f}eur"
 
     if result.status == "deal":
         return (
             f"DEAL kind={kind} price={result.listing_price:.2f}eur "
-            f"ref={result.reference_price:.2f}eur source={source} "
+            f"fair_value={fair_value:.2f}eur basis={getattr(result, 'pricing_basis', None) or source} "
             f"last3={result.comparable_count}{buy_now_part} "
             f"discount={result.discount_percent:.1f}% margin={result.gross_margin:.2f}eur "
-            f"score={result.score} confidence={getattr(result, 'parser_confidence', None) or 'n/a'}"
+            f"score={result.score} confidence={getattr(result, 'confidence_score', None) or 'n/a'}"
         )
 
     if result.status == "priced":
         return (
             f"PRICED kind={kind} price={result.listing_price:.2f}eur "
-            f"ref={result.reference_price:.2f}eur source={source} "
+            f"fair_value={fair_value:.2f}eur basis={getattr(result, 'pricing_basis', None) or source} "
             f"last3={result.comparable_count}{buy_now_part} "
             f"discount={result.discount_percent:.1f}% margin={result.gross_margin:.2f}eur "
-            f"score={result.score} confidence={getattr(result, 'parser_confidence', None) or 'n/a'}"
+            f"score={result.score} confidence={getattr(result, 'confidence_score', None) or 'n/a'}"
         )
 
     if result.status == "needs_review":
