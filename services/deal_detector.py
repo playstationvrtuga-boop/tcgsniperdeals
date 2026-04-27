@@ -326,11 +326,17 @@ def fetch_recent_comparables(product_name: str, listing_kind: str | None) -> lis
     return sales
 
 
+def _buy_now_min_comparables(listing_kind: str | None) -> int:
+    if listing_kind == "graded_card":
+        return 1
+    return PRICING_BUY_NOW_MIN_COMPARABLES
+
+
 def fetch_active_buy_now_comparables(product_name: str, listing_kind: str | None) -> list[EbaySoldListing]:
     if not PRICING_ENABLE_BUY_NOW_REFERENCE:
         return []
 
-    cache_key = f"active-buy-now::{listing_kind or 'unknown'}::{_clean_text(product_name).lower()}"
+    cache_key = f"active-buy-now-strict-v2::{listing_kind or 'unknown'}::{_clean_text(product_name).lower()}"
     cached = price_cache.get(cache_key)
     if cached is not None:
         return [
@@ -443,6 +449,7 @@ def _fetch_best_recent_for_queries(queries: list[str], listing_kind: str | None)
 def _fetch_best_buy_now_for_queries(queries: list[str], listing_kind: str | None) -> list[EbaySoldListing]:
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
+    required_comparables = _buy_now_min_comparables(listing_kind)
     for attempt, query in enumerate(queries, start=1):
         _log_pricing_attempt("buy_now", attempt, query)
         try:
@@ -454,7 +461,7 @@ def _fetch_best_buy_now_for_queries(queries: list[str], listing_kind: str | None
             continue
         if len(listings) > len(best):
             best = listings
-        success = len(listings) >= PRICING_BUY_NOW_MIN_COMPARABLES
+        success = len(listings) >= required_comparables
         _log_pricing_results(len(listings), success=success)
         if success:
             return listings
@@ -523,9 +530,10 @@ def evaluate_listing(listing) -> DealResult:
         buy_now_exception = error
 
     sold_reference_price = _median_price(comparable_sales[:3]) if len(comparable_sales) >= 3 else None
+    required_buy_now_count = _buy_now_min_comparables(listing_kind)
     buy_now_reference_price = (
-        _median_price(buy_now_listings[:PRICING_BUY_NOW_MIN_COMPARABLES])
-        if len(buy_now_listings) >= PRICING_BUY_NOW_MIN_COMPARABLES
+        _median_price(buy_now_listings[:required_buy_now_count])
+        if len(buy_now_listings) >= required_buy_now_count
         else None
     )
 
@@ -557,8 +565,8 @@ def evaluate_listing(listing) -> DealResult:
 
     comparable_prices = [sale.price_eur for sale in comparable_sales[:3]]
     comparable_titles = [sale.title for sale in comparable_sales[:3]]
-    buy_now_prices = [listing.price_eur for listing in buy_now_listings[:PRICING_BUY_NOW_MIN_COMPARABLES]]
-    buy_now_titles = [listing.title for listing in buy_now_listings[:PRICING_BUY_NOW_MIN_COMPARABLES]]
+    buy_now_prices = [listing.price_eur for listing in buy_now_listings[:required_buy_now_count]]
+    buy_now_titles = [listing.title for listing in buy_now_listings[:required_buy_now_count]]
 
     if buy_now_reference_price is not None:
         reference_price = buy_now_reference_price

@@ -57,6 +57,13 @@ NOISY_QUERY_TERMS = {
     "lot", "bundle", "rare", "ultra", "near", "mint", "nm",
     "holo", "reverse", "english", "japanese", "sealed",
 }
+GRADED_REFERENCE_TERMS = {
+    "psa", "bgs", "cgc", "beckett", "graded", "grade", "graad", "slab",
+}
+DISALLOWED_REFERENCE_TERMS = {
+    "proxy", "custom", "fake", "replica", "reprint", "fan art", "fanart",
+    "digital", "orica", "metal card", "gold card",
+}
 
 
 @dataclass
@@ -184,6 +191,63 @@ def build_query_variants(product_name: str, listing_kind: str | None = None) -> 
             seen.add(clean)
             unique.append(clean)
     return unique
+
+
+def _normalized_words(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9.]+", " ", (value or "").lower())).strip()
+
+
+def _contains_any_term(value: str, terms: set[str]) -> bool:
+    normalized = _normalized_words(value)
+    return any(term in normalized for term in terms)
+
+
+def _extract_grade(value: str) -> float | None:
+    normalized = _normalized_words(value).replace(",", ".")
+    match = re.search(r"\b(?:psa|bgs|cgc|beckett|grade|graded|graad)\s*(10|[1-9](?:\.\d)?)\b", normalized)
+    if not match and _contains_any_term(normalized, GRADED_REFERENCE_TERMS):
+        match = re.search(r"\b(10|[1-9]\.5|[1-9])\b", normalized)
+    if not match:
+        return None
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
+
+
+def _reference_rejection_reason(product_name: str, candidate_title: str, listing_kind: str | None) -> str | None:
+    if not candidate_title:
+        return "missing_title"
+    if _contains_any_term(candidate_title, DISALLOWED_REFERENCE_TERMS):
+        return "blocked_reference_term"
+    if listing_kind == "graded_card":
+        if not _contains_any_term(candidate_title, GRADED_REFERENCE_TERMS):
+            return "graded_reference_missing"
+    elif not _matches_listing_kind(candidate_title, listing_kind):
+        return "kind_mismatch"
+
+    required_overlap = 3 if listing_kind == "graded_card" else 2
+    if _title_overlap_score(product_name, candidate_title) < required_overlap:
+        return "low_title_overlap"
+
+    if listing_kind != "graded_card":
+        return None
+
+    product_norm = _normalized_words(product_name)
+    candidate_norm = _normalized_words(candidate_title)
+    for grading_company in ("psa", "bgs", "cgc", "beckett"):
+        if grading_company in product_norm and grading_company not in candidate_norm:
+            return f"{grading_company}_missing"
+
+    expected_grade = _extract_grade(product_name)
+    if expected_grade is not None:
+        candidate_grade = _extract_grade(candidate_title)
+        if candidate_grade is None:
+            return "grade_missing"
+        if abs(candidate_grade - expected_grade) > 0.25:
+            return "grade_mismatch"
+
+    return None
 
 class EbayApiClient:
     """Small official eBay API client for pricing references.
@@ -580,9 +644,9 @@ class EbayApiClient:
                 preview.append(
                     f"{title[:80]} | {price.get('value')} {price.get('currency')} | {','.join(buying_options)}"
                 )
-                if not title or not _matches_listing_kind(title, listing_kind):
-                    continue
-                if _title_overlap_score(product_name, title) < 2:
+                rejection_reason = _reference_rejection_reason(product_name, title, listing_kind)
+                if rejection_reason:
+                    _log(f"buy_now reject_reference reason={rejection_reason} title={title[:100]}")
                     continue
 
                 price_eur = self._price_to_eur(item.get("price"))
@@ -649,9 +713,8 @@ class EbayApiClient:
             if not isinstance(item, dict):
                 continue
             title = str(item.get("title") or "").strip()
-            if not title or not _matches_listing_kind(title, listing_kind):
-                continue
-            if _title_overlap_score(product_name, title) < 2:
+            rejection_reason = _reference_rejection_reason(product_name, title, listing_kind)
+            if rejection_reason:
                 continue
 
             price_eur = self._price_to_eur(item.get("price") or item.get("lastSoldPrice"))

@@ -94,6 +94,69 @@ class EbayApiClientTests(unittest.TestCase):
         self.assertEqual(session.last_params["limit"], "20")
         self.assertEqual(session.last_params["sort"], "price")
 
+    def test_graded_buy_now_requires_graded_same_grade_reference(self):
+        session = FakeSession(
+            {
+                "itemSummaries": [
+                    {
+                        "title": "Mega Charizard X EX Pokemon Card Raw",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "23.72", "currency": "EUR"},
+                    },
+                    {
+                        "title": "Mega Charizard X EX PSA 6 Graded Card",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "120.00", "currency": "EUR"},
+                    },
+                    {
+                        "title": "Mega Charizard X EX PSA 9.5 Graded Slab",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "800.00", "currency": "EUR"},
+                    },
+                ]
+            }
+        )
+        client = EbayApiClient()
+        client.session = session
+        client._get_access_token = lambda **_kwargs: "token"
+
+        listings = client.fetch_active_buy_now(
+            "Mega charizard x ex graad 9.5 Mint plus psa",
+            max_results=5,
+            listing_kind="graded_card",
+        )
+
+        self.assertEqual([listing.price_eur for listing in listings], [800.0])
+
+    def test_graded_buy_now_rejects_raw_only_results(self):
+        session = FakeSession(
+            {
+                "itemSummaries": [
+                    {
+                        "title": "Mega Charizard X EX Pokemon Card Raw",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "23.72", "currency": "EUR"},
+                    },
+                    {
+                        "title": "Mega Charizard X EX Custom Proxy PSA 9.5",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "9.99", "currency": "EUR"},
+                    },
+                ]
+            }
+        )
+        client = EbayApiClient()
+        client.session = session
+        client._get_access_token = lambda **_kwargs: "token"
+
+        listings = client.fetch_active_buy_now(
+            "Mega charizard x ex graad 9.5 Mint plus psa",
+            max_results=5,
+            listing_kind="graded_card",
+        )
+
+        self.assertEqual(listings, [])
+
     def test_missing_api_keys_report_clear_status(self):
         ebay_api_client.EBAY_ENABLE_OFFICIAL_API = True
         ebay_api_client.EBAY_CLIENT_ID = ""
