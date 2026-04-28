@@ -746,7 +746,7 @@ If Cardmarket blocks the worker with `403 Forbidden`, use the safe manual import
 5. Upload the screenshot in `Combined screenshot`, or upload the two screenshots in `Best Sellers screenshot` and `Best Bargains screenshot`.
 6. Open `AI Market Intel` in the VIP app.
 
-The importer crops the trend cards from the screenshot(s) and saves them as app images. Separate mobile screenshots import up to 9 Best Sellers and 9 Best Bargains. A combined desktop screenshot imports the visible top cards from each section. If optional OCR is available, it also tries to read product names and prices. If OCR is not available, the app still shows the cropped images with safe fallback names.
+The importer stores a compressed copy of each uploaded screenshot in the database, so the AI Market Intel tab keeps showing the latest manual snapshot after Render restarts or deploys. Separate mobile screenshots import one persistent Best Sellers snapshot and one persistent Best Bargains snapshot, each showing the full visible 9-card grid. A combined desktop screenshot can still crop the visible top cards from each section. If optional OCR is available, it also tries to read product names and prices. If OCR is not available, the app still shows the uploaded screenshot(s) with safe fallback names.
 
 Optional helper:
 

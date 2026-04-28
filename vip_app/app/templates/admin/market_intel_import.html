@@ -56,8 +56,8 @@
       {% for trend in trends %}
       <article class="ai-trend-card">
         <div class="ai-trend-image">
-          {% if trend.image_url %}
-          <img src="{{ trend.image_url }}" alt="{{ trend.product_name }}">
+          {% if trend.display_image_url %}
+          <img src="{{ trend.display_image_url }}" alt="{{ trend.product_name }}">
           {% endif %}
           <span class="ai-rank">#{{ trend.rank }}</span>
         </div>

@@ -155,6 +155,16 @@ def ensure_runtime_schema(app):
     from .models import CardmarketTrend
 
     CardmarketTrend.__table__.create(db.engine, checkfirst=True)
+    inspector = inspect(db.engine)
+    cardmarket_columns = {column["name"] for column in inspector.get_columns("cardmarket_trends")}
+    if "image_data_url" not in cardmarket_columns:
+        statement = (
+            "ALTER TABLE cardmarket_trends ADD COLUMN image_data_url TEXT"
+            if is_sqlite
+            else "ALTER TABLE cardmarket_trends ADD COLUMN IF NOT EXISTS image_data_url TEXT"
+        )
+        with db.engine.begin() as connection:
+            connection.execute(text(statement))
 
 
 def create_app(minimal=False, skip_db=False, skip_blueprints=False):

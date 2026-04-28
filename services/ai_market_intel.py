@@ -378,7 +378,7 @@ def _trend_to_dict(trend: CardmarketTrend) -> dict:
         "card_number": trend.card_number,
         "price": trend.price,
         "currency": trend.currency,
-        "image_url": trend.image_url,
+        "image_url": trend.display_image_url,
         "product_url": trend.product_url,
         "liquidity": trend.liquidity_label,
         "collected_at": trend.collected_at.isoformat() if trend.collected_at else None,

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import re
 import importlib
+import base64
+from io import BytesIO
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +31,20 @@ class ScreenshotTrendSlot:
 
 def _static_url(relative_path: Path) -> str:
     return "/static/" + relative_path.as_posix().lstrip("/")
+
+
+def _image_data_url(image_path: Path, *, max_width: int = 900, max_height: int = 1800) -> str:
+    try:
+        from PIL import Image  # type: ignore
+    except Exception as error:
+        raise RuntimeError("Pillow is required for persistent screenshot storage") from error
+
+    image = Image.open(image_path).convert("RGB")
+    image.thumbnail((max_width, max_height))
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=82, optimize=True)
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/jpeg;base64,{encoded}"
 
 
 def _runtime_app_modules():
@@ -148,7 +164,7 @@ def _crop_trend_images(
     static_root: Path,
     *,
     category: str | None = None,
-) -> list[tuple[str, int, str]]:
+) -> list[tuple[str, int, str, str]]:
     try:
         from PIL import Image  # type: ignore
     except Exception as error:
@@ -170,19 +186,19 @@ def _crop_trend_images(
             ("best_bargains", 2, (0.675, 0.300, 0.795, 0.585)),
             ("best_bargains", 3, (0.800, 0.300, 0.920, 0.585)),
         ]
-    crops: list[tuple[str, int, str]] = []
+    crops: list[tuple[str, int, str, str]] = []
     for category, rank, ratios in boxes:
         left, top, right, bottom = ratios
         crop = image.crop((int(width * left), int(height * top), int(width * right), int(height * bottom)))
         filename = f"{image_path.stem}_{category}_{rank}.jpg"
         crop_path = output_dir / filename
         crop.save(crop_path, format="JPEG", quality=86, optimize=True)
-        crops.append((category, rank, _static_url(crop_path.relative_to(static_root))))
+        crops.append((category, rank, _static_url(crop_path.relative_to(static_root)), _image_data_url(crop_path)))
     return crops
 
 
-def _full_screenshot_trend(image_path: Path, static_root: Path, *, category: str) -> tuple[str, int, str]:
-    return (category, 1, _static_url(image_path.relative_to(static_root)))
+def _full_screenshot_trend(image_path: Path, static_root: Path, *, category: str) -> tuple[str, int, str, str]:
+    return (category, 1, _static_url(image_path.relative_to(static_root)), _image_data_url(image_path))
 
 
 def import_cardmarket_trends_from_screenshots(
@@ -200,7 +216,7 @@ def import_cardmarket_trends_from_screenshots(
     original_dir = import_dir / "original"
     crop_dir = import_dir / "cards"
 
-    crops: list[tuple[str, int, str]] = []
+    crops: list[tuple[str, int, str, str]] = []
     original_urls: list[str] = []
     ocr_chunks: list[str] = []
 
@@ -231,7 +247,7 @@ def import_cardmarket_trends_from_screenshots(
 
     collected_at = utcnow()
     created: list[CardmarketTrend] = []
-    for category, rank, image_url in crops:
+    for category, rank, image_url, image_data_url in crops:
         text_slot = text_by_key.get((category, rank))
         is_full_screenshot = image_url in original_urls
         fallback_label = "Best Sellers Snapshot" if category == "best_sellers" else "Best Bargains Snapshot"
@@ -244,6 +260,7 @@ def import_cardmarket_trends_from_screenshots(
             price=text_slot.price if text_slot else None,
             currency=text_slot.currency if text_slot else "EUR",
             image_url=image_url,
+            image_data_url=image_data_url,
             product_url=None,
             source_url=source_url,
             collected_at=collected_at,
@@ -261,7 +278,7 @@ def import_cardmarket_trends_from_screenshots(
         created.append(trend)
 
     day_start = collected_at.replace(hour=0, minute=0, second=0, microsecond=0)
-    for category in {category for category, _, _ in crops}:
+    for category in {category for category, _, _, _ in crops}:
         CardmarketTrend.query.filter(
             CardmarketTrend.category == category,
             CardmarketTrend.collected_at >= day_start,

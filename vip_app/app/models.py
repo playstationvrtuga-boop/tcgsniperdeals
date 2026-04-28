@@ -401,6 +401,7 @@ class CardmarketTrend(TimestampMixin, db.Model):
     price = db.Column(db.Float)
     currency = db.Column(db.String(8), default="EUR", nullable=False)
     image_url = db.Column(db.String(1000))
+    image_data_url = db.Column(db.Text)
     product_url = db.Column(db.String(1000))
     source_url = db.Column(db.String(1000), nullable=False, default="https://www.cardmarket.com/en/Pokemon")
     collected_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
@@ -415,6 +416,10 @@ class CardmarketTrend(TimestampMixin, db.Model):
     def set_or_number(self) -> str:
         parts = [value for value in (self.expansion, self.card_number) if value]
         return " ".join(parts)
+
+    @property
+    def display_image_url(self) -> str | None:
+        return self.image_data_url or self.image_url
 
     @property
     def liquidity_label(self) -> str:
