@@ -703,9 +703,19 @@ def smart_deals():
     score_level = db.func.upper(db.func.coalesce(Listing.score_level, ""))
     profit_value = db.func.coalesce(Listing.estimated_profit, Listing.profit_margin, Listing.gross_margin, 0)
     pricing_status = db.func.lower(db.func.coalesce(Listing.pricing_status, ""))
+    pricing_basis = db.func.lower(db.func.coalesce(Listing.pricing_basis, ""))
+    confidence_value = db.func.coalesce(Listing.confidence_score, 0)
     query = Listing.query.filter(
         pricing_status.in_(["analyzed", "priced", "deal"]),
+        pricing_basis.in_(["sold", "buy_now", "mixed"]),
+        or_(Listing.estimated_fair_value.isnot(None), Listing.reference_price.isnot(None)),
+        confidence_value >= 50,
         or_(
+            Listing.pricing_reason.is_(None),
+            ~Listing.pricing_reason.ilike("%PRICE_COMPARE_INSUFFICIENT_RAW_COMPARABLES%"),
+        ),
+        or_(
+            Listing.is_deal.is_(True),
             score_level.in_(["MEDIUM", "HIGH", "INSANE"]),
             profit_value >= 10,
             Listing.discount_percent >= 10,
@@ -714,7 +724,7 @@ def smart_deals():
     return render_deals_board(
         query=query,
         order_by=smart_deal_order(),
-        cache_key="feed:smart",
+        cache_key="feed:smart:v3",
         page_mode="smart",
         board_label="Sniper pricing",
         board_title="Sniper Deals with pricing edge",

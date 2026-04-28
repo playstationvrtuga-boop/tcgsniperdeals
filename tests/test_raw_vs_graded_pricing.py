@@ -11,10 +11,12 @@ class RawVsGradedPricingTests(unittest.TestCase):
         price_cache.clear()
         self.original_recent = deal_detector.fetch_recent_comparables
         self.original_buy_now = deal_detector.fetch_active_buy_now_comparables
+        self.original_prepare_queries = deal_detector._prepare_pricing_queries
 
     def tearDown(self):
         deal_detector.fetch_recent_comparables = self.original_recent
         deal_detector.fetch_active_buy_now_comparables = self.original_buy_now
+        deal_detector._prepare_pricing_queries = self.original_prepare_queries
         price_cache.clear()
 
     def listing(self, title: str, price: str = "10,00 EUR"):
@@ -107,6 +109,46 @@ class RawVsGradedPricingTests(unittest.TestCase):
         self.assertEqual(result.status, "needs_review")
         self.assertEqual(result.comparable_count, 0)
         self.assertEqual(result.buy_now_count, 0)
+
+    def test_query_fallback_continues_after_graded_results_for_raw_card(self):
+        deal_detector._prepare_pricing_queries = lambda _queries: ["bad graded query", "good raw query"]
+        deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
+
+        def buy_now(query, *_args, **_kwargs):
+            if query == "bad graded query":
+                return self.graded_only("Zapdos Fossil 15/62")
+            return [
+                EbaySoldListing("Zapdos Fossil 15/62 raw holo Pokemon", 42.0),
+                EbaySoldListing("Pokemon Zapdos Fossil 15/62 raw card", 45.0),
+                EbaySoldListing("Zapdos 15/62 Fossil Pokemon card raw", 48.0),
+            ]
+
+        deal_detector.fetch_active_buy_now_comparables = buy_now
+
+        result = deal_detector.evaluate_listing(
+            self.listing("Zapdos Fossil Pokemon raw holo 15/62", "20,00 EUR")
+        )
+
+        self.assertEqual(result.listing_type, "raw_card")
+        self.assertEqual(result.pricing_basis, "buy_now")
+        self.assertEqual(result.buy_now_count, 3)
+        self.assertNotEqual(result.status, "insufficient_comparables")
+        self.assertLessEqual(result.score, 69)
+
+    def test_raw_buy_now_only_cannot_become_high_confidence_deal(self):
+        deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
+        deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
+            EbaySoldListing("Charizard PFL 125/094 raw Pokemon", 100.0),
+            EbaySoldListing("Pokemon Charizard PFL 125/094 raw", 110.0),
+            EbaySoldListing("Charizard 125/094 PFL Pokemon card", 120.0),
+        ]
+
+        result = deal_detector.evaluate_listing(
+            self.listing("Charizard PFL 125/094 Pokemon", "1,00 EUR")
+        )
+
+        self.assertEqual(result.pricing_basis, "buy_now")
+        self.assertLessEqual(result.score, 69)
 
 
 if __name__ == "__main__":

@@ -70,7 +70,9 @@ def _pending_listing_query():
                 retryable_legacy_skips,
             )
         )
-        .order_by(Listing.detected_at.asc(), Listing.created_at.asc(), Listing.id.asc())
+        # Fresh opportunities matter more than old backlog. Retryable old rows still
+        # get processed when the stream is quiet, but new listings are checked first.
+        .order_by(Listing.detected_at.desc(), Listing.created_at.desc(), Listing.id.desc())
     )
 
 

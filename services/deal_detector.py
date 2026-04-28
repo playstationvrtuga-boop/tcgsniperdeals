@@ -517,14 +517,42 @@ def extract_listing_price_eur(price_display: str) -> float | None:
     return None
 
 
+def _serialize_price_references(listings: list[EbaySoldListing]) -> list[dict[str, float | str]]:
+    return [
+        {
+            "title": listing.title,
+            "price_eur": float(listing.price_eur),
+        }
+        for listing in listings
+        if listing.price_eur and listing.price_eur > 0
+    ]
+
+
+def _deserialize_price_references(cached, fallback_title: str, max_results: int) -> list[EbaySoldListing]:
+    references: list[EbaySoldListing] = []
+    for item in (cached or [])[:max_results]:
+        if isinstance(item, dict):
+            title = str(item.get("title") or fallback_title)
+            price = item.get("price_eur")
+        else:
+            # Backward compatibility for old in-memory cache entries. New cache
+            # keys below avoid reusing old title-less data in normal operation.
+            title = fallback_title
+            price = item
+        try:
+            price_value = float(price)
+        except (TypeError, ValueError):
+            continue
+        if price_value > 0:
+            references.append(EbaySoldListing(title=title, price_eur=price_value))
+    return references
+
+
 def fetch_recent_comparables(product_name: str, listing_kind: str | None) -> list[EbaySoldListing]:
-    cache_key = f"recent-sales-strict-v3::{listing_kind or 'unknown'}::{_clean_text(product_name).lower()}"
+    cache_key = f"recent-sales-strict-v4::{listing_kind or 'unknown'}::{_clean_text(product_name).lower()}"
     cached = price_cache.get(cache_key)
     if cached is not None:
-        return [
-            EbaySoldListing(title=f"cached-{idx + 1}", price_eur=float(price))
-            for idx, price in enumerate(cached[:3])
-        ]
+        return _deserialize_price_references(cached, product_name, 3)
 
     sales = []
     if official_ebay_api_configured():
@@ -532,7 +560,7 @@ def fetch_recent_comparables(product_name: str, listing_kind: str | None) -> lis
     if not sales and PRICING_ENABLE_EBAY_HTML_FALLBACK:
         sales = get_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
     if sales:
-        price_cache.set(cache_key, [sale.price_eur for sale in sales])
+        price_cache.set(cache_key, _serialize_price_references(sales))
     return sales
 
 
@@ -546,13 +574,10 @@ def fetch_active_buy_now_comparables(product_name: str, listing_kind: str | None
     if not PRICING_ENABLE_BUY_NOW_REFERENCE:
         return []
 
-    cache_key = f"active-buy-now-strict-v3::{listing_kind or 'unknown'}::{_clean_text(product_name).lower()}"
+    cache_key = f"active-buy-now-strict-v4::{listing_kind or 'unknown'}::{_clean_text(product_name).lower()}"
     cached = price_cache.get(cache_key)
     if cached is not None:
-        return [
-            EbaySoldListing(title=f"cached-buy-now-{idx + 1}", price_eur=float(price))
-            for idx, price in enumerate(cached[:PRICING_BUY_NOW_MAX_RESULTS])
-        ]
+        return _deserialize_price_references(cached, product_name, PRICING_BUY_NOW_MAX_RESULTS)
 
     listings = []
     if official_ebay_api_configured():
@@ -568,7 +593,7 @@ def fetch_active_buy_now_comparables(product_name: str, listing_kind: str | None
             listing_kind=listing_kind,
         )
     if listings:
-        price_cache.set(cache_key, [listing.price_eur for listing in listings])
+        price_cache.set(cache_key, _serialize_price_references(listings))
     return listings
 
 
@@ -755,7 +780,13 @@ def _prepare_pricing_queries(raw_queries: list[str]) -> list[str]:
     return cleaned_queries
 
 
-def _fetch_best_recent_for_queries(queries: list[str], listing_kind: str | None) -> list[EbaySoldListing]:
+def _fetch_best_recent_for_queries(
+    queries: list[str],
+    listing_kind: str | None,
+    *,
+    original_title: str,
+    listing_type: str,
+) -> list[EbaySoldListing]:
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
     for attempt, query in enumerate(queries, start=1):
@@ -767,12 +798,23 @@ def _fetch_best_recent_for_queries(queries: list[str], listing_kind: str | None)
             print(f"[pricing] source=sold query_error={error}", flush=True)
             _log_pricing_results(0, success=False)
             continue
-        if len(listings) > len(best):
-            best = listings
-        success = len(listings) >= 3
-        _log_pricing_results(len(listings), success=success)
+        filtered = _filter_comparables(
+            original_title=original_title,
+            listings=listings,
+            listing_type=listing_type,
+            listing_kind=listing_kind,
+            source="sold",
+        )
+        print(
+            f"[pricing] raw_results={len(listings)} accepted_results={len(filtered)} source=sold",
+            flush=True,
+        )
+        if len(filtered) > len(best):
+            best = filtered
+        success = len(filtered) >= 3
+        _log_pricing_results(len(filtered), success=success)
         if success:
-            return listings
+            return filtered
     if best:
         return best
     if last_error is not None:
@@ -780,7 +822,13 @@ def _fetch_best_recent_for_queries(queries: list[str], listing_kind: str | None)
     return best
 
 
-def _fetch_best_buy_now_for_queries(queries: list[str], listing_kind: str | None) -> list[EbaySoldListing]:
+def _fetch_best_buy_now_for_queries(
+    queries: list[str],
+    listing_kind: str | None,
+    *,
+    original_title: str,
+    listing_type: str,
+) -> list[EbaySoldListing]:
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
     required_comparables = _buy_now_min_comparables(listing_kind)
@@ -793,12 +841,23 @@ def _fetch_best_buy_now_for_queries(queries: list[str], listing_kind: str | None
             print(f"[pricing] source=buy_now query_error={error}", flush=True)
             _log_pricing_results(0, success=False)
             continue
-        if len(listings) > len(best):
-            best = listings
-        success = len(listings) >= required_comparables
-        _log_pricing_results(len(listings), success=success)
+        filtered = _filter_comparables(
+            original_title=original_title,
+            listings=listings,
+            listing_type=listing_type,
+            listing_kind=listing_kind,
+            source="buy_now",
+        )
+        print(
+            f"[pricing] raw_results={len(listings)} accepted_results={len(filtered)} source=buy_now",
+            flush=True,
+        )
+        if len(filtered) > len(best):
+            best = filtered
+        success = len(filtered) >= required_comparables
+        _log_pricing_results(len(filtered), success=success)
         if success:
-            return listings
+            return filtered
     if best:
         return best
     if last_error is not None:
@@ -854,33 +913,29 @@ def evaluate_listing(listing) -> DealResult:
     recent_sales_error: str | None = None
     recent_sales_exception: EbaySoldError | None = None
     try:
-        comparable_sales = _fetch_best_recent_for_queries(pricing_queries, listing_kind=listing_kind)
+        comparable_sales = _fetch_best_recent_for_queries(
+            pricing_queries,
+            listing_kind=listing_kind,
+            original_title=title,
+            listing_type=listing_type,
+        )
     except EbaySoldError as error:
         recent_sales_error = str(error)
         recent_sales_exception = error
-    comparable_sales = _filter_comparables(
-        original_title=title,
-        listings=comparable_sales,
-        listing_type=listing_type,
-        listing_kind=listing_kind,
-        source="sold",
-    )
 
     buy_now_listings: list[EbaySoldListing] = []
     buy_now_error: str | None = None
     buy_now_exception: EbaySoldError | None = None
     try:
-        buy_now_listings = _fetch_best_buy_now_for_queries(pricing_queries, listing_kind=listing_kind)
+        buy_now_listings = _fetch_best_buy_now_for_queries(
+            pricing_queries,
+            listing_kind=listing_kind,
+            original_title=title,
+            listing_type=listing_type,
+        )
     except EbaySoldError as error:
         buy_now_error = str(error)
         buy_now_exception = error
-    buy_now_listings = _filter_comparables(
-        original_title=title,
-        listings=buy_now_listings,
-        listing_type=listing_type,
-        listing_kind=listing_kind,
-        source="buy_now",
-    )
 
     required_buy_now_count = _buy_now_min_comparables(listing_kind)
     _sold_min, sold_avg_price, sold_median_price, sold_prices = _price_stats(comparable_sales[:3])
@@ -1033,6 +1088,21 @@ def evaluate_listing(listing) -> DealResult:
         score = max(0, score - 10)
     if confidence_score < 60:
         score = max(0, score - 8)
+    buy_now_only_low_confidence = pricing_basis == "buy_now" and not sold_prices and confidence_score < 60
+    if buy_now_only_low_confidence:
+        score = min(score, 69)
+        print(
+            "[pricing] PRICING_LOW_CONFIDENCE "
+            "reason=buy_now_only_score_capped max_score=69",
+            flush=True,
+        )
+    if listing_type == "raw_card" and pricing_basis == "buy_now" and confidence_score < 50:
+        score = min(score, 44)
+        print(
+            "[pricing] PRICING_LOW_CONFIDENCE "
+            "reason=raw_buy_now_very_low_confidence max_score=44",
+            flush=True,
+        )
     if identity.confidence == "MEDIUM":
         score = max(0, score - 3)
     elif identity.confidence == "LOW":
@@ -1048,6 +1118,8 @@ def evaluate_listing(listing) -> DealResult:
         result_reason = f"{result_reason}; BUY_NOW_REFERENCE_FOUND"
     if sold_prices:
         result_reason = f"{result_reason}; PRICING_SOLD_FOUND"
+    if buy_now_only_low_confidence:
+        result_reason = f"{result_reason}; PRICING_LOW_CONFIDENCE_BUY_NOW_ONLY"
     result_reason = f"{result_reason}; pricing_basis={pricing_basis}; confidence_score={confidence_score}"
     if recent_sales_error:
         result_reason = f"{result_reason}; SOLD_BLOCKED" if isinstance(recent_sales_exception, EbaySoldRateLimitError) else f"{result_reason}; SOLD_FAILED"
