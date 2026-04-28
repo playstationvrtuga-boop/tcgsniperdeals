@@ -702,8 +702,9 @@ def feed():
 def smart_deals():
     score_level = db.func.upper(db.func.coalesce(Listing.score_level, ""))
     profit_value = db.func.coalesce(Listing.estimated_profit, Listing.profit_margin, Listing.gross_margin, 0)
+    pricing_status = db.func.lower(db.func.coalesce(Listing.pricing_status, ""))
     query = Listing.query.filter(
-        Listing.pricing_status == "analyzed",
+        pricing_status.in_(["analyzed", "priced", "deal"]),
         or_(
             score_level.in_(["MEDIUM", "HIGH", "INSANE"]),
             profit_value >= 10,

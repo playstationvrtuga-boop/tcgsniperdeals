@@ -454,6 +454,42 @@ def _parse_decimal(value: str) -> float | None:
         return None
 
 
+def _parse_price_number(value: str, *, decimal_style: str = "auto") -> float | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    raw = re.sub(r"[^\d.,]", "", raw)
+    if not raw:
+        return None
+
+    if decimal_style == "us":
+        if "," in raw and "." in raw:
+            raw = raw.replace(",", "")
+        elif "," in raw and "." not in raw:
+            raw = raw.replace(",", ".")
+    elif decimal_style == "eu":
+        raw = raw.replace(".", "").replace(",", ".")
+    else:
+        last_comma = raw.rfind(",")
+        last_dot = raw.rfind(".")
+        if last_comma >= 0 and last_dot >= 0:
+            if last_dot > last_comma:
+                raw = raw.replace(",", "")
+            else:
+                raw = raw.replace(".", "").replace(",", ".")
+        elif "," in raw:
+            raw = raw.replace(",", ".")
+        elif "." in raw:
+            parts = raw.split(".")
+            if len(parts[-1]) == 3 and all(part.isdigit() for part in parts):
+                raw = raw.replace(".", "")
+
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
 def extract_listing_price_eur(price_display: str) -> float | None:
     text = _clean_text(price_display)
     if not text:
@@ -462,19 +498,19 @@ def extract_listing_price_eur(price_display: str) -> float | None:
     euro_matches = re.findall(r"(\d[\d.,]*)\s*(?:€|EUR|â‚¬)", text, flags=re.IGNORECASE)
     if euro_matches:
         preferred = euro_matches[-1] if any(marker in text for marker in ("≈", "~", "about")) else euro_matches[0]
-        value = _parse_decimal(preferred)
+        value = _parse_price_number(preferred, decimal_style="eu")
         if value is not None:
             return round(value, 2)
 
     usd_match = re.search(r"(?:US?\$|\$)\s*(\d[\d.,]*)", text, flags=re.IGNORECASE)
     if usd_match:
-        usd_value = _parse_decimal(usd_match.group(1))
+        usd_value = _parse_price_number(usd_match.group(1), decimal_style="us")
         if usd_value is not None:
             return round(usd_value * USD_TO_EUR_FALLBACK, 2)
 
     bare_match = re.search(r"(\d[\d.,]*)", text)
     if bare_match:
-        value = _parse_decimal(bare_match.group(1))
+        value = _parse_price_number(bare_match.group(1))
         if value is not None:
             return round(value, 2)
 
@@ -851,11 +887,14 @@ def evaluate_listing(listing) -> DealResult:
     market_buy_now_min, market_buy_now_avg, market_buy_now_median, buy_now_prices_all = _price_stats(
         buy_now_listings[:PRICING_BUY_NOW_MAX_RESULTS]
     )
-    buy_now_reference_price = (
-        market_buy_now_median
-        if len(buy_now_prices_all) >= required_buy_now_count
-        else None
-    )
+    buy_now_reference_price = market_buy_now_median if buy_now_prices_all else None
+    if buy_now_prices_all and len(buy_now_prices_all) < required_buy_now_count:
+        print(
+            "[pricing] PRICING_LOW_CONFIDENCE "
+            f"reason=limited_buy_now_comparables count={len(buy_now_prices_all)} "
+            f"required={required_buy_now_count}",
+            flush=True,
+        )
     estimated_fair_value, pricing_basis, confidence_score = _pricing_basis_and_confidence(
         sold_prices=sold_prices,
         buy_now_prices=buy_now_prices_all,

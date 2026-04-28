@@ -34,6 +34,25 @@ app = create_app()
 
 def _pending_listing_query():
     retry_before = utcnow() - timedelta(minutes=PRICING_RETRY_AFTER_MINUTES)
+    retryable_old_results = (
+        Listing.pricing_status.in_(["needs_review", "insufficient_comparables"])
+        & (
+            (Listing.pricing_checked_at.is_(None))
+            | (Listing.pricing_checked_at <= retry_before)
+        )
+    )
+    retryable_legacy_skips = (
+        (Listing.pricing_status == "skipped")
+        & (
+            (Listing.pricing_checked_at.is_(None))
+            | (Listing.pricing_checked_at <= retry_before)
+        )
+        & (
+            Listing.pricing_error.contains("listing_not_precisely_identified")
+            | Listing.pricing_error.contains("not_enough_price")
+            | Listing.pricing_error.contains("DEAL_REJECTED_NO_REFERENCE")
+        )
+    )
     return (
         Listing.query.filter(
             or_(
@@ -47,6 +66,8 @@ def _pending_listing_query():
                         | (Listing.pricing_checked_at <= retry_before)
                     )
                 ),
+                retryable_old_results,
+                retryable_legacy_skips,
             )
         )
         .order_by(Listing.detected_at.asc(), Listing.created_at.asc(), Listing.id.asc())

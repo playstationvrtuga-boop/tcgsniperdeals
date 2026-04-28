@@ -78,6 +78,27 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.assertEqual(result.buy_now_reference_price, 110.0)
         self.assertEqual(result.buy_now_count, 3)
 
+    def test_limited_buy_now_comparables_still_price_with_lower_confidence(self):
+        deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
+        deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
+            EbaySoldListing("Charizard PFL 125/094 active one", 100.0),
+            EbaySoldListing("Charizard PFL 125/094 active two", 110.0),
+        ]
+
+        result = deal_detector.evaluate_listing(self.listing(price="80,00 EUR"))
+
+        self.assertEqual(result.status, "priced")
+        self.assertEqual(result.price_source, "buy_now")
+        self.assertEqual(result.pricing_basis, "buy_now")
+        self.assertEqual(result.reference_price, 105.0)
+        self.assertEqual(result.buy_now_reference_price, 105.0)
+        self.assertEqual(result.buy_now_count, 2)
+        self.assertLess(result.confidence_score, 60)
+
+    def test_usd_listing_price_keeps_decimal_point(self):
+        self.assertEqual(deal_detector.extract_listing_price_eur("US $16.95"), 14.92)
+        self.assertEqual(deal_detector.extract_listing_price_eur("$1,234.56"), 1086.41)
+
     def test_buy_now_still_runs_when_recent_sales_are_blocked(self):
         def blocked_recent(*_args, **_kwargs):
             raise EbaySoldRateLimitError("eBay sold lookup returned an anti-bot interruption page.")
