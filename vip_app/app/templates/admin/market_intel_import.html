@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}AI Market Intel Import - TCG Sniper Deals{% endblock %}
+{% block content %}
+<section class="section-header">
+  <div>
+    <span class="pill">Admin</span>
+    <h1>AI Market Intel Import</h1>
+    <p>Upload one Cardmarket trends screenshot. The app extracts the top trend images and updates the VIP AI Market Intel tab.</p>
+  </div>
+  <div class="header-actions">
+    <a class="ghost-button" href="{{ url_for('admin.dashboard') }}">Back to admin</a>
+    <a class="primary-button" href="{{ url_for('main.ai_market_intel') }}">Open AI Intel</a>
+  </div>
+</section>
+
+<div class="admin-layout">
+  <section class="admin-card admin-card-wide">
+    <div class="admin-card-header">
+      <div>
+        <span class="eyebrow">Screenshot import</span>
+        <h2>Upload Cardmarket trends screenshot</h2>
+      </div>
+    </div>
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.market_intel_import') }}" class="stack-form">
+      <label>
+        Screenshot
+        <input type="file" name="screenshot" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" required>
+      </label>
+      <label>
+        Optional text helper
+        <textarea name="pasted_text" rows="10" placeholder="Optional. If you have time, paste the visible Cardmarket text here. The screenshot alone still imports the top images."></textarea>
+      </label>
+      <p class="muted">
+        Best result: use a desktop screenshot where Best Sellers and Best Bargains are both visible, like the Cardmarket trends page.
+      </p>
+      <button class="primary-button" type="submit">Import Market Intel</button>
+    </form>
+  </section>
+
+  <section class="admin-card admin-card-wide">
+    <div class="admin-card-header">
+      <div>
+        <span class="eyebrow">Latest snapshot</span>
+        <h2>Imported trend cards</h2>
+      </div>
+    </div>
+    <div class="ai-trend-grid">
+      {% for trend in trends %}
+      <article class="ai-trend-card">
+        <div class="ai-trend-image">
+          {% if trend.image_url %}
+          <img src="{{ trend.image_url }}" alt="{{ trend.product_name }}">
+          {% endif %}
+          <span class="ai-rank">#{{ trend.rank }}</span>
+        </div>
+        <div class="ai-trend-body">
+          <span class="ai-category">{{ trend.category|replace('_', ' ')|title }}</span>
+          <h3>{{ trend.product_name }}</h3>
+          {% if trend.set_or_number %}
+          <p>{{ trend.set_or_number }}</p>
+          {% endif %}
+          {% if trend.price %}
+          <strong>{{ "%.2f"|format(trend.price) }} {{ trend.currency }}</strong>
+          {% endif %}
+          <small>{{ trend.collected_at|relative_time }}</small>
+        </div>
+      </article>
+      {% else %}
+      <p class="muted">No imported Cardmarket trends yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}

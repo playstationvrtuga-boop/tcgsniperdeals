@@ -6,7 +6,9 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from .decorators import admin_required
 from .extensions import db
-from .models import Listing, Payment, User, utcnow
+from services.cardmarket_screenshot_import import import_cardmarket_trends_from_screenshot
+
+from .models import CardmarketTrend, Listing, Payment, User, utcnow
 
 
 admin_bp = Blueprint("admin", __name__)
@@ -27,6 +29,18 @@ def parse_date(value: str):
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def latest_cardmarket_trends():
+    return (
+        CardmarketTrend.query.order_by(
+            CardmarketTrend.collected_at.desc(),
+            CardmarketTrend.category.asc(),
+            CardmarketTrend.rank.asc(),
+        )
+        .limit(12)
+        .all()
+    )
 
 
 @admin_bp.route("/admin")
@@ -80,6 +94,29 @@ def dashboard():
         payment_method=payment_method,
         payment_methods=payment_methods,
         overview=overview,
+    )
+
+
+@admin_bp.route("/admin/market-intel-import", methods=["GET", "POST"])
+@admin_required
+def market_intel_import():
+    if request.method == "POST":
+        screenshot = request.files.get("screenshot")
+        pasted_text = request.form.get("pasted_text", "")
+        if not screenshot or not screenshot.filename:
+            flash("Upload a Cardmarket screenshot first.", "error")
+            return redirect(url_for("admin.market_intel_import"))
+        try:
+            count = import_cardmarket_trends_from_screenshot(screenshot, pasted_text=pasted_text)
+        except Exception as error:
+            flash(f"Market Intel import failed: {error}", "error")
+            return redirect(url_for("admin.market_intel_import"))
+        flash(f"AI Market Intel updated with {count} screenshot trend cards.", "success")
+        return redirect(url_for("admin.market_intel_import"))
+
+    return render_template(
+        "admin/market_intel_import.html",
+        trends=latest_cardmarket_trends(),
     )
 
 
