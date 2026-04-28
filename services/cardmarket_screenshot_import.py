@@ -2,19 +2,14 @@ from __future__ import annotations
 
 import json
 import re
+import importlib
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from flask import current_app
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
-
-try:
-    from vip_app.app.extensions import db
-    from vip_app.app.models import CardmarketTrend, utcnow
-except ImportError:  # Render rootDir=vip_app can import the Flask package as "app".
-    from app.extensions import db
-    from app.models import CardmarketTrend, utcnow
 
 
 ALLOWED_SCREENSHOT_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
@@ -34,6 +29,14 @@ class ScreenshotTrendSlot:
 
 def _static_url(relative_path: Path) -> str:
     return "/static/" + relative_path.as_posix().lstrip("/")
+
+
+def _runtime_app_modules():
+    """Return db/model objects from the package name used by the active Flask app."""
+    package_name = current_app.import_name
+    extensions_module = importlib.import_module(f"{package_name}.extensions")
+    models_module = importlib.import_module(f"{package_name}.models")
+    return extensions_module.db, models_module.CardmarketTrend, models_module.utcnow
 
 
 def _extract_price(text: str) -> float | None:
@@ -186,6 +189,7 @@ def import_cardmarket_trends_from_screenshots(
     pasted_text: str = "",
     source_url: str = "https://www.cardmarket.com/en/Pokemon",
 ) -> int:
+    db, CardmarketTrend, utcnow = _runtime_app_modules()
     static_root = Path(__file__).resolve().parent.parent / "vip_app" / "app" / "static"
     stamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     import_dir = static_root / "uploads" / "market_intel" / stamp
