@@ -156,6 +156,8 @@ def fetch_cardmarket_trends(
 ) -> list[ParsedTrend]:
     headers = {"User-Agent": user_agent, "Accept": "text/html,application/xhtml+xml"}
     response = requests.get(source_url, headers=headers, timeout=timeout_seconds)
+    if response.status_code in {401, 403, 429}:
+        raise PermissionError(f"cardmarket_blocked status={response.status_code}")
     response.raise_for_status()
     print("[ai_market_intel] CARDMARKET_TRENDS_FETCH_OK", flush=True)
     trends = parse_cardmarket_trends(response.text, source_url=source_url, max_items=max_items)
@@ -448,6 +450,10 @@ def collect_cardmarket_trends_once(
             max_items=max_items,
         )
         return save_trends_snapshot(trends)
+    except PermissionError as error:
+        print(f"[ai_market_intel] CARDMARKET_TRENDS_BLOCKED {error}", flush=True)
+        print("[ai_market_intel] AI_MARKET_INTEL_USING_LAST_SNAPSHOT", flush=True)
+        return 0
     except Exception as error:
         print(f"[ai_market_intel] CARDMARKET_TRENDS_FAILED error={error}", flush=True)
         return 0

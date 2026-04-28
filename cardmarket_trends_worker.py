@@ -10,7 +10,7 @@ from vip_app.app import create_app
 
 def _sleep_seconds() -> int:
     interval_hours = max(int(getattr(config, "CARDMARKET_TRENDS_INTERVAL_HOURS", 24)), 1)
-    return min(interval_hours * 3600, 3600)
+    return interval_hours * 3600
 
 
 def run_once() -> int:
