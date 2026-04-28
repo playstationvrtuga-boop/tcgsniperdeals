@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import random
+import time
 from dataclasses import dataclass, field
 from statistics import median
 
@@ -30,6 +32,9 @@ from services.price_cache import price_cache
 
 
 USD_TO_EUR_FALLBACK = 0.88
+EBAY_RATE_LIMIT_PAUSE_SECONDS = 240
+EBAY_REQUEST_DELAY_RANGE_SECONDS = (0.2, 0.5)
+_EBAY_PAUSED_UNTIL = 0.0
 ETB_TERMS = ("etb", "elite trainer box")
 BOOSTER_BOX_TERMS = ("booster box", "display")
 GRADED_TERMS = (
@@ -548,19 +553,62 @@ def _deserialize_price_references(cached, fallback_title: str, max_results: int)
     return references
 
 
+def _cache_query(value: str) -> str:
+    cleaned = title_parser.clean_pricing_query(_clean_text(value or ""))
+    return (cleaned or _clean_text(value or "")).lower()
+
+
+def _cache_key(source: str, product_name: str, listing_kind: str | None) -> str:
+    return f"{source}-strict-v5::{listing_kind or 'unknown'}::{_cache_query(product_name)}"
+
+
+def _ebay_pause_remaining() -> int:
+    return max(0, int(_EBAY_PAUSED_UNTIL - time.time()))
+
+
+def _ebay_calls_paused(source: str, query: str) -> bool:
+    remaining = _ebay_pause_remaining()
+    if remaining <= 0:
+        return False
+    print(f"[EBAY_CALL_SKIPPED] source={source} query=\"{query}\" pause_remaining={remaining}s", flush=True)
+    return True
+
+
+def _pause_ebay_calls(error: Exception) -> None:
+    global _EBAY_PAUSED_UNTIL
+    pause_seconds = EBAY_RATE_LIMIT_PAUSE_SECONDS + random.randint(0, 60)
+    _EBAY_PAUSED_UNTIL = max(_EBAY_PAUSED_UNTIL, time.time() + pause_seconds)
+    print(f"[EBAY_RATE_LIMIT] pause={pause_seconds}s reason=\"{str(error)[:160]}\"", flush=True)
+
+
+def _delay_before_ebay_call() -> None:
+    time.sleep(random.uniform(*EBAY_REQUEST_DELAY_RANGE_SECONDS))
+
+
 def fetch_recent_comparables(product_name: str, listing_kind: str | None) -> list[EbaySoldListing]:
-    cache_key = f"recent-sales-strict-v4::{listing_kind or 'unknown'}::{_clean_text(product_name).lower()}"
+    query = _cache_query(product_name)
+    cache_key = _cache_key("sold", product_name, listing_kind)
     cached = price_cache.get(cache_key)
     if cached is not None:
+        print(f"[EBAY_CACHE_HIT] source=sold query=\"{query}\"", flush=True)
         return _deserialize_price_references(cached, product_name, 3)
+    print(f"[EBAY_CACHE_MISS] source=sold query=\"{query}\"", flush=True)
+    if _ebay_calls_paused("sold", query):
+        return []
 
     sales = []
-    if official_ebay_api_configured():
-        sales = get_official_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
-    if not sales and PRICING_ENABLE_EBAY_HTML_FALLBACK:
-        sales = get_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
-    if sales:
-        price_cache.set(cache_key, _serialize_price_references(sales))
+    try:
+        _delay_before_ebay_call()
+        if official_ebay_api_configured():
+            sales = get_official_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
+        elif PRICING_ENABLE_EBAY_HTML_FALLBACK:
+            _delay_before_ebay_call()
+            sales = get_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
+    except EbaySoldRateLimitError as error:
+        _pause_ebay_calls(error)
+        price_cache.set(cache_key, [])
+        return []
+    price_cache.set(cache_key, _serialize_price_references(sales))
     return sales
 
 
@@ -576,26 +624,37 @@ def fetch_active_buy_now_comparables(product_name: str, listing_kind: str | None
     if not PRICING_ENABLE_BUY_NOW_REFERENCE:
         return []
 
-    cache_key = f"active-buy-now-strict-v4::{listing_kind or 'unknown'}::{_clean_text(product_name).lower()}"
+    query = _cache_query(product_name)
+    cache_key = _cache_key("buy-now", product_name, listing_kind)
     cached = price_cache.get(cache_key)
     if cached is not None:
+        print(f"[EBAY_CACHE_HIT] source=buy_now query=\"{query}\"", flush=True)
         return _deserialize_price_references(cached, product_name, PRICING_BUY_NOW_MAX_RESULTS)
+    print(f"[EBAY_CACHE_MISS] source=buy_now query=\"{query}\"", flush=True)
+    if _ebay_calls_paused("buy_now", query):
+        return []
 
     listings = []
-    if official_ebay_api_configured():
-        listings = get_official_active_buy_now(
-            product_name,
-            max_results=PRICING_BUY_NOW_MAX_RESULTS,
-            listing_kind=listing_kind,
-        )
-    if not listings and PRICING_ENABLE_EBAY_HTML_FALLBACK:
-        listings = get_active_buy_now(
-            product_name,
-            max_results=PRICING_BUY_NOW_MAX_RESULTS,
-            listing_kind=listing_kind,
-        )
-    if listings:
-        price_cache.set(cache_key, _serialize_price_references(listings))
+    try:
+        _delay_before_ebay_call()
+        if official_ebay_api_configured():
+            listings = get_official_active_buy_now(
+                product_name,
+                max_results=PRICING_BUY_NOW_MAX_RESULTS,
+                listing_kind=listing_kind,
+            )
+        elif PRICING_ENABLE_EBAY_HTML_FALLBACK:
+            _delay_before_ebay_call()
+            listings = get_active_buy_now(
+                product_name,
+                max_results=PRICING_BUY_NOW_MAX_RESULTS,
+                listing_kind=listing_kind,
+            )
+    except EbaySoldRateLimitError as error:
+        _pause_ebay_calls(error)
+        price_cache.set(cache_key, [])
+        return []
+    price_cache.set(cache_key, _serialize_price_references(listings))
     return listings
 
 
@@ -792,7 +851,7 @@ def _fetch_best_recent_for_queries(
 ) -> list[EbaySoldListing]:
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
-    for attempt, query in enumerate(queries, start=1):
+    for attempt, query in enumerate(queries[:1], start=1):
         _log_pricing_attempt("sold", attempt, query)
         try:
             listings = fetch_recent_comparables(query, listing_kind=listing_kind)
@@ -835,7 +894,7 @@ def _fetch_best_buy_now_for_queries(
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
     required_comparables = _buy_now_min_comparables(listing_kind, listing_type)
-    for attempt, query in enumerate(queries, start=1):
+    for attempt, query in enumerate(queries[:1], start=1):
         _log_pricing_attempt("buy_now", attempt, query)
         try:
             listings = fetch_active_buy_now_comparables(query, listing_kind=listing_kind)

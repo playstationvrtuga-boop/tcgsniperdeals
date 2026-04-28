@@ -7,7 +7,7 @@ class TTLPriceCache:
     def __init__(self, ttl_seconds: int = 1800, max_items: int = 256):
         self.ttl_seconds = max(60, int(ttl_seconds))
         self.max_items = max(32, int(max_items))
-        self._store: dict[str, tuple[float, list[float]]] = {}
+        self._store: dict[str, tuple[float, list]] = {}
 
     def _expired(self, expires_at: float) -> bool:
         return expires_at <= time.time()
@@ -30,7 +30,7 @@ class TTLPriceCache:
         for key, _ in oldest_keys[: len(self._store) - self.max_items]:
             self._store.pop(key, None)
 
-    def get(self, key: str) -> list[float] | None:
+    def get(self, key: str) -> list | None:
         if not key:
             return None
 
@@ -45,11 +45,11 @@ class TTLPriceCache:
 
         return list(value)
 
-    def set(self, key: str, prices: list[float]) -> list[float]:
-        cleaned = [float(price) for price in prices if price is not None]
-        self._store[key] = (time.time() + self.ttl_seconds, cleaned)
+    def set(self, key: str, value: list) -> list:
+        cached_value = list(value or [])
+        self._store[key] = (time.time() + self.ttl_seconds, cached_value)
         self._trim()
-        return list(cleaned)
+        return list(cached_value)
 
     def clear(self) -> None:
         self._store.clear()
