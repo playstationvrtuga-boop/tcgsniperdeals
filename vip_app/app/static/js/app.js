@@ -67,7 +67,7 @@ function setPushButtonsState({ enabled, active, blocked = false }) {
 
     if (!enabled) {
       button.disabled = true;
-      button.textContent = "Instant alerts unavailable";
+      button.textContent = "Get instant alerts";
       button.classList.remove("is-active", "is-blocked");
       return;
     }
@@ -609,6 +609,12 @@ function initLiveFeed() {
       if (!node) continue;
       const itemId = Number(item.id || node.dataset.listingId || 0);
       if (seenIds.has(itemId)) continue;
+      if (item.detected_at) {
+        node.dataset.detectedAt = item.detected_at;
+        node.querySelectorAll("[data-relative-time]").forEach((label) => {
+          label.dataset.detectedAt = item.detected_at;
+        });
+      }
       if (cardAnimationsEnabled) {
         node.classList.add("is-new-feed-item");
       }
@@ -725,11 +731,15 @@ document.addEventListener("click", async (event) => {
   }
 
   const installButton = event.target.closest(".install-button");
-  if (installButton && deferredInstallPrompt) {
+  if (installButton) {
+    if (!deferredInstallPrompt) {
+      const fallbackUrl = installButton.dataset.fallbackUrl;
+      if (fallbackUrl) window.location.href = fallbackUrl;
+      return;
+    }
     deferredInstallPrompt.prompt();
     await deferredInstallPrompt.userChoice;
     deferredInstallPrompt = null;
-    installButton.hidden = true;
     return;
   }
 

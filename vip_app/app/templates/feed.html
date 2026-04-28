@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ board_title|default("Live Deals") }} - TCG Sniper Deals{% endblock %}
 {% block content %}
-<nav class="vip-tab-nav" aria-label="VIP deal sections">
+<nav class="vip-tab-nav feed-local-tab-nav" aria-label="VIP deal sections">
   <a class="vip-tab {% if active_tab == 'live' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">⚡ Live Deals</a>
   <a class="vip-tab {% if active_tab == 'smart' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Sniper Deals</a>
   <a class="vip-tab {% if active_tab == 'missed' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">💀 Missed Deals</a>
@@ -9,94 +9,122 @@
 </nav>
 
 <section class="feed-command-center feed-mode-{{ page_mode|default('live') }}{% if not enable_live_radar %} is-radar-off{% endif %}">
-  <section class="section-header section-header-feed feed-command-center-header">
-    <div>
-      <span class="pill">{{ board_label|default("Market intelligence") }}</span>
-      <h1>{{ board_title|default("Live feed for fresh opportunity flow") }}</h1>
-      <p>{{ board_intro|default("New listings land here in real time. The radar stays active, the stream stays light, and the strongest signals rise first.") }}</p>
+  <section class="feed-hero-grid" aria-label="Live deal command center">
+    <div class="feed-hero-copy">
+      {% if page_mode|default('live') == 'live' %}
+      <h1 class="feed-live-title">Live feed for <span>fresh opportunity flow</span></h1>
+      {% else %}
+      <h1><span>{{ board_title|default("Live feed for fresh opportunity flow") }}</span></h1>
+      {% endif %}
+      <p>{{ board_intro|default("Real-time listings, cleaner signals, faster moves.") }}</p>
       <div class="feed-hero-meta">
-        <span class="mini-stat">{{ page_mode|default("live")|upper }}</span>
+        <span class="mini-stat mini-stat-live"><span aria-hidden="true"></span>{{ page_mode|default("live")|upper }}</span>
         <span class="mini-stat">{{ live_stats.count }} listings</span>
         <span class="mini-stat">{{ live_stats.deal_count }} flagged</span>
         <span class="mini-stat">{{ live_stats.last_detected_at|relative_time }}</span>
       </div>
     </div>
-    <div class="section-header-actions">
-      <button class="ghost-button install-button" hidden>Install app</button>
-      <button class="primary-button push-enable-button" {% if not push_enabled %}disabled{% endif %}>
-        {% if live_stats.alerts_active %}Alerts active{% elif push_enabled %}Get instant alerts{% else %}Instant alerts unavailable{% endif %}
-      </button>
-    </div>
+
+    <section class="live-radar-shell live-radar-showcase{% if not enable_live_radar %} is-disabled{% endif %}" data-live-radar-shell aria-label="Live market scanner">
+      <div class="live-radar-stage" data-source-rail aria-label="Monitored sources">
+        <span class="live-radar-link live-radar-link-left" aria-hidden="true"></span>
+        <span class="live-radar-link live-radar-link-right" aria-hidden="true"></span>
+        <div class="live-radar-source-side is-left">
+          <span class="source-pill" data-source-label="vinted">
+            <span class="source-pill-dot" aria-hidden="true"></span>
+            <span>Vinted</span>
+            <span class="source-pill-crosshair" aria-hidden="true"></span>
+          </span>
+        </div>
+
+        <div class="live-radar" data-live-radar data-radar-enabled="{{ 1 if enable_live_radar else 0 }}" aria-hidden="true">
+          <span class="live-radar-ring"></span>
+          <span class="live-radar-ring live-radar-ring-2"></span>
+          <span class="live-radar-ring live-radar-ring-3"></span>
+          <span class="live-radar-sweep"></span>
+          <span class="live-radar-core"></span>
+        </div>
+
+        <div class="live-radar-source-side is-right">
+          <span class="source-pill" data-source-label="ebay">
+            <span class="source-pill-dot" aria-hidden="true"></span>
+            <span>eBay</span>
+            <span class="source-pill-crosshair" aria-hidden="true"></span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+      <section class="deal-alert-panel">
+        <span class="deal-alert-panel-glow" aria-hidden="true"></span>
+        <div>
+          <span class="eyebrow">Instant alerts</span>
+          <h2>Never miss <span>a hot deal</span></h2>
+          <p>Get push and in-app alerts the moment opportunities go live.</p>
+        </div>
+        <div class="deal-alert-actions">
+          <button class="primary-button push-enable-button" {% if not push_enabled %}disabled{% endif %}>
+            {% if live_stats.alerts_active %}Alerts active{% else %}Get instant alerts{% endif %}
+          </button>
+          <button class="ghost-button install-button" data-fallback-url="{{ url_for('main.download_app') }}">Install app</button>
+        </div>
+      </section>
   </section>
 
-  <section class="live-radar-shell{% if not enable_live_radar %} is-disabled{% endif %}" data-live-radar-shell>
+  <section class="live-radar-status-panel">
     <div class="live-radar-copy">
       <span class="eyebrow">Live radar</span>
-      <h2>Scanning for market edge</h2>
+      <h2>Scanning for market edge <span class="signal-wave" aria-hidden="true"></span></h2>
       <p>Fresh listings rise here instantly. The scanner stays light, quiet and fast.</p>
-      <div class="live-status-row">
-        <span class="live-status-pill">
-          <span class="live-status-dot" aria-hidden="true"></span>
-          LIVE
-        </span>
-        <span class="live-status-text">Monitoring live opportunity flow</span>
-      </div>
     </div>
-
-    <div class="live-radar-stage" data-source-rail aria-label="Monitored sources">
-      <span class="live-radar-link live-radar-link-left" aria-hidden="true"></span>
-      <span class="live-radar-link live-radar-link-right" aria-hidden="true"></span>
-      <div class="live-radar-source-side is-left">
-        <span class="source-pill" data-source-label="vinted">
-          <span class="source-pill-dot" aria-hidden="true"></span>
-          <span>Vinted</span>
-          <span class="source-pill-crosshair" aria-hidden="true"></span>
-        </span>
-      </div>
-
-      <div class="live-radar" data-live-radar data-radar-enabled="{{ 1 if enable_live_radar else 0 }}" aria-hidden="true">
-        <span class="live-radar-ring"></span>
-        <span class="live-radar-ring live-radar-ring-2"></span>
-        <span class="live-radar-ring live-radar-ring-3"></span>
-        <span class="live-radar-sweep"></span>
-        <span class="live-radar-core"></span>
-      </div>
-
-      <div class="live-radar-source-side is-right">
-        <span class="source-pill" data-source-label="ebay">
-          <span class="source-pill-dot" aria-hidden="true"></span>
-          <span>eBay</span>
-          <span class="source-pill-crosshair" aria-hidden="true"></span>
-        </span>
-      </div>
+    <div class="live-status-row">
+      <span class="live-status-pill">
+        <span class="live-status-dot" aria-hidden="true"></span>
+        LIVE
+      </span>
+      <span class="live-status-text">Monitoring live opportunity flow</span>
+      <span class="source-trail" aria-hidden="true">
+        <span class="source-trail-vinted">Vinted</span>
+        <span class="source-trail-arrow"></span>
+        <span class="source-trail-ebay">eBay</span>
+      </span>
     </div>
   </section>
 
   <section class="stats-strip">
     <article class="stat-card">
+      <span class="stat-icon stat-icon-stream" aria-hidden="true"></span>
       <span class="stat-label">{{ stat_label|default("Live stream") }}</span>
       <strong>{{ live_stats.count }}</strong>
+      <small>Active listings</small>
       <small>{{ live_stats.deal_count }} flagged deals inside this tab</small>
     </article>
     <article class="stat-card">
+      <span class="stat-icon stat-icon-clock" aria-hidden="true"></span>
       <span class="stat-label">Last detected</span>
       <strong>{{ live_stats.last_detected_at|relative_time }}</strong>
       <small>{% if live_stats.last_detected_at %}{{ live_stats.last_detected_at|datetime_format }}{% else %}Waiting for the next drop{% endif %}</small>
+      <small>Most recent opportunity</small>
     </article>
-    <article class="stat-card">
+    <article class="stat-card stat-card-status">
+      <span class="stat-icon stat-icon-status" aria-hidden="true"></span>
       <span class="stat-label">Alert status</span>
       <strong>{% if live_stats.alerts_active %}Live{% elif push_enabled %}Ready{% else %}Offline{% endif %}</strong>
       <small>{% if live_stats.alerts_active %}Instant alerts are active{% elif push_enabled %}Turn them on for faster moves{% else %}Push setup still unavailable{% endif %}</small>
+      <button class="ghost-button push-enable-button stat-manage-button" {% if not push_enabled %}disabled{% endif %}>
+        {% if live_stats.alerts_active %}Manage alerts{% elif push_enabled %}Manage alerts{% else %}Manage alerts{% endif %}
+      </button>
     </article>
   </section>
 </section>
 
-<section class="toolbar-card" id="feed-filters">
+<section class="toolbar-card control-panel" id="feed-filters">
   <div class="toolbar-top">
+    <span class="control-panel-icon" aria-hidden="true"></span>
     <div>
       <span class="eyebrow">Search and filters</span>
       <h2>Sharpen the board</h2>
-      <p>Track every listing by keyword, platform or signal state.</p>
+      <p>Track listings by keyword, platform, and signal quality.</p>
     </div>
     <a class="ghost-button" href="{{ url_for('main.favorites') }}">Saved opportunities</a>
   </div>
@@ -114,8 +142,20 @@
       <option value="{{ item }}" {% if selected_badge == item %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
     </select>
+    <select name="min_profit" aria-label="Minimum profit">
+      <option value="">Min profit: Any</option>
+      <option value="10">Min profit: 10 EUR</option>
+      <option value="25">Min profit: 25 EUR</option>
+      <option value="50">Min profit: 50 EUR</option>
+    </select>
     <button class="primary-button" type="submit">Apply filters</button>
   </form>
+  <div class="control-feature-strip" aria-label="Live feed strengths">
+    <div><span aria-hidden="true"></span><strong>Real-time feed</strong><small>New deals land instantly</small></div>
+    <div><span aria-hidden="true"></span><strong>Strongest signals</strong><small>Best opportunities rise first</small></div>
+    <div><span aria-hidden="true"></span><strong>Verified sources</strong><small>Vinted + eBay monitoring</small></div>
+    <div><span aria-hidden="true"></span><strong>VIP Advantage</strong><small>First look. Faster flips.</small></div>
+  </div>
 </section>
 
 <div class="feed-live-banner is-hidden" data-feed-live-banner hidden>
@@ -135,7 +175,7 @@
   data-feed-card-animations="{{ 1 if enable_card_entry_animations else 0 }}"
   data-feed-relative-time-updates="{{ 1 if enable_relative_time_updates else 0 }}"
   data-feed-relative-time-interval-ms="{{ relative_time_update_ms }}"
-  data-feed-cursor-detected-at="{{ listings[0].feed_timestamp_iso if listings else '' }}"
+  data-feed-cursor-detected-at="{{ listings[0].detected_at_iso if listings else '' }}"
   data-feed-cursor-id="{{ listings[0].id if listings else 0 }}"
   {% endif %}
 >

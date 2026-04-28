@@ -1,14 +1,26 @@
+{% set public_preview = public_preview if public_preview is defined else false %}
+{% set mode = page_mode|default('live') %}
+{% set profit_value = listing.effective_profit %}
+{% set signal_key = (listing.score_level or listing.display_badge or listing.display_signal or 'tracking')|lower %}
+{% set deal_tone = 'premium' if mode == 'smart' or 'premium' in signal_key or 'insane' in signal_key or 'hot' in signal_key else ('good' if profit_value is not none and profit_value > 0 else ('bad' if mode == 'missed' else 'neutral')) %}
 <article
-  class="listing-card listing-card-{{ page_mode|default('live') }} score-{{ (listing.score_level or listing.display_signal or 'tracking')|lower|replace(' ', '-') }}"
+  class="listing-card listing-card-{{ mode }} score-{{ (listing.score_level or listing.display_signal or 'tracking')|lower|replace(' ', '-') }} deal-tone-{{ deal_tone }}"
   data-listing-id="{{ listing.id }}"
   data-platform="{{ listing.platform|lower|replace(' ', '-') }}"
-  data-detected-at="{% if page_mode == 'missed' %}{{ listing.gone_timestamp_iso or listing.feed_timestamp_iso }}{% else %}{{ listing.feed_timestamp_iso }}{% endif %}"
+  data-deal-tone="{{ deal_tone }}"
+  data-detected-at="{{ listing.detected_at_iso }}"
 >
-  {% set public_preview = public_preview if public_preview is defined else false %}
-  {% set mode = page_mode|default('live') %}
-  {% set profit_value = listing.effective_profit %}
   {% set listing_type = (listing.listing_type or '')|lower %}
   {% set insufficient_raw = listing_type == 'raw_card' and listing.pricing_status == 'insufficient_comparables' %}
+  {% if deal_tone == "premium" %}
+    {% set deal_tone_label = "Sniper" %}
+  {% elif deal_tone == "good" %}
+    {% set deal_tone_label = "Good deal" %}
+  {% elif deal_tone == "bad" %}
+    {% set deal_tone_label = "Bad signal" %}
+  {% else %}
+    {% set deal_tone_label = "Tracking" %}
+  {% endif %}
   {% if listing_type == 'graded_card' %}
     {% set market_basis_label = 'Graded market' %}
   {% elif listing_type == 'raw_card' and listing.pricing_basis == 'sold' %}
@@ -36,6 +48,7 @@
       {% else %}
       <span class="badge badge-score badge-{{ listing.display_badge|lower|replace(' ', '-') }}">{{ listing.display_badge }}</span>
       {% endif %}
+      <span class="badge deal-rating-badge deal-rating-{{ deal_tone }}">{{ deal_tone_label }}</span>
     </div>
 
     <div class="listing-overlay-bottom">
@@ -48,7 +61,7 @@
       {% if mode == "missed" and listing.gone_after_label %}
       <span class="listing-age listing-age-missed">{{ listing.gone_after_label }}</span>
       {% else %}
-      <span class="listing-age" data-relative-time data-detected-at="{{ listing.feed_timestamp_iso }}">{{ listing.feed_timestamp|relative_time }}</span>
+      <span class="listing-age" data-relative-time data-detected-at="{{ listing.detected_at_iso }}">{{ listing.detected_at|relative_time }}</span>
       {% endif %}
     </div>
   </div>
@@ -72,8 +85,23 @@
     <p class="ai-intel-inline-badge">AI Market Intel: Trending on Cardmarket</p>
     {% endif %}
 
-    <div class="listing-price-row">
-      <strong class="listing-price">{{ listing.price_display }}</strong>
+    <div class="listing-kpi-strip">
+      <div class="listing-kpi listing-kpi-price">
+        <span>Price</span>
+        <strong>{{ listing.price_display }}</strong>
+      </div>
+      <div class="listing-kpi listing-kpi-profit">
+        <span>Profit</span>
+        <strong>{% if profit_value is not none %}+{{ "%.2f"|format(profit_value) }} EUR{% else %}Pending{% endif %}</strong>
+      </div>
+      <div class="listing-kpi listing-kpi-edge">
+        <span>Profit %</span>
+        <strong>{% if listing.discount_percent is not none %}{{ "%.1f"|format(listing.discount_percent) }}%{% else %}Pending{% endif %}</strong>
+      </div>
+      <div class="listing-kpi listing-kpi-confidence">
+        <span>Confidence</span>
+        <strong>{% if insufficient_raw %}Low{% elif listing.confidence_score is not none %}{{ listing.confidence_score }}/100{% else %}{{ listing.display_confidence }}{% endif %}</strong>
+      </div>
     </div>
 
     {% if listing.display_microcopy %}
@@ -146,7 +174,7 @@
       {{ listing.gone_after_label or "This listing is no longer available." }}
     </p>
     {% else %}
-    <p class="listing-urgency">{{ listing.feed_timestamp|urgency_hint }}</p>
+    <p class="listing-urgency">{{ listing.detected_at|urgency_hint }}</p>
     {% endif %}
 
     <div class="listing-actions">

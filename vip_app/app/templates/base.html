@@ -41,7 +41,7 @@
   <link rel="manifest" href="{{ url_for('main.manifest') }}">
   <link rel="icon" href="{{ url_for('static', filename='icons/app-icon-192.png') }}" type="image/png">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/app-icon-180.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v=dashboard-ui-v1">
   <meta name="description" content="{% block meta_description %}TCG Sniper Deals tracks real-time Pokemon TCG deals across marketplaces and surfaces fresh opportunities faster.{% endblock %}">
   {% block canonical %}{% endblock %}
   <meta name="google-site-verification" content="nX2Yx7D1hgIYUYpza--nMxh2aQPExwwXQFH0VOJO0ec">
@@ -58,9 +58,22 @@
   <div class="app-shell">
     <header class="topbar">
       <div class="topbar-brand">
-        <a class="brand" href="{{ url_for('main.feed' if current_user.is_authenticated else 'main.index') }}">TCG Sniper Deals</a>
-        <p class="brand-subtitle">Private VIP deal flow - first look advantage</p>
+        <a class="brand" href="{{ url_for('main.feed' if current_user.is_authenticated else 'main.index') }}">
+          <span class="brand-mark" aria-hidden="true"><span></span></span>
+          <span class="brand-copy">
+            <span class="brand-name">TCG Sniper Deals</span>
+            <span class="brand-subtitle">Private VIP deal flow - First look advantage</span>
+          </span>
+        </a>
       </div>
+      {% if current_user.is_authenticated and active_tab is defined %}
+      <nav class="vip-tab-nav topbar-tab-nav" aria-label="VIP deal sections">
+        <a class="vip-tab nav-live {% if active_tab == 'live' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">Live Deals</a>
+        <a class="vip-tab nav-sniper {% if active_tab == 'smart' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">Sniper Deals</a>
+        <a class="vip-tab nav-missed {% if active_tab == 'missed' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">Missed Deals</a>
+        <a class="vip-tab nav-ai {% if active_tab == 'ai' %}is-active{% endif %}" href="{{ url_for('main.ai_market_intel') }}">AI Market Intel</a>
+      </nav>
+      {% endif %}
       {% if current_user.is_authenticated %}
       <div class="topbar-actions">
         <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
@@ -105,7 +118,7 @@
     {% endif %}
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}?v=dashboard-ui-v1" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

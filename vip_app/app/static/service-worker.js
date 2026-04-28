@@ -1,4 +1,4 @@
-const CACHE_NAME = "tcg-sniper-deals-v4";
+const CACHE_NAME = "tcg-sniper-deals-v6-dashboard-ui";
 const OFFLINE_URL = "/offline";
 const CORE_ASSETS = [
   OFFLINE_URL,
@@ -33,12 +33,28 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   const isSameOrigin = url.origin === self.location.origin;
   const isStaticAsset = ["style", "script", "image", "font"].includes(request.destination);
+  const mustRefresh = isSameOrigin && ["style", "script"].includes(request.destination);
 
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request).catch(async () => {
         return (await caches.match(request)) || caches.match(OFFLINE_URL);
       })
+    );
+    return;
+  }
+
+  if (mustRefresh) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request).then((cached) => cached || Response.error()))
     );
     return;
   }
