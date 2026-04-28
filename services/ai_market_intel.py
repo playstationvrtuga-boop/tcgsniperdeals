@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import importlib
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -8,18 +9,25 @@ from html import unescape
 from typing import Iterable
 from urllib.parse import urljoin
 
+from flask import current_app
 import requests
 from sqlalchemy import func
 
 from services.deal_detector import classify_listing_type, is_comparable_listing
 from services.pokemon_title_parser import extract_card_signals, normalize_title
-from vip_app.app.extensions import db
-from vip_app.app.models import CardmarketTrend, Listing, utcnow
 
 
 TREND_CATEGORIES = ("best_sellers", "best_bargains")
 DEFAULT_SOURCE_URL = "https://www.cardmarket.com/en/Pokemon"
 DEFAULT_USER_AGENT = "TCGSniperDealsBot/1.0"
+
+
+def _runtime_app_modules():
+    """Return app db/model objects from the package name Flask is actually using."""
+    package_name = current_app.import_name
+    extensions_module = importlib.import_module(f"{package_name}.extensions")
+    models_module = importlib.import_module(f"{package_name}.models")
+    return extensions_module.db, models_module.CardmarketTrend, models_module.Listing, models_module.utcnow
 
 
 @dataclass(frozen=True)
@@ -168,10 +176,12 @@ def fetch_cardmarket_trends(
 
 
 def latest_snapshot_time() -> datetime | None:
+    db, CardmarketTrend, _Listing, _utcnow = _runtime_app_modules()
     return db.session.query(func.max(CardmarketTrend.collected_at)).scalar()
 
 
 def latest_trends() -> list[CardmarketTrend]:
+    _db, CardmarketTrend, _Listing, _utcnow = _runtime_app_modules()
     last_updated = latest_snapshot_time()
     if not last_updated:
         return []
@@ -183,6 +193,7 @@ def latest_trends() -> list[CardmarketTrend]:
 
 
 def save_trends_snapshot(trends: Iterable[ParsedTrend], *, collected_at: datetime | None = None) -> int:
+    db, CardmarketTrend, _Listing, utcnow = _runtime_app_modules()
     moment = collected_at or utcnow()
     day_start = moment.replace(hour=0, minute=0, second=0, microsecond=0)
     day_end = day_start + timedelta(days=1)
@@ -220,6 +231,7 @@ def save_trends_snapshot(trends: Iterable[ParsedTrend], *, collected_at: datetim
 
 
 def should_collect(interval_hours: int = 24) -> bool:
+    _db, _CardmarketTrend, _Listing, utcnow = _runtime_app_modules()
     last_updated = latest_snapshot_time()
     if not last_updated:
         return True
@@ -350,6 +362,13 @@ def build_market_summary(trends: list[CardmarketTrend]) -> dict:
 
 
 def _trend_to_dict(trend: CardmarketTrend) -> dict:
+    display_mode = "card"
+    if trend.raw_payload_json:
+        try:
+            raw_payload = json.loads(trend.raw_payload_json)
+            display_mode = raw_payload.get("display_mode") or display_mode
+        except (TypeError, ValueError):
+            display_mode = "card"
     return {
         "id": trend.id,
         "category": trend.category,
@@ -363,6 +382,7 @@ def _trend_to_dict(trend: CardmarketTrend) -> dict:
         "product_url": trend.product_url,
         "liquidity": trend.liquidity_label,
         "collected_at": trend.collected_at.isoformat() if trend.collected_at else None,
+        "display_mode": display_mode,
     }
 
 
@@ -401,6 +421,7 @@ def build_hidden_signals(trends: list[CardmarketTrend], opportunities: list[List
 
 
 def build_ai_market_intel_payload() -> dict:
+    _db, _CardmarketTrend, Listing, utcnow = _runtime_app_modules()
     trends = latest_trends()
     last_updated = latest_snapshot_time()
     stale = False

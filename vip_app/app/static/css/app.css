@@ -3199,6 +3199,11 @@ select { font: inherit; }
   background: linear-gradient(180deg, rgba(18, 28, 43, 0.96), rgba(8, 13, 22, 0.98));
 }
 
+.ai-snapshot-card {
+  border-color: rgba(124, 92, 255, 0.28);
+  box-shadow: 0 0 28px rgba(124, 92, 255, 0.12);
+}
+
 .ai-bargain-card {
   border-color: rgba(0, 255, 166, 0.18);
 }
@@ -3218,6 +3223,18 @@ select { font: inherit; }
   height: 100%;
   object-fit: contain;
   padding: 10px;
+}
+
+.ai-snapshot-card .ai-trend-image {
+  aspect-ratio: 9 / 16;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(124, 92, 255, 0.16), transparent 36%),
+    rgba(3, 7, 12, 0.9);
+}
+
+.ai-snapshot-card .ai-trend-image img {
+  padding: 0;
+  object-fit: contain;
 }
 
 .ai-trend-placeholder {
@@ -3342,6 +3359,10 @@ select { font: inherit; }
   .ai-intel-hero {
     grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.65fr);
     align-items: stretch;
+  }
+
+  .ai-snapshot-card {
+    max-width: 420px;
   }
 
   .ai-opportunity-card {

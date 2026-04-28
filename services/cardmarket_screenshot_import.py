@@ -181,6 +181,10 @@ def _crop_trend_images(
     return crops
 
 
+def _full_screenshot_trend(image_path: Path, static_root: Path, *, category: str) -> tuple[str, int, str]:
+    return (category, 1, _static_url(image_path.relative_to(static_root)))
+
+
 def import_cardmarket_trends_from_screenshots(
     *,
     combined_screenshot: FileStorage | None = None,
@@ -209,13 +213,13 @@ def import_cardmarket_trends_from_screenshots(
     if _file_present(sellers_screenshot):
         original_path = _save_upload(sellers_screenshot, original_dir, "best_sellers")
         original_urls.append(_static_url(original_path.relative_to(static_root)))
-        crops.extend(_crop_trend_images(original_path, crop_dir, static_root, category="best_sellers"))
+        crops.append(_full_screenshot_trend(original_path, static_root, category="best_sellers"))
         ocr_chunks.append("Best Sellers\n" + _ocr_text_if_available(original_path))
 
     if _file_present(bargains_screenshot):
         original_path = _save_upload(bargains_screenshot, original_dir, "best_bargains")
         original_urls.append(_static_url(original_path.relative_to(static_root)))
-        crops.extend(_crop_trend_images(original_path, crop_dir, static_root, category="best_bargains"))
+        crops.append(_full_screenshot_trend(original_path, static_root, category="best_bargains"))
         ocr_chunks.append("Best Bargains\n" + _ocr_text_if_available(original_path))
 
     if not crops:
@@ -229,11 +233,12 @@ def import_cardmarket_trends_from_screenshots(
     created: list[CardmarketTrend] = []
     for category, rank, image_url in crops:
         text_slot = text_by_key.get((category, rank))
-        fallback_label = "Best Seller" if category == "best_sellers" else "Best Bargain"
+        is_full_screenshot = image_url in original_urls
+        fallback_label = "Best Sellers Snapshot" if category == "best_sellers" else "Best Bargains Snapshot"
         trend = CardmarketTrend(
             category=category,
             rank=rank,
-            product_name=text_slot.product_name if text_slot else f"Cardmarket {fallback_label} #{rank}",
+            product_name=text_slot.product_name if text_slot and not is_full_screenshot else f"Cardmarket {fallback_label}",
             expansion=text_slot.expansion if text_slot else None,
             card_number=text_slot.card_number if text_slot else None,
             price=text_slot.price if text_slot else None,
@@ -248,6 +253,7 @@ def import_cardmarket_trends_from_screenshots(
                     "original_images": original_urls,
                     "ocr_used": bool(ocr_text),
                     "manual_text_used": bool(pasted_text.strip()),
+                    "display_mode": "full_screenshot" if is_full_screenshot else "cropped_card",
                 },
                 ensure_ascii=True,
             ),

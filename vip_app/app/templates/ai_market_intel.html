@@ -55,7 +55,7 @@
     </div>
     <div class="ai-trend-grid">
       {% for item in intel.best_sellers %}
-      <article class="ai-trend-card">
+      <article class="ai-trend-card {% if item.display_mode == 'full_screenshot' %}ai-snapshot-card{% endif %}">
         <div class="ai-trend-image">
           {% if item.image_url %}
           <img src="{{ item.image_url }}" alt="{{ item.product_name }}">
@@ -86,7 +86,7 @@
     </div>
     <div class="ai-trend-grid">
       {% for item in intel.best_bargains %}
-      <article class="ai-trend-card ai-bargain-card">
+      <article class="ai-trend-card ai-bargain-card {% if item.display_mode == 'full_screenshot' %}ai-snapshot-card{% endif %}">
         <div class="ai-trend-image">
           {% if item.image_url %}
           <img src="{{ item.image_url }}" alt="{{ item.product_name }}">
