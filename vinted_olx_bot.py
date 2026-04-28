@@ -4499,16 +4499,16 @@ def extrair_ebay(page, link):
         }
 
         if format_info["detected_as_auction"]:
-            return titulo, None, None, None, None, "auction", debug_info
+            return titulo, None, None, None, None, "auction", debug_info, None
 
         if not format_info["detected_as_buy_it_now"]:
-            return titulo, None, None, None, None, "not_buy_it_now", debug_info
+            return titulo, None, None, None, None, "not_buy_it_now", debug_info, None
 
         if excluded_keyword_value:
-            return titulo, None, None, None, None, "ebay_noise", debug_info
+            return titulo, None, None, None, None, "ebay_noise", debug_info, None
 
         if not english_validation["passed"]:
-            return titulo, None, None, None, None, "non_english", debug_info
+            return titulo, None, None, None, None, "non_english", debug_info, None
 
         preco = extrair_preco(texto)
         imagem = obter_og_image(page)
