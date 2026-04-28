@@ -1,6 +1,6 @@
 import unittest
 
-from services.cardmarket_screenshot_import import parse_cardmarket_screenshot_text
+from services.cardmarket_screenshot_import import _category_grid_boxes, parse_cardmarket_screenshot_text
 
 
 class CardmarketScreenshotImportTests(unittest.TestCase):
@@ -26,6 +26,13 @@ class CardmarketScreenshotImportTests(unittest.TestCase):
         self.assertEqual(slots[0].price, 5.90)
         self.assertEqual(slots[2].category, "best_bargains")
         self.assertEqual(slots[2].product_name, "Jigglypuff")
+
+    def test_separate_screenshot_grid_crops_nine_cards(self):
+        boxes = _category_grid_boxes("best_sellers")
+
+        self.assertEqual(len(boxes), 9)
+        self.assertEqual([rank for _category, rank, _box in boxes], list(range(1, 10)))
+        self.assertTrue(all(category == "best_sellers" for category, _rank, _box in boxes))
 
 
 if __name__ == "__main__":

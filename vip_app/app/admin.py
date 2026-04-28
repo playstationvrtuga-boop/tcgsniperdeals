@@ -38,7 +38,7 @@ def latest_cardmarket_trends():
             CardmarketTrend.category.asc(),
             CardmarketTrend.rank.asc(),
         )
-        .limit(12)
+        .limit(24)
         .all()
     )
 

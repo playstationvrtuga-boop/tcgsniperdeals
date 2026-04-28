@@ -5,7 +5,7 @@
   <div>
     <span class="pill">Admin</span>
     <h1>AI Market Intel Import</h1>
-    <p>Upload one Cardmarket trends screenshot, or separate Best Sellers / Best Bargains screenshots. The app extracts the top trend images and updates the VIP AI Market Intel tab.</p>
+    <p>Upload one Cardmarket trends screenshot, or separate Best Sellers / Best Bargains screenshots. The app extracts trend images and updates the VIP AI Market Intel tab.</p>
   </div>
   <div class="header-actions">
     <a class="ghost-button" href="{{ url_for('admin.dashboard') }}">Back to admin</a>
@@ -39,7 +39,7 @@
         <textarea name="pasted_text" rows="10" placeholder="Optional. If you have time, paste the visible Cardmarket text here. The screenshots alone still import the top images."></textarea>
       </label>
       <p class="muted">
-        Best result: upload either one desktop screenshot with both sections visible, or two mobile screenshots like Best Sellers first and Best Bargains second.
+        Best result: upload two mobile screenshots like Best Sellers first and Best Bargains second. Each separate screenshot imports up to 9 cards.
       </p>
       <button class="primary-button" type="submit">Import Market Intel</button>
     </form>

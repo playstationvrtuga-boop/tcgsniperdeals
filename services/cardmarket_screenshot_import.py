@@ -126,6 +126,19 @@ def _save_upload(file: FileStorage, original_dir: Path, prefix: str) -> Path:
     return output_path
 
 
+def _category_grid_boxes(category: str) -> list[tuple[str, int, tuple[float, float, float, float]]]:
+    # Ratios tuned for mobile/vertical Cardmarket grid screenshots.
+    x_ranges = [(0.140, 0.370), (0.390, 0.620), (0.640, 0.870)]
+    y_ranges = [(0.055, 0.285), (0.300, 0.530), (0.545, 0.775)]
+    boxes: list[tuple[str, int, tuple[float, float, float, float]]] = []
+    rank = 1
+    for top, bottom in y_ranges:
+        for left, right in x_ranges:
+            boxes.append((category, rank, (left, top, right, bottom)))
+            rank += 1
+    return boxes
+
+
 def _crop_trend_images(
     image_path: Path,
     output_dir: Path,
@@ -143,12 +156,7 @@ def _crop_trend_images(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if category:
-        # Ratios tuned for mobile/vertical grid screenshots of one Cardmarket section.
-        boxes = [
-            (category, 1, (0.140, 0.055, 0.370, 0.270)),
-            (category, 2, (0.390, 0.055, 0.620, 0.270)),
-            (category, 3, (0.640, 0.055, 0.870, 0.270)),
-        ]
+        boxes = _category_grid_boxes(category)
     else:
         # Ratios tuned for the public Cardmarket Pokemon trends page desktop layout.
         boxes = [
@@ -210,7 +218,7 @@ def import_cardmarket_trends_from_screenshots(
         raise ValueError("Upload one combined screenshot or separate Best Sellers / Best Bargains screenshots.")
 
     ocr_text = "\n".join(chunk for chunk in ocr_chunks if chunk)
-    parsed_text_slots = parse_cardmarket_screenshot_text("\n".join([pasted_text, ocr_text]), max_items=3)
+    parsed_text_slots = parse_cardmarket_screenshot_text("\n".join([pasted_text, ocr_text]), max_items=9)
     text_by_key = {(slot.category, slot.rank): slot for slot in parsed_text_slots}
 
     collected_at = utcnow()
