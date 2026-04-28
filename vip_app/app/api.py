@@ -193,13 +193,15 @@ def build_listing_from_payload(payload):
     if existing:
         return None, None, existing
 
-    detected_at = parse_datetime(pick_first(payload, "detected_at", "posted_at"))
-    source_published_at = parse_datetime(payload.get("source_published_at"), fallback=None) if payload.get("source_published_at") else None
+    detected_at = parse_datetime(payload.get("detected_at"))
     score_value = pick_first(payload, "score")
     try:
         score_value = float(score_value) if score_value is not None else None
     except (TypeError, ValueError):
         score_value = None
+    raw_payload = dict(payload)
+    for timestamp_key in ("posted_at", "created_at", "source_published_at"):
+        raw_payload.pop(timestamp_key, None)
 
     listing = Listing(
         source=source,
@@ -237,9 +239,12 @@ def build_listing_from_payload(payload):
         is_deal=False,
         deal_alert_sent_at=None,
         detected_at=detected_at,
-        posted_at=detected_at,
-        source_published_at=source_published_at,
-        raw_payload=json.dumps(payload, ensure_ascii=False),
+        raw_payload=json.dumps(raw_payload, ensure_ascii=False),
+    )
+    current_app.logger.debug(
+        "[listing-ingest] timestamp_source=detected_at external_id=%s detected_at=%s",
+        external_id,
+        listing.detected_at.isoformat() if listing.detected_at else None,
     )
     return listing, None, None
 
@@ -280,6 +285,11 @@ def create_listing():
         db.session.add(listing)
         db.session.commit()
         invalidate("feed:")
+        current_app.logger.debug(
+            "[listing-inserted] timestamp_source=detected_at id=%s detected_at=%s",
+            listing.id,
+            listing.detected_at.isoformat() if listing.detected_at else None,
+        )
 
         return api_response("inserted", 201, id=listing.id, push={"sent": 0, "enabled": False})
     except Exception as error:
@@ -321,11 +331,6 @@ def update_listing_status():
                 if gone_detected_at.tzinfo is None:
                     gone_detected_at = gone_detected_at.replace(tzinfo=timezone.utc)
                 listing.sold_after_seconds = max(int((gone_detected_at - detected_at).total_seconds()), 0)
-        if payload.get("source_published_at"):
-            listing.source_published_at = parse_datetime(payload.get("source_published_at"), fallback=listing.source_published_at)
-        if payload.get("detected_at"):
-            listing.detected_at = parse_datetime(payload.get("detected_at"), fallback=listing.detected_at)
-
         db.session.commit()
         if old_status != status:
             invalidate("feed:")

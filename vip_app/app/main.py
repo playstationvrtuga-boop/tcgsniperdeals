@@ -398,8 +398,7 @@ def get_current_plan_key(user):
 
 def newest_listing_order():
     return (
-        db.func.coalesce(Listing.detected_at, Listing.created_at).desc(),
-        Listing.created_at.desc(),
+        Listing.detected_at.desc(),
         Listing.id.desc(),
     )
 
@@ -514,12 +513,12 @@ def render_deals_board(
     cache_hit = False
     if cache_key and not search and not platform and not badge:
         def build_snapshot():
-            listings = query.order_by(*order_by).limit(60).all()
+            listings = query.order_by(*order_by).limit(30).all()
             return {
                 "listings": listings,
                 "live_listings_count": len(listings),
                 "deal_count": sum(1 for listing in listings if listing.is_deal),
-                "last_detected_at": listings[0].feed_timestamp if listings else None,
+                "last_detected_at": listings[0].detected_at if listings else None,
             }
 
         feed_snapshot, cache_hit = get_or_set(cache_key, current_app.config["FEED_CACHE_TTL_SECONDS"], build_snapshot)
@@ -528,10 +527,10 @@ def render_deals_board(
         deal_count = feed_snapshot["deal_count"]
         last_detected_at = feed_snapshot["last_detected_at"]
     else:
-        listings = query.order_by(*order_by).limit(60).all()
+        listings = query.order_by(*order_by).limit(30).all()
         live_listings_count = len(listings)
         deal_count = sum(1 for listing in listings if listing.is_deal)
-        last_detected_at = listings[0].feed_timestamp if listings else None
+        last_detected_at = listings[0].detected_at if listings else None
 
     live_stats = {
         "count": live_listings_count,
@@ -539,10 +538,18 @@ def render_deals_board(
         "last_detected_at": last_detected_at,
         "alerts_active": alerts_are_active(),
     }
+    feed_cursor_id = max((listing.id for listing in listings), default=0)
     platforms, badges = feed_options()
 
+    total_ms = (time.perf_counter() - feed_started) * 1000
+    current_app.logger.debug(
+        "[feed-render] mode=%s timestamp_source=detected_at first_id=%s first_detected_at=%s listings=%s",
+        page_mode,
+        listings[0].id if listings else None,
+        listings[0].detected_at_iso if listings else None,
+        len(listings),
+    )
     if current_app.config.get("LOG_FEED_TIMING", False):
-        total_ms = (time.perf_counter() - feed_started) * 1000
         current_app.logger.info(
             "[%s] cache=%s listings=%s total=%.1fms",
             page_mode,
@@ -564,6 +571,7 @@ def render_deals_board(
         live_stats=live_stats,
         feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
         feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
+        feed_cursor_id=feed_cursor_id,
         enable_live_radar=current_app.config["ENABLE_LIVE_RADAR"] and page_mode == "live",
         enable_target_feedback=current_app.config["ENABLE_TARGET_FEEDBACK"] and page_mode == "live",
         enable_card_entry_animations=current_app.config["ENABLE_CARD_ENTRY_ANIMATIONS"],
@@ -623,7 +631,7 @@ def index():
     live_stats = {
         "count": len(listings),
         "deal_count": sum(1 for listing in listings if listing.is_deal),
-        "last_detected_at": listings[0].feed_timestamp if listings else None,
+        "last_detected_at": listings[0].detected_at if listings else None,
         "alerts_active": False,
     }
     return render_template(
@@ -793,13 +801,14 @@ def feed_updates():
             cursor_id = None
 
     started = time.perf_counter()
-    feed_timestamp_expr = db.func.coalesce(Listing.detected_at, Listing.created_at)
+    detected_at_expr = Listing.detected_at
     query = Listing.query.options(defer(Listing.raw_payload))
     if cursor_detected_at is not None and cursor_id is not None:
         query = query.filter(
             or_(
-                feed_timestamp_expr > cursor_detected_at,
-                and_(feed_timestamp_expr == cursor_detected_at, Listing.id > cursor_id),
+                Listing.id > cursor_id,
+                detected_at_expr > cursor_detected_at,
+                and_(detected_at_expr == cursor_detected_at, Listing.id > cursor_id),
             )
         )
     query = query.order_by(*newest_listing_order()).limit(limit)
@@ -810,7 +819,7 @@ def feed_updates():
         rendered_items.append(
             {
                 "id": listing.id,
-                "detected_at": listing.feed_timestamp_iso,
+                "detected_at": listing.detected_at_iso,
                 "platform": listing.platform,
                 "platform_key": listing.platform.lower().replace(" ", "-") if listing.platform else "",
                 "html": render_template("partials/listing_card.html", listing=listing, favorite_ids=set()),
@@ -820,11 +829,34 @@ def feed_updates():
     next_cursor = None
     if items:
         newest = items[0]
+        latest_detected_at = newest.detected_at_iso
+        if cursor_detected_at is not None and newest.detected_at:
+            newest_detected_at = newest.detected_at
+            cursor_compare_at = cursor_detected_at
+            if newest_detected_at.tzinfo is None and cursor_compare_at.tzinfo is not None:
+                newest_detected_at = newest_detected_at.replace(tzinfo=timezone.utc)
+            elif newest_detected_at.tzinfo is not None and cursor_compare_at.tzinfo is None:
+                cursor_compare_at = cursor_compare_at.replace(tzinfo=timezone.utc)
+            if newest_detected_at <= cursor_compare_at:
+                latest_detected_at = cursor_detected_at_raw
         next_cursor = {
-            "latest_detected_at": newest.feed_timestamp_iso,
-            "latest_id": newest.id,
+            "latest_detected_at": latest_detected_at,
+            "latest_id": max([cursor_id or 0, *[item.id for item in items]]),
         }
 
+    current_app.logger.debug(
+        "[LIVE_POLL] received count=%s",
+        len(rendered_items),
+    )
+    for item in rendered_items:
+        current_app.logger.debug("[LIVE_POLL_ITEM] id=%s platform=%s", item["id"], item["platform"])
+    current_app.logger.debug(
+        "[feed-updates] timestamp_source=detected_at returned=%s cursor_detected_at=%s cursor_id=%s first_item_detected_at=%s",
+        len(rendered_items),
+        next_cursor["latest_detected_at"] if next_cursor else None,
+        next_cursor["latest_id"] if next_cursor else None,
+        rendered_items[0]["detected_at"] if rendered_items else None,
+    )
     if current_app.config.get("LOG_FEED_TIMING", False):
         current_app.logger.info(
             "[feed-updates] returned=%s limit=%s total=%.1fms",

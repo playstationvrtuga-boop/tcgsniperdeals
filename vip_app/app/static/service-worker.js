@@ -1,4 +1,4 @@
-const CACHE_NAME = "tcg-sniper-deals-v7-dashboard-mobile-ui";
+const CACHE_NAME = "tcg-sniper-deals-v8-live-feed-poll";
 const OFFLINE_URL = "/offline";
 const CORE_ASSETS = [
   OFFLINE_URL,

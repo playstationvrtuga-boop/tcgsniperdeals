@@ -159,12 +159,8 @@ class Listing(TimestampMixin, db.Model):
         return f"{source}-{digest[:20]}"
 
     @property
-    def feed_timestamp(self):
-        return self.detected_at or self.created_at or self.posted_at
-
-    @property
-    def feed_timestamp_iso(self):
-        timestamp = self.feed_timestamp
+    def detected_at_iso(self):
+        timestamp = self.detected_at
         if not timestamp:
             return ""
         if timestamp.tzinfo is None:
@@ -222,7 +218,7 @@ class Listing(TimestampMixin, db.Model):
         if self.is_pending_pricing:
             return "Just detected"
 
-        detected_at = self.feed_timestamp
+        detected_at = self.detected_at
         if detected_at:
             if detected_at.tzinfo is None:
                 detected_at = detected_at.replace(tzinfo=timezone.utc)

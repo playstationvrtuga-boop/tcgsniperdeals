@@ -27,13 +27,13 @@
 
     <div class="detail-price-row">
       <p class="detail-price">{{ listing.price_display }}</p>
-      <span class="detail-urgency">{{ listing.feed_timestamp|relative_time }}</span>
+      <span class="detail-urgency">{{ listing.detected_at|relative_time }}</span>
     </div>
 
     <div class="detail-meta-grid">
       <div class="meta-tile">
         <span class="label">Detected</span>
-        <strong>{{ listing.feed_timestamp|datetime_format }}</strong>
+        <strong>{{ listing.detected_at|datetime_format }}</strong>
       </div>
       <div class="meta-tile">
         <span class="label">Platform</span>

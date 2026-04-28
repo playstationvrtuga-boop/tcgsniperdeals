@@ -176,7 +176,7 @@
   data-feed-relative-time-updates="{{ 1 if enable_relative_time_updates else 0 }}"
   data-feed-relative-time-interval-ms="{{ relative_time_update_ms }}"
   data-feed-cursor-detected-at="{{ listings[0].detected_at_iso if listings else '' }}"
-  data-feed-cursor-id="{{ listings[0].id if listings else 0 }}"
+  data-feed-cursor-id="{{ feed_cursor_id|default(0) }}"
   {% endif %}
 >
   {% for listing in listings %}

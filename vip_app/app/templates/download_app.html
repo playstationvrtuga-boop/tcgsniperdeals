@@ -39,7 +39,7 @@
           <strong>{{ preview_listing.title if preview_listing else "Latest VIP deal" }}</strong>
           <small>
             {{ preview_listing.platform if preview_listing else "VIP feed" }}
-            {% if preview_listing and preview_listing.feed_timestamp %} • {{ preview_listing.feed_timestamp|relative_time }}{% endif %}
+            {% if preview_listing and preview_listing.detected_at %} • {{ preview_listing.detected_at|relative_time }}{% endif %}
           </small>
           <div class="preview-price">{{ preview_listing.price_display if preview_listing else "Live now" }}</div>
         </div>

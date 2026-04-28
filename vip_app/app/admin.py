@@ -16,8 +16,7 @@ admin_bp = Blueprint("admin", __name__)
 
 def newest_listing_order():
     return (
-        db.func.coalesce(Listing.detected_at, Listing.created_at).desc(),
-        Listing.created_at.desc(),
+        Listing.detected_at.desc(),
         Listing.id.desc(),
     )
 
@@ -77,9 +76,7 @@ def dashboard():
         "total_users": total_users,
         "vip_live": vip_live,
         "pending_payments": Payment.query.filter(Payment.status.in_(["pending", "pending_confirmation"])).count(),
-        "listings_24h": Listing.query.filter(
-            db.func.coalesce(Listing.detected_at, Listing.created_at) >= utcnow() - timedelta(days=1)
-        ).count(),
+        "listings_24h": Listing.query.filter(Listing.detected_at >= utcnow() - timedelta(days=1)).count(),
     }
 
     payment_methods = [row[0] for row in db.session.query(Payment.method).distinct().order_by(Payment.method).all() if row[0]]

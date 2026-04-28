@@ -18,7 +18,7 @@ from services.alert_formatter import format_telegram_listing_message, make_parti
 from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
 from services.free_promos import schedule_free_promos_every_hour
 from services.public_links import build_free_public_listing_url
-from urllib.parse import quote_plus, urljoin
+from urllib.parse import parse_qs, quote_plus, unquote_plus, urljoin, urlsplit
 import requests
 import os
 import sys
@@ -30,8 +30,8 @@ import atexit
 import traceback
 import gc
 import ctypes
-from collections import deque
-from datetime import datetime, timedelta
+from collections import Counter, deque
+from datetime import datetime, timedelta, timezone
 
 sys.stdout.reconfigure(encoding='utf-8')
 
@@ -75,27 +75,80 @@ MAX_DEBUG_LOG_BYTES = 2 * 1024 * 1024
 MAX_DEBUG_LOG_BACKUPS = 3
 GC_COLLECT_EVERY_CYCLES = 5
 MEMORY_LOG_EVERY_CYCLES = 5
+LOG_TITLE_MAX_CHARS = 120
 
-MAX_VINTED = 10
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_int(name, default, minimum=1):
+    try:
+        value = int(os.getenv(name, str(default)))
+    except Exception:
+        return default
+    return max(minimum, value)
+
+
+ENABLE_ONE_PIECE = False
+MAX_VINTED_PER_CYCLE = 8
+MAX_EBAY_CANDIDATES_PER_CYCLE = 6
 MAX_OLX = 0 if not OLX_ENABLED else 8
-MAX_EBAY = 20
+MAX_EBAY = MAX_EBAY_CANDIDATES_PER_CYCLE
+EBAY_MAX_CANDIDATES_PER_QUERY = MAX_EBAY_CANDIDATES_PER_CYCLE
 
 USD_PARA_EUR = 1 / 1.1780
 
-VINTED_SEARCH_URLS = [
+VINTED_SEARCH_URLS_POKEMON = [
     "https://www.vinted.pt/catalog?search_text=pokemon&order=newest_first",
+]
+VINTED_SEARCH_URLS_ONE_PIECE = [
     "https://www.vinted.pt/catalog?search_text=one%20piece&order=newest_first",
 ]
+VINTED_SEARCH_URLS = VINTED_SEARCH_URLS_POKEMON + (VINTED_SEARCH_URLS_ONE_PIECE if ENABLE_ONE_PIECE else [])
 OLX_SEARCH_URLS = [
     "https://www.olx.pt/ads/q-cartas-pokemon/?search%5Border%5D=created_at:desc",
     "https://www.olx.pt/ads/q-one-piece-cards/?search%5Border%5D=created_at:desc",
 ]
-EBAY_SEARCH_URLS = [
-    "https://www.ebay.com/sch/i.html?_nkw=pokemon+tcg+-proxy+-fake+-reprint+-\"read+description\"+-japanese+-french+-german+-italian+-spanish+-portuguese+-korean+-chinese&_sop=10&LH_BIN=1&_ipg=200",
-    "https://www.ebay.com/sch/i.html?_nkw=pokemon+booster+box+etb+sealed+-proxy+-fake+-reprint+-\"read+description\"+-japanese+-french+-german+-italian+-spanish+-portuguese+-korean+-chinese&_sop=10&LH_BIN=1&_ipg=200",
-    "https://www.ebay.com/sch/i.html?_nkw=pokemon+psa+tcg+-proxy+-fake+-reprint+-\"read+description\"+-japanese+-french+-german+-italian+-spanish+-portuguese+-korean+-chinese&_sop=10&LH_BIN=1&_ipg=200",
-    "https://www.ebay.com/sch/i.html?_nkw=one+piece+tcg+-proxy+-fake+-reprint+-\"read+description\"+-japanese+-french+-german+-italian+-spanish+-portuguese+-korean+-chinese&_sop=10&LH_BIN=1&_ipg=200",
+EBAY_SEARCH_EXCLUDE_TERMS = [
+    "-proxy", "-fake", "-reprint", "-\"read description\"",
+    "-japanese", "-french", "-german", "-italian", "-spanish",
+    "-portuguese", "-korean", "-chinese",
 ]
+
+
+def build_ebay_search_url(query):
+    full_query = " ".join([query] + EBAY_SEARCH_EXCLUDE_TERMS)
+    return (
+        "https://www.ebay.com/sch/i.html"
+        f"?_nkw={quote_plus(full_query)}"
+        "&_sop=10&LH_BIN=1&LH_ItemCondition=1000%7C3000&_ipg=50"
+    )
+
+
+EBAY_ALLOCATION_ORDER = ("raw", "sealed", "graded")
+EBAY_ALLOCATION = {
+    "raw": 3,
+    "sealed": 2,
+    "graded": 1,
+}
+EBAY_SEARCH_QUERIES_POKEMON = [
+    ("raw", "pokemon tcg card singles ex gx v vmax vstar full art holo rare"),
+    ("sealed", "pokemon booster box etb sealed booster bundle collection box"),
+    ("graded", "pokemon psa cgc bgs graded pokemon card"),
+]
+EBAY_SEARCH_URLS_POKEMON = [
+    build_ebay_search_url(query) for _, query in EBAY_SEARCH_QUERIES_POKEMON
+]
+EBAY_SEARCH_URL_CATEGORY = {
+    build_ebay_search_url(query): category for category, query in EBAY_SEARCH_QUERIES_POKEMON
+}
+EBAY_SEARCH_URLS_ONE_PIECE = [
+    "https://www.ebay.com/sch/i.html?_nkw=one+piece+tcg+-proxy+-fake+-reprint+-\"read+description\"+-japanese+-french+-german+-italian+-spanish+-portuguese+-korean+-chinese&_sop=10&LH_BIN=1&LH_ItemCondition=1000%7C3000&_ipg=50",
+]
+EBAY_SEARCH_URLS = EBAY_SEARCH_URLS_POKEMON + (EBAY_SEARCH_URLS_ONE_PIECE if ENABLE_ONE_PIECE else [])
 EBAY_PRIORITY_TERMS = [
     "psa 10", "booster box", "etb sealed", "etb", "sealed", "vintage",
 ]
@@ -149,7 +202,257 @@ _FREE_QUEUE_CACHE = {
     "mtime": None,
     "data": [],
 }
-EBAY_MAX_CANDIDATES_PER_CYCLE = 12 if LIGHT_MODE else 20
+EBAY_MAX_CANDIDATES_PER_CYCLE = MAX_EBAY_CANDIDATES_PER_CYCLE
+
+
+DIAG_COUNTER_KEYS = (
+    "raw",
+    "parsed",
+    "duplicate",
+    "skipped_seen",
+    "excluded",
+    "rejected",
+    "accepted",
+    "sent_app",
+    "sent_free",
+)
+
+EBAY_REJECTION_REASON_KEYS = {
+    "duplicate",
+    "already_seen",
+    "auction",
+    "not_buy_it_now",
+    "language",
+    "excluded_keyword",
+    "noise",
+    "non_tcg",
+    "low_score",
+    "missing_price",
+    "parse_error",
+    "placeholder_item",
+    "other",
+}
+
+
+def _query_keyword(search_url):
+    try:
+        parsed = urlsplit(search_url)
+        params = parse_qs(parsed.query)
+        value = (params.get("search_text") or params.get("_nkw") or [""])[0]
+        return unquote_plus(value).strip() or parsed.netloc
+    except Exception:
+        return str(search_url or "unknown")
+
+
+def _diag_key(platform, search_url):
+    return f"{platform}:{search_url}"
+
+
+def start_cycle_diag(cycle, processar_ebay):
+    diag = {
+        "cycle": cycle,
+        "processar_ebay": processar_ebay,
+        "queries": {},
+        "link_query": {},
+        "app_status": Counter(),
+        "free_status": Counter(),
+    }
+    for platform, urls in (("vinted", VINTED_SEARCH_URLS), ("ebay", EBAY_SEARCH_URLS)):
+        for search_url in urls:
+            diag_get_query(diag, platform, search_url)
+
+    print(
+        f"[CYCLE_START] cycle={cycle} processar_ebay={processar_ebay} "
+        f"one_piece_enabled={str(ENABLE_ONE_PIECE).lower()} "
+        f"max_vinted={MAX_VINTED_PER_CYCLE} max_ebay={EBAY_MAX_CANDIDATES_PER_CYCLE} "
+        f"vinted_queries={len(VINTED_SEARCH_URLS)} ebay_queries={len(EBAY_SEARCH_URLS)} "
+        f"free_sample={_free_realtime_sample_percent()}%"
+    )
+    return diag
+
+
+def diag_get_query(diag, platform, search_url):
+    if diag is None:
+        return None
+    key = _diag_key(platform, search_url or "unknown")
+    query = diag["queries"].get(key)
+    if query is None:
+        query = {
+            "platform": platform,
+            "keyword": _query_keyword(search_url),
+            "url": search_url or "unknown",
+            "app_status": Counter(),
+            "free_status": Counter(),
+            "ebay_reject_reasons": Counter(),
+        }
+        for counter_key in DIAG_COUNTER_KEYS:
+            query[counter_key] = 0
+        diag["queries"][key] = query
+    return query
+
+
+def diag_count(query, key, amount=1):
+    if query is not None:
+        query[key] = query.get(key, 0) + amount
+
+
+def _clean_ebay_rejection_reason(reason):
+    reason = str(reason or "other").strip().lower()
+    return reason if reason in EBAY_REJECTION_REASON_KEYS else "other"
+
+
+def _diag_query_label(query):
+    if query is None:
+        return "unknown"
+    return query.get("keyword") or "unknown"
+
+
+def diag_count_ebay_rejection(query, reason, amount=1):
+    if query is None or query.get("platform") != "ebay":
+        return
+    query["ebay_reject_reasons"][_clean_ebay_rejection_reason(reason)] += amount
+
+
+def diag_record_ebay_rejection(query, reason, item_id=None, title=None, stage=None, detail=None):
+    clean_reason = _clean_ebay_rejection_reason(reason)
+    diag_count_ebay_rejection(query, clean_reason)
+    title_part = f" title=\"{str(title)[:120]}\"" if title else ""
+    detail_part = f" detail=\"{str(detail)[:160]}\"" if detail else ""
+    print(
+        f"[EBAY_REJECT] reason={clean_reason} stage={stage or 'unknown'} "
+        f"id={item_id or 'unknown'} query=\"{_diag_query_label(query)}\""
+        f"{title_part}{detail_part}"
+    )
+
+
+def ebay_rejection_reason_from_scrape(scrape_reject_reason):
+    if scrape_reject_reason == "auction":
+        return "auction"
+    if scrape_reject_reason == "not_buy_it_now":
+        return "not_buy_it_now"
+    if scrape_reject_reason == "placeholder_item":
+        return "placeholder_item"
+    if scrape_reject_reason == "non_english":
+        return "language"
+    if scrape_reject_reason == "ebay_noise":
+        return "excluded_keyword"
+    if scrape_reject_reason == "scrape_error":
+        return "parse_error"
+    return "other"
+
+
+def ebay_rejection_reason_from_assessment(assessment, price=None):
+    if price is None or str(price).strip() == "":
+        return "missing_price"
+    reject_reason = (getattr(assessment, "reject_reason", None) or "").lower()
+    if reject_reason.startswith("noise:"):
+        return "noise"
+    if reject_reason in {"empty_title", "missing_title"}:
+        return "parse_error"
+    return "low_score"
+
+
+def diag_register_link(diag, platform, link, search_url):
+    if diag is not None and link:
+        diag["link_query"].setdefault(f"{platform}:{link}", _diag_key(platform, search_url or "unknown"))
+
+
+def diag_query_for_link(diag, platform, link):
+    if diag is None:
+        return None
+    query_key = diag["link_query"].get(f"{platform}:{link}")
+    if query_key:
+        return diag["queries"].get(query_key)
+    return None
+
+
+def diag_record_delivery(diag, anuncio, app_result, free_result):
+    if diag is None:
+        return
+    platform = anuncio.get("source") or "unknown"
+    query = diag_query_for_link(diag, platform, anuncio.get("link"))
+    app_status = (app_result or {}).get("status") or "missing"
+    free_status = (free_result or {}).get("status") or "missing"
+    diag["app_status"][app_status] += 1
+    diag["free_status"][free_status] += 1
+    if query is not None:
+        query["app_status"][app_status] += 1
+        query["free_status"][free_status] += 1
+        if (app_result or {}).get("http_status") is not None:
+            diag_count(query, "sent_app")
+        if free_status == "sent":
+            diag_count(query, "sent_free")
+        if platform == "ebay" and app_status == "invalid_payload":
+            reason = "missing_price" if not str(anuncio.get("preco") or "").strip() else "parse_error"
+            diag_record_ebay_rejection(
+                query,
+                reason,
+                item_id=anuncio.get("id"),
+                title=anuncio.get("titulo"),
+                stage="app_payload",
+                detail=app_status,
+            )
+    print(
+        f"[APP_RESPONSE] id={anuncio.get('id')} platform={platform} "
+        f"status={app_status} http={(app_result or {}).get('http_status')} "
+        f"query=\"{query.get('keyword') if query else 'unknown'}\""
+    )
+    print(
+        f"[FREE_DECISION] id={anuncio.get('id')} platform={platform} "
+        f"status={free_status} sample_percent={(free_result or {}).get('sample_percent')} "
+        f"query=\"{query.get('keyword') if query else 'unknown'}\""
+    )
+
+
+def _counter_summary(counter):
+    if not counter:
+        return "none"
+    return ",".join(f"{key}:{value}" for key, value in sorted(counter.items()))
+
+
+def log_cycle_diag(diag):
+    if diag is None:
+        return
+    totals = Counter()
+    ebay_reject_reasons = Counter()
+    for query in diag["queries"].values():
+        for key in DIAG_COUNTER_KEYS:
+            totals[f"{query['platform']}_{key}"] += query.get(key, 0)
+        if query["platform"] == "ebay":
+            ebay_reject_reasons.update(query.get("ebay_reject_reasons") or {})
+        prefix = "[VINTED_QUERY]" if query["platform"] == "vinted" else "[EBAY_QUERY]"
+        ebay_reject_part = ""
+        if query["platform"] == "ebay":
+            ebay_reject_part = f" reject_reasons={_counter_summary(query.get('ebay_reject_reasons'))}"
+        print(
+            f"{prefix} keyword=\"{query['keyword']}\" url=\"{query['url']}\" "
+            f"raw={query['raw']} parsed={query['parsed']} duplicate={query['duplicate']} "
+            f"skipped_seen={query['skipped_seen']} "
+            f"excluded={query['excluded']} rejected={query['rejected']} "
+            f"accepted={query['accepted']} sent_app={query['sent_app']} sent_free={query['sent_free']}"
+            f"{ebay_reject_part} "
+            f"app_status={_counter_summary(query['app_status'])} "
+            f"free_status={_counter_summary(query['free_status'])}"
+        )
+
+    print(
+        "[CYCLE_SUMMARY] "
+        f"cycle={diag['cycle']} processar_ebay={diag['processar_ebay']} "
+        f"vinted_raw={totals['vinted_raw']} vinted_parsed={totals['vinted_parsed']} "
+        f"vinted_sent={totals['vinted_sent_app']} "
+        f"ebay_raw={totals['ebay_raw']} ebay_parsed={totals['ebay_parsed']} "
+        f"ebay_sent={totals['ebay_sent_app']} "
+        f"duplicates={totals['vinted_duplicate'] + totals['ebay_duplicate']} "
+        f"skipped_seen={totals['vinted_skipped_seen'] + totals['ebay_skipped_seen']} "
+        f"excluded={totals['vinted_excluded'] + totals['ebay_excluded']} "
+        f"rejected={totals['vinted_rejected'] + totals['ebay_rejected']} "
+        f"accepted={totals['vinted_accepted'] + totals['ebay_accepted']} "
+        f"free_sent={totals['vinted_sent_free'] + totals['ebay_sent_free']} "
+        f"ebay_reject_reasons={_counter_summary(ebay_reject_reasons)} "
+        f"app_status={_counter_summary(diag['app_status'])} "
+        f"free_status={_counter_summary(diag['free_status'])}"
+    )
+
 
 FREE_LANDING_MESSAGE = (
     "🎯 Pokemon Sniper Deals\n\n"
@@ -309,14 +612,20 @@ def construir_payload_app(anuncio):
         "score": anuncio.get("score"),
         "score_label": obter_score_label(anuncio),
         "badge_label": normalizar_badge_app(anuncio),
-        "detected_at": anuncio.get("detected_at") or now_iso(),
-        "source_published_at": anuncio.get("source_published_at"),
+        "detected_at": ensure_detected_at(anuncio),
         "available_status": "available",
         "seller_feedback": anuncio.get("seller_feedback"),
     }
 
 
 def enviar_anuncio_app(anuncio):
+    if not tcg_enabled(anuncio.get("tcg_type")):
+        print(
+            f"[APP API] skipped disabled tcg id={anuncio.get('id')} "
+            f"tcg_type={anuncio.get('tcg_type')}"
+        )
+        return {"status": "disabled_tcg"}
+
     if not APP_API_ENABLED:
         return {"status": "disabled"}
 
@@ -328,6 +637,7 @@ def enviar_anuncio_app(anuncio):
     if not payload:
         print(f"[APP API] skipped invalid payload for {anuncio.get('id')}")
         return {"status": "invalid_payload"}
+    print(f"[APP API] sending {payload.get('external_id')} detected_at={payload.get('detected_at')}")
 
     try:
         resposta = HTTP_SESSION.post(
@@ -412,8 +722,7 @@ def enviar_status_anuncio_app(anuncio, status):
         "source": (anuncio.get("source") or anuncio.get("origem") or "").strip().lower(),
         "external_id": anuncio.get("id"),
         "available_status": status,
-        "detected_at": anuncio.get("detected_at") or now_iso(),
-        "source_published_at": anuncio.get("source_published_at"),
+        "detected_at": ensure_detected_at(anuncio),
     }
 
     try:
@@ -539,6 +848,38 @@ def carregar_vistos_ebay_debug():
 def guardar_visto_ebay_debug(id_item):
     with open(FICHEIRO_VISTOS_EBAY_DEBUG, "a", encoding="utf-8") as f:
         f.write(id_item + "\n")
+
+
+def mark_seen_after_app_delivery(anuncio, app_result):
+    item_id = anuncio.get("id") if isinstance(anuncio, dict) else None
+    app_status = (app_result or {}).get("status")
+    if not item_id or app_status not in {"inserted", "duplicate"}:
+        print(f"[SEEN_SKIPPED] id={item_id} app_status={app_status}")
+        return False
+
+    guardar_visto(item_id)
+    if (
+        (anuncio.get("source") or "").lower() == "ebay"
+        and EBAY_DEBUG_MODE
+        and EBAY_DEBUG_IGNORE_MAIN_VISTOS
+    ):
+        guardar_visto_ebay_debug(item_id)
+    print(f"[SEEN_MARKED] id={item_id} app_status={app_status}")
+    return True
+
+
+def tcg_enabled(tcg_type):
+    if tcg_type == "pokemon":
+        return True
+    if tcg_type == "one_piece":
+        return ENABLE_ONE_PIECE
+    return False
+
+
+def disabled_tcg_reason(tcg_type):
+    if tcg_type == "one_piece" and not ENABLE_ONE_PIECE:
+        return "one_piece_disabled"
+    return "tcg_disabled"
 
 
 def carregar_cache_cardmarket():
@@ -676,6 +1017,16 @@ def now_iso():
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+def detected_at_now_iso():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def ensure_detected_at(anuncio):
+    detected_at = anuncio.get("detected_at") or detected_at_now_iso()
+    anuncio["detected_at"] = detected_at
+    return detected_at
+
+
 def parse_iso_or_none(value):
     if not value:
         return None
@@ -696,7 +1047,6 @@ def sort_iso_key(value, fallback=datetime.min):
 
 def anuncio_recency_tuple(anuncio):
     return (
-        sort_iso_key(anuncio.get("source_published_at") or anuncio.get("detected_at")),
         sort_iso_key(anuncio.get("detected_at")),
     )
 
@@ -908,6 +1258,50 @@ def get_process_memory_mb():
     return None
 
 
+def get_system_memory_percent():
+    try:
+        meminfo = {}
+        with open("/proc/meminfo", "r", encoding="utf-8") as f:
+            for line in f:
+                key, value = line.split(":", 1)
+                meminfo[key] = int(value.strip().split()[0])
+        total = meminfo.get("MemTotal")
+        available = meminfo.get("MemAvailable")
+        if total and available is not None:
+            return round(((total - available) / total) * 100, 1)
+    except Exception:
+        pass
+
+    try:
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        status = MEMORYSTATUSEX()
+        status.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            return round(float(status.dwMemoryLoad), 1)
+    except Exception:
+        pass
+
+    return None
+
+
+def log_ram_usage(stage):
+    percent = get_system_memory_percent()
+    percent_text = f"{percent:.1f}" if isinstance(percent, (int, float)) else "unknown"
+    print(f"[RAM_USAGE] stage={stage} percent={percent_text}")
+
+
 def log_memory_usage(cycle):
     memoria_mb = get_process_memory_mb()
     contexts, pages = runtime_state_counts()
@@ -976,6 +1370,39 @@ def reset_runtime_page(page_key):
         new_page = None
 
     _RUNTIME[page_key] = new_page
+    return new_page
+
+
+def clear_playwright_page(page):
+    if not page:
+        return
+    try:
+        page.evaluate("() => { window.stop(); document.documentElement.innerHTML = ''; }")
+    except Exception:
+        pass
+    try:
+        page.goto("about:blank", timeout=5000, wait_until="load")
+    except Exception:
+        pass
+
+
+def close_playwright_page(page):
+    if not page:
+        return
+    try:
+        page.close()
+    except Exception:
+        pass
+
+
+def recycle_page(context, page, runtime_key=None):
+    close_playwright_page(page)
+    try:
+        new_page = context.new_page()
+    except Exception:
+        new_page = None
+    if runtime_key:
+        _RUNTIME[runtime_key] = new_page
     return new_page
 
 
@@ -1091,7 +1518,65 @@ def classify_tcg_type(title, extra_text=""):
     return None
 
 
+def ebay_term_hit(normalized_text, term):
+    term_norm = normalize_text(term)
+    if not normalized_text or not term_norm:
+        return False
+    return re.search(rf"\b{re.escape(term_norm)}\b", normalized_text) is not None
+
+
+def ebay_first_term_hit(text, terms):
+    normalized = normalize_text(text)
+    for term in terms:
+        if ebay_term_hit(normalized, term):
+            return term
+    return None
+
+
+def ebay_obvious_junk_keyword(title, extra_text=""):
+    normalized = normalize_text(f"{title} {extra_text}")
+    if not normalized:
+        return None
+
+    hit = ebay_first_term_hit(normalized, EBAY_JUNK_TERMS)
+    if hit:
+        return hit
+
+    has_cards = any(ebay_term_hit(normalized, term) for term in ["card", "cards", "tcg", "booster", "pack", "sealed"])
+    if ebay_term_hit(normalized, "binder") and not has_cards:
+        return "binder only"
+    if ebay_term_hit(normalized, "album") and not has_cards:
+        return "album only"
+    return None
+
+
+def ebay_positive_product_keyword(title, extra_text=""):
+    normalized = normalize_text(f"{title} {extra_text}")
+    if not normalized:
+        return None
+
+    has_pokemon_context = (
+        ebay_term_hit(normalized, "pokemon")
+        or ebay_term_hit(normalized, "pok mon")
+        or any(ebay_term_hit(normalized, name) for name in PALAVRAS_CARTA_FORTE)
+    )
+    if not has_pokemon_context:
+        return None
+
+    return (
+        ebay_first_term_hit(normalized, EBAY_SEALED_PRODUCT_TERMS)
+        or ebay_first_term_hit(normalized, EBAY_GRADED_PRODUCT_TERMS)
+        or ebay_first_term_hit(normalized, ["card", "cards", "trading card", "tcg"])
+    )
+
+
 def classify_ebay_tcg_type(title, extra_text=""):
+    if ebay_obvious_junk_keyword(title):
+        return None
+
+    if ebay_positive_product_keyword(title, extra_text):
+        return "pokemon"
+
     tcg_type = classify_tcg_type(title, extra_text)
     if tcg_type:
         return tcg_type
@@ -1104,6 +1589,8 @@ def classify_ebay_tcg_type(title, extra_text=""):
         "pokemon", "pokemon tcg", "card english", "cards english",
         "illustration rare", "booster box", "half booster box", "elite trainer box",
         "etb", "sealed", "psa", "bgs", "beckett", "cgc",
+        "booster", "booster bundle", "collection box", "premium collection",
+        "ultra premium collection", "tin", "pack", "blister", "graded", "slab",
     ]
     one_piece_hints = [
         "one piece", "one piece tcg", "op01", "op02", "op03", "op04", "op05",
@@ -1677,6 +2164,19 @@ def mark_listing_app_synced(item_id, sync_result):
         item["app_sync_error"] = str(erro)[:300]
 
     guardar_tracking(data)
+
+
+def carregar_ids_app_sincronizados():
+    try:
+        data = carregar_tracking()
+        items = data.get("items", {}) if isinstance(data, dict) else {}
+        return {
+            item_id
+            for item_id, item in items.items()
+            if isinstance(item, dict) and item.get("app_sync_status") in {"inserted", "duplicate"}
+        }
+    except Exception:
+        return set()
 
 
 def update_listing_status(item_id, status):
@@ -2535,6 +3035,10 @@ def enviar_anuncio_free_realtime(anuncio):
 
 
 def enfileirar_anuncio_free(anuncio):
+    if not tcg_enabled(anuncio.get("tcg_type")):
+        marcar_free_block(anuncio.get("id"), disabled_tcg_reason(anuncio.get("tcg_type")))
+        return {"status": "filtered_disabled_tcg"}
+
     if FREE_LANDING_ONLY:
         return {"status": "disabled_landing_only"}
 
@@ -3021,16 +3525,32 @@ PALAVRAS_EXCLUIR_EBAY = [
     "plush", "peluche", "toy", "toys", "figure", "figures", "figurine",
     "funko", "statue", "doll", "costume", "backpack", "bag", "keychain",
     "socks", "shoes", "sneakers", "watch", "mug", "poster", "sticker",
-    "presale", "preorder", "pokemon center", "bundle"
+    "presale", "preorder", "pokemon center", "empty box", "binder only", "album only"
 ]
 
 PALAVRAS_OBRIGATORIAS_EBAY = [
     "pokemon", "pokémon", "card", "cards", "trading card", "tcg",
-    "booster", "booster pack", "blister",
-    "etb", "elite trainer box",
+    "booster", "booster pack", "booster bundle", "booster box", "blister",
+    "etb", "elite trainer box", "collection box", "premium collection", "ultra premium collection",
     "psa", "bgs", "beckett", "cgc", "slab", "graded", "grade",
     "gx", "ex", "vmax", "vstar", "full art", "alt art",
-    "illustration rare", "ir", "sir", "sealed", "box", "tin"
+    "illustration rare", "ir", "sir", "sealed", "box", "tin", "pack"
+]
+
+EBAY_SEALED_PRODUCT_TERMS = [
+    "booster", "booster bundle", "booster box", "etb", "elite trainer box",
+    "collection box", "premium collection", "ultra premium collection",
+    "tin", "sealed", "pack", "blister",
+]
+
+EBAY_GRADED_PRODUCT_TERMS = [
+    "psa", "bgs", "cgc", "beckett", "graded", "slab",
+]
+
+EBAY_JUNK_TERMS = [
+    "plush", "peluche", "figure", "figures", "figurine", "toy", "toys",
+    "clothing", "shirt", "t-shirt", "tee", "hoodie", "funko", "backpack",
+    "empty box",
 ]
 
 PALAVRAS_CARTA_FORTE = [
@@ -3200,13 +3720,12 @@ def anuncio_prioritario(titulo):
 
 
 def titulo_valido_ebay(titulo):
-    t = titulo.lower()
-    return not any(p in t for p in PALAVRAS_EXCLUIR + PALAVRAS_EXCLUIR_EBAY)
+    return ebay_excluded_keyword(titulo) is None
 
 
 def titulo_relevante_ebay(titulo):
-    t = titulo.lower()
-    return any(p in t for p in PALAVRAS_OBRIGATORIAS_EBAY)
+    normalized = normalize_text(titulo)
+    return any(ebay_term_hit(normalized, p) for p in PALAVRAS_OBRIGATORIAS_EBAY)
 
 
 def anuncio_buy_it_now(page):
@@ -3272,10 +3791,34 @@ def log_cardmarket_debug(evento):
     return
 
 
+def truncate_log_text(value, limit=LOG_TITLE_MAX_CHARS):
+    text = str(value or "")
+    return text if len(text) <= limit else text[:limit]
+
+
+def sanitize_debug_event(value, key=""):
+    if isinstance(value, dict):
+        return {item_key: sanitize_debug_event(item_value, item_key) for item_key, item_value in value.items()}
+    if isinstance(value, list):
+        return [sanitize_debug_event(item, key) for item in value[:20]]
+    if isinstance(value, str):
+        key_lower = (key or "").lower()
+        if key_lower in {"title", "search_title", "title_original"}:
+            return truncate_log_text(value, LOG_TITLE_MAX_CHARS)
+        if key_lower in {"item_repr", "raw_listing_format_text"}:
+            return truncate_log_text(value, 120)
+        if any(marker in key_lower for marker in ("html", "content", "body")):
+            return "<omitted>"
+        if len(value) > 500:
+            return truncate_log_text(value, 500)
+    return value
+
+
 def log_ebay_debug(evento):
     try:
         ensure_log_file(FICHEIRO_LOG_EBAY_DEBUG)
         rotate_debug_log_if_needed(FICHEIRO_LOG_EBAY_DEBUG)
+        evento = sanitize_debug_event(dict(evento or {}))
         evento["timestamp"] = datetime.now().astimezone().isoformat(timespec="seconds")
         with open(FICHEIRO_LOG_EBAY_DEBUG, "a", encoding="utf-8") as f:
             f.write(json.dumps(evento, ensure_ascii=False) + "\n")
@@ -3396,15 +3939,48 @@ def parece_patrocinado(texto):
     return any(sinal in texto for sinal in sinais)
 
 
+EBAY_SEARCH_AUCTION_MARKERS = [
+    "current bid", "place bid", "bid now", "bid amount",
+    " bids", " bid ", "time left", "ending", "auction",
+]
+
+
+def ebay_search_auction_signals(texto):
+    normalized = f" {(texto or '').lower()} "
+    signals = []
+    for marker in EBAY_SEARCH_AUCTION_MARKERS:
+        if marker in normalized:
+            signals.append(marker.strip())
+    if re.search(r"\b\d+\s+bids?\b", normalized):
+        signals.append("bid_count")
+    return list(dict.fromkeys(signals))
+
+
+def ebay_search_card_is_placeholder(texto, href=""):
+    normalized = " ".join((texto or "").lower().split())
+    href = href or ""
+    if href.endswith("/itm/123456"):
+        return True
+    if "shop on ebay" in normalized:
+        return True
+    if normalized in {"brand new", "new listing", "shop on ebay brand new"}:
+        return True
+    return False
+
+
 def ebay_extra_valido(texto):
     t = (texto or "").lower()
     return not any(termo in t for termo in EBAY_EXTRA_EXCLUDE)
 
 
 def ebay_excluded_keyword(texto):
-    t = (texto or "").lower()
-    for termo in EBAY_EXTRA_EXCLUDE:
-        if termo in t:
+    junk_hit = ebay_obvious_junk_keyword(texto)
+    if junk_hit:
+        return junk_hit
+
+    normalized = normalize_text(texto)
+    for termo in EBAY_EXTRA_EXCLUDE + PALAVRAS_EXCLUIR + PALAVRAS_EXCLUIR_EBAY:
+        if ebay_term_hit(normalized, termo):
             return termo
     return None
 
@@ -3502,7 +4078,7 @@ def ebay_english_validation(titulo, texto=""):
     }
 
 
-def analyze_ebay_listing_format_text(texto):
+def _legacy_analyze_ebay_listing_format_text(texto):
     texto = texto or ""
     texto_lower = texto.lower()
     buy_terms = ["buy it now", "comprar já", "comprar ja", "fixed price"]
@@ -3529,6 +4105,68 @@ def analyze_ebay_listing_format_text(texto):
         "raw_listing_format_text": " | ".join(linhas)[:400] if linhas else "",
         "detected_as_buy_it_now": any(term in texto_lower for term in buy_terms),
         "detected_as_auction": detected_as_auction,
+    }
+
+
+def analyze_ebay_listing_format_text(texto):
+    texto = texto or ""
+    texto_lower = texto.lower()
+    buy_terms = [
+        "buy it now", "buy now", "add to cart", "add to basket",
+        "comprar jÃ¡", "comprar ja", "fixed price",
+    ]
+    bid_control_terms = [
+        "current bid", "place bid", "bid now", "bid amount",
+        "enter bid", "submit bid", "winning bid", "your bid",
+        "licitar",
+    ]
+    auction_context_terms = [
+        "auction", "time left", "ending", "ends in", "leilÃ£o", "leilao",
+    ]
+    buy_signals = [term for term in buy_terms if term in texto_lower]
+    bid_control_signals = [term for term in bid_control_terms if term in texto_lower]
+    auction_context_signals = [term for term in auction_context_terms if term in texto_lower]
+    weak_auction_signals = []
+    if re.search(r"\b\d+\s+bids?\b", texto_lower):
+        weak_auction_signals.append("bid_count")
+    elif re.search(r"\bbids?\b", texto_lower) and "no bids" not in texto_lower and not buy_signals:
+        auction_context_signals.append("bid_word")
+
+    linhas = []
+    primary_auction_signals = []
+    for linha in texto.splitlines():
+        linha_limpa = linha.strip()
+        if not linha_limpa:
+            continue
+        linha_lower = linha_limpa.lower()
+        if any(term in linha_lower for term in buy_terms + bid_control_terms + auction_context_terms):
+            linhas.append(linha_limpa)
+            for term in bid_control_terms:
+                if term in linha_lower:
+                    primary_auction_signals.append(term)
+            if "time left" in linha_lower:
+                primary_auction_signals.append("time left")
+        if len(linhas) >= 4:
+            break
+
+    strong_buy_signals = [
+        signal for signal in buy_signals
+        if signal in {"buy it now", "buy now", "add to cart", "add to basket", "fixed price"}
+    ]
+    strong_auction_signals = list(dict.fromkeys(primary_auction_signals))
+    detected_as_buy_it_now = bool(strong_buy_signals or buy_signals)
+    detected_as_auction = bool(strong_auction_signals) and not bool(strong_buy_signals)
+    classification = "auction" if detected_as_auction else "buy_now" if detected_as_buy_it_now else "unknown"
+
+    return {
+        "raw_listing_format_text": " | ".join(linhas)[:400] if linhas else "",
+        "detected_as_buy_it_now": detected_as_buy_it_now,
+        "detected_as_auction": detected_as_auction,
+        "buy_now_signals": buy_signals,
+        "auction_signals": list(dict.fromkeys(strong_auction_signals + weak_auction_signals + auction_context_signals)),
+        "strong_auction_signals": strong_auction_signals,
+        "weak_auction_signals": weak_auction_signals,
+        "classification": classification,
     }
 
 
@@ -4264,37 +4902,66 @@ def build_message(anuncio, canal="vip"):
         mensagem += f"\n\n━━━━━━━━━━━━━━━\n{build_free_cta_block()}\n━━━━━━━━━━━━━━━"
 
     return mensagem
-def obter_vinted_links(page):
+def obter_vinted_links(page, vistos=None, diag=None):
     links = []
+    seen_links = set()
+    vistos = vistos or set()
     for search_url in VINTED_SEARCH_URLS:
+        query_diag = diag_get_query(diag, "vinted", search_url)
+        query_links = []
         page.goto(search_url, timeout=40000, wait_until="domcontentloaded")
         page.wait_for_timeout(2200 if LIGHT_MODE else 3500)
         elementos = page.query_selector_all('a[href*="/items/"]')
+        elementos = elementos[:50]
+        diag_count(query_diag, "raw", len(elementos))
 
-        for el in elementos[:50]:
+        for el in elementos:
             try:
                 texto_card = texto_card_link(el)
                 if parece_patrocinado(texto_card):
+                    diag_count(query_diag, "excluded")
                     continue
 
                 href = el.get_attribute("href")
                 if not href:
+                    diag_count(query_diag, "rejected")
                     continue
 
                 if not href.startswith("http"):
                     href = "https://www.vinted.pt" + href
 
                 href = limpar_link(href)
-                if href not in links:
+                diag_count(query_diag, "parsed")
+                id_item = f"vinted_{extrair_id(href)}"
+                if id_item in vistos:
+                    diag_count(query_diag, "skipped_seen")
+                    continue
+
+                if href not in seen_links:
+                    seen_links.add(href)
                     links.append(href)
-                if len(links) >= MAX_VINTED:
+                    query_links.append(href)
+                    diag_register_link(diag, "vinted", href, search_url)
+                else:
+                    diag_count(query_diag, "duplicate")
+                if len(links) >= MAX_VINTED_PER_CYCLE:
                     break
-            except:
-                pass
-        if len(links) >= MAX_VINTED:
+            except Exception as error:
+                diag_count(query_diag, "rejected")
+                print(f"[VINTED_QUERY_ERROR] keyword=\"{_query_keyword(search_url)}\" error=\"{error}\"")
+        if len(query_links) >= MAX_VINTED_PER_CYCLE or len(links) >= MAX_VINTED_PER_CYCLE:
+            print(
+                f"[VINTED_LIMIT] keyword=\"{_query_keyword(search_url)}\" "
+                f"query_links={len(query_links)} max_vinted={MAX_VINTED_PER_CYCLE}"
+            )
+        elementos.clear()
+        clear_playwright_page(page)
+        if len(links) >= MAX_VINTED_PER_CYCLE:
             break
 
-    return list(dict.fromkeys(links))
+    clear_playwright_page(page)
+    gc.collect()
+    return links
 
 
 def extrair_vinted(page, link):
@@ -4311,10 +4978,13 @@ def extrair_vinted(page, link):
         published_at = parse_relative_published_at(texto)
         tcg_type = classify_tcg_type(titulo, texto)
         seller_feedback = extrair_feedback_vinted(page, texto)
+        texto_contexto = texto[:2000]
 
-        return titulo, preco, imagem, published_at, tcg_type, texto, seller_feedback
+        return titulo, preco, imagem, published_at, tcg_type, texto_contexto, seller_feedback
     except:
         return None, None, None, None, None, None, None
+    finally:
+        clear_playwright_page(page)
 
 # ---------------- OLX ----------------
 
@@ -4410,70 +5080,271 @@ def extrair_olx(page, link):
 
 # ---------------- EBAY ----------------
 
-def obter_ebay_links(page):
+def round_robin_candidates(candidates_by_query, limit):
+    selected = []
+    while len(selected) < limit:
+        added_this_round = False
+        for query_candidates in candidates_by_query:
+            if query_candidates:
+                selected.append(query_candidates.pop(0))
+                added_this_round = True
+                if len(selected) >= limit:
+                    break
+        if not added_this_round:
+            break
+    return selected
+
+
+def ebay_allocation_log_line():
+    return (
+        f"[EBAY_ALLOCATION] raw={EBAY_ALLOCATION['raw']} "
+        f"sealed={EBAY_ALLOCATION['sealed']} graded={EBAY_ALLOCATION['graded']} "
+        f"total={sum(EBAY_ALLOCATION.values())}"
+    )
+
+
+def ebay_query_category(search_url):
+    return EBAY_SEARCH_URL_CATEGORY.get(search_url, "raw")
+
+
+def ebay_allocation_category_for_title(title, default_category="raw"):
+    normalized = normalize_text(title)
+    if not normalized:
+        return default_category if default_category in EBAY_ALLOCATION else "raw"
+
+    if ebay_obvious_junk_keyword(title):
+        return "junk"
+    if ebay_first_term_hit(normalized, EBAY_GRADED_PRODUCT_TERMS):
+        return "graded"
+    if ebay_first_term_hit(normalized, EBAY_SEALED_PRODUCT_TERMS):
+        return "sealed"
+
+    raw_terms = [
+        "card", "cards", "single", "singles", "tcg", "ex", "gx", "vmax",
+        "vstar", "full art", "holo", "rare", "illustration rare", "ir", "sir",
+    ]
+    if ebay_first_term_hit(normalized, raw_terms):
+        return "raw"
+
+    return default_category if default_category in EBAY_ALLOCATION else "raw"
+
+
+def ebay_allocation_category_for_assessment(assessment, title, fallback_category="raw"):
+    if assessment and assessment.category == "sealed_product":
+        return "sealed"
+    if assessment and assessment.category == "graded_card":
+        return "graded"
+    if assessment and assessment.category == "single_card":
+        return "raw"
+    return ebay_allocation_category_for_title(title, fallback_category)
+
+
+def select_ebay_candidates_by_allocation(candidates_by_category):
+    selected = []
+    for category in EBAY_ALLOCATION_ORDER:
+        selected.extend(candidates_by_category.get(category, [])[:EBAY_ALLOCATION[category]])
+    return selected[:EBAY_MAX_CANDIDATES_PER_CYCLE]
+
+
+def obter_ebay_links(page, vistos=None, diag=None):
     log_ebay_debug({
         "final_status": "EBAY_DEBUG_STARTED",
         "message": "EBAY DEBUG STARTED",
         "query_urls": EBAY_SEARCH_URLS,
     })
 
-    candidatos = []
+    print(ebay_allocation_log_line())
+    candidatos_por_categoria = {category: [] for category in EBAY_ALLOCATION_ORDER}
+    seen_candidate_links = set()
+    vistos = vistos or set()
     seletores = [
         'a[href*="/itm/"]',
         'a[href*="itm/"]',
         'a.s-item__link'
     ]
 
-    max_candidatos = max(MAX_EBAY * 6, 60)
-
     for search_url in EBAY_SEARCH_URLS:
+        query_category = ebay_query_category(search_url)
+        query_diag = diag_get_query(diag, "ebay", search_url)
+        query_candidates = []
         page.goto(search_url, timeout=40000, wait_until="domcontentloaded")
         page.wait_for_timeout(3500 if LIGHT_MODE else 5000)
 
         for seletor in seletores:
             try:
                 elementos = page.query_selector_all(seletor)
+                elementos = elementos[:50]
+                diag_count(query_diag, "raw", len(elementos))
 
-                for el in elementos[:140]:
+                for el in elementos:
                     texto_card = texto_card_link(el)
                     if parece_patrocinado(texto_card):
+                        diag_count(query_diag, "excluded")
+                        diag_record_ebay_rejection(
+                            query_diag,
+                            "other",
+                            title=texto_card,
+                            stage="search_result",
+                            detail="sponsored_or_promoted",
+                        )
+                        continue
+
+                    if ebay_search_card_is_placeholder(texto_card):
+                        diag_count(query_diag, "excluded")
+                        diag_record_ebay_rejection(
+                            query_diag,
+                            "placeholder_item",
+                            title=texto_card,
+                            stage="search_result",
+                        )
                         continue
 
                     href = el.get_attribute("href")
                     if not href:
+                        diag_count(query_diag, "rejected")
+                        diag_record_ebay_rejection(
+                            query_diag,
+                            "parse_error",
+                            title=texto_card,
+                            stage="search_result",
+                            detail="missing_href",
+                        )
                         continue
 
                     if "/itm/" not in href and "ebay." not in href:
+                        diag_count(query_diag, "rejected")
+                        diag_record_ebay_rejection(
+                            query_diag,
+                            "parse_error",
+                            title=texto_card,
+                            stage="search_result",
+                            detail="invalid_href",
+                        )
                         continue
 
                     href = limpar_link(href)
-                    if href.endswith("/itm/123456"):
+                    if ebay_search_card_is_placeholder(texto_card, href):
+                        diag_count(query_diag, "excluded")
+                        diag_record_ebay_rejection(
+                            query_diag,
+                            "placeholder_item",
+                            title=texto_card,
+                            stage="search_result",
+                            detail="placeholder_item",
+                        )
                         continue
 
-                    if not any(item["link"] == href for item in candidatos):
-                        candidatos.append({
+                    id_item = f"ebay_{extrair_id(href)}"
+                    auction_signals = ebay_search_auction_signals(texto_card)
+                    if auction_signals:
+                        diag_count(query_diag, "excluded")
+                        diag_record_ebay_rejection(
+                            query_diag,
+                            "auction",
+                            item_id=id_item,
+                            title=texto_card,
+                            stage="search_result",
+                            detail=",".join(auction_signals),
+                        )
+                        print(
+                            f"[EBAY_SEARCH_SKIP_AUCTION] id={id_item} "
+                            f"title=\"{texto_card[:LOG_TITLE_MAX_CHARS]}\" signals={','.join(auction_signals)}"
+                        )
+                        continue
+
+                    diag_count(query_diag, "parsed")
+                    if id_item in vistos:
+                        diag_count(query_diag, "skipped_seen")
+                        diag_record_ebay_rejection(
+                            query_diag,
+                            "already_seen",
+                            item_id=id_item,
+                            title=texto_card,
+                            stage="search_result",
+                        )
+                        continue
+
+                    allocation_category = ebay_allocation_category_for_title(texto_card, query_category)
+                    if allocation_category == "junk":
+                        excluded_keyword = ebay_excluded_keyword(texto_card) or "ebay_junk"
+                        diag_count(query_diag, "excluded")
+                        diag_record_ebay_rejection(
+                            query_diag,
+                            "excluded_keyword",
+                            item_id=id_item,
+                            title=texto_card,
+                            stage="search_result",
+                            detail=excluded_keyword,
+                        )
+                        continue
+
+                    if href not in seen_candidate_links:
+                        seen_candidate_links.add(href)
+                        candidate = {
                             "link": href,
                             "search_title": texto_card.strip(),
                             "query_url": search_url,
+                            "allocation_category": allocation_category,
                             "excluded_keyword_value": ebay_excluded_keyword(texto_card),
                             "search_english_validation": ebay_english_validation(texto_card, ""),
                             "score": ebay_priority_score(texto_card),
                             "detected_at": now_iso(),
-                            "position": len(candidatos),
-                        })
+                            "position": len(query_candidates),
+                        }
+                        query_candidates.append(candidate)
+                        candidatos_por_categoria.setdefault(allocation_category, []).append(candidate)
+                        diag_register_link(diag, "ebay", href, search_url)
+                    else:
+                        diag_count(query_diag, "duplicate")
+                        diag_record_ebay_rejection(
+                            query_diag,
+                            "duplicate",
+                            item_id=id_item,
+                            title=texto_card,
+                            stage="search_result",
+                        )
 
-                    if len(candidatos) >= max_candidatos:
+                    if len(query_candidates) >= EBAY_MAX_CANDIDATES_PER_QUERY:
                         break
 
-                if len(candidatos) >= max_candidatos:
+                if len(query_candidates) >= EBAY_MAX_CANDIDATES_PER_QUERY:
                     break
-            except:
-                pass
-        if len(candidatos) >= max_candidatos:
-            break
+            except Exception as error:
+                diag_count(query_diag, "rejected")
+                diag_record_ebay_rejection(
+                    query_diag,
+                    "parse_error",
+                    stage="search_result",
+                    detail=error,
+                )
+                print(
+                    f"[EBAY_QUERY_ERROR] keyword=\"{_query_keyword(search_url)}\" "
+                    f"selector=\"{seletor}\" error=\"{error}\""
+                )
+            finally:
+                try:
+                    elementos.clear()
+                except Exception:
+                    pass
+        if len(query_candidates) >= EBAY_MAX_CANDIDATES_PER_QUERY:
+            print(
+                f"[EBAY_LIMIT] keyword=\"{_query_keyword(search_url)}\" "
+                f"query_candidates={len(query_candidates)} "
+                f"max_ebay_per_query={EBAY_MAX_CANDIDATES_PER_QUERY}"
+            )
+        query_candidates.clear()
+        clear_playwright_page(page)
+        gc.collect()
 
-    candidatos.sort(key=lambda item: (item["position"], -item["score"]))
-    candidatos = candidatos[:MAX_EBAY]
+    total_candidates = sum(len(query_candidates) for query_candidates in candidatos_por_categoria.values())
+    if total_candidates > EBAY_MAX_CANDIDATES_PER_CYCLE:
+        print(
+            f"[EBAY_LIMIT] candidates_before_round_robin={total_candidates} "
+            f"max_cycle={EBAY_MAX_CANDIDATES_PER_CYCLE} "
+            f"max_ebay_per_query={EBAY_MAX_CANDIDATES_PER_QUERY}"
+        )
+
+    candidatos = select_ebay_candidates_by_allocation(candidatos_por_categoria)
     print("EBAY links encontrados:", len(candidatos))
     return candidatos
 
@@ -4484,14 +5355,35 @@ def extrair_ebay(page, link):
 
         titulo = page.title().replace("| eBay", "").strip()
         texto = page.locator("body").inner_text()
+        if ebay_search_card_is_placeholder(titulo):
+            return titulo, None, None, None, None, "placeholder_item", {
+                "raw_listing_format_text": "",
+                "detected_as_buy_it_now": False,
+                "detected_as_auction": False,
+                "buy_now_signals": [],
+                "auction_signals": [],
+                "strong_auction_signals": [],
+                "weak_auction_signals": [],
+                "classification": "placeholder_item",
+                "english_validation_passed": False,
+                "english_rejection_reason": "placeholder_item",
+                "excluded_keyword_hit": False,
+                "excluded_keyword_value": None,
+            }, None
+
         format_info = analyze_ebay_listing_format_text(texto)
-        excluded_keyword_value = ebay_excluded_keyword(titulo) or ebay_excluded_keyword(texto)
+        excluded_keyword_value = ebay_excluded_keyword(titulo)
         english_validation = ebay_english_validation(titulo, texto)
 
         debug_info = {
-            "raw_listing_format_text": format_info["raw_listing_format_text"],
+            "raw_listing_format_text": "",
             "detected_as_buy_it_now": format_info["detected_as_buy_it_now"],
             "detected_as_auction": format_info["detected_as_auction"],
+            "buy_now_signals": format_info.get("buy_now_signals", []),
+            "auction_signals": format_info.get("auction_signals", []),
+            "strong_auction_signals": format_info.get("strong_auction_signals", []),
+            "weak_auction_signals": format_info.get("weak_auction_signals", []),
+            "classification": format_info.get("classification"),
             "english_validation_passed": english_validation["passed"],
             "english_rejection_reason": english_validation["reason"],
             "excluded_keyword_hit": excluded_keyword_value is not None,
@@ -4521,15 +5413,22 @@ def extrair_ebay(page, link):
             "raw_listing_format_text": "",
             "detected_as_buy_it_now": False,
             "detected_as_auction": False,
+            "buy_now_signals": [],
+            "auction_signals": [],
+            "strong_auction_signals": [],
+            "weak_auction_signals": [],
+            "classification": "scrape_error",
             "english_validation_passed": False,
             "english_rejection_reason": "scrape_error",
             "excluded_keyword_hit": False,
             "excluded_keyword_value": None,
         }, None
+    finally:
+        clear_playwright_page(page)
 
-def procurar_anuncios(processar_ebay=True):
+def procurar_anuncios(processar_ebay=True, diag=None):
     vistos = carregar_vistos()
-    vistos_ebay_debug = carregar_vistos_ebay_debug()
+    vistos.update(carregar_ids_app_sincronizados())
     cache_ebay_sold = carregar_cache_ebay_sold()
     novos = []
 
@@ -4553,18 +5452,25 @@ def procurar_anuncios(processar_ebay=True):
 
     try:
         # VINTED
-        for link in obter_vinted_links(page_lista):
+        vinted_accepted = 0
+        for link in obter_vinted_links(page_lista, vistos=vistos, diag=diag):
+            query_diag = diag_query_for_link(diag, "vinted", link)
             id_item = f"vinted_{extrair_id(link)}"
             if id_item in vistos:
+                diag_count(query_diag, "skipped_seen")
                 record_metric_event("skipped_duplicate", item_id=id_item, platform="vinted")
                 continue
 
             titulo, preco, imagem, source_published_at, tcg_type, texto_vinted, seller_feedback = extrair_vinted(page_detalhe, link)
+            page_detalhe = recycle_page(context, page_detalhe, "page_detalhe" if runtime else None)
+            gc.collect()
             if not titulo:
+                diag_count(query_diag, "rejected")
                 continue
 
             vinted_junk_reason = reject_reason_vinted_junk(titulo, texto_vinted)
             if vinted_junk_reason:
+                diag_count(query_diag, "excluded")
                 assessment_reject = ListingAssessment(
                     is_valid=False,
                     score=0,
@@ -4590,24 +5496,28 @@ def procurar_anuncios(processar_ebay=True):
                     cardmarket_found=False,
                     reject_reason=vinted_junk_reason,
                 )
-                vistos.add(id_item)
-                guardar_visto(id_item)
                 continue
 
             if not tcg_type:
+                diag_count(query_diag, "rejected")
                 record_metric_event("skipped_filtered", item_id=id_item, platform="vinted", reason="tcg_irrelevante")
-                vistos.add(id_item)
-                guardar_visto(id_item)
+                continue
+
+            if not tcg_enabled(tcg_type):
+                diag_count(query_diag, "excluded")
+                reason = disabled_tcg_reason(tcg_type)
+                record_metric_event("skipped_filtered", item_id=id_item, platform="vinted", tcg_type=tcg_type, reason=reason)
+                print(f"[TCG_DISABLED_SKIP] id={id_item} platform=vinted tcg_type={tcg_type} reason={reason}")
                 continue
 
             if not titulo_valido_tcg(titulo, tcg_type, "vinted"):
+                diag_count(query_diag, "excluded")
                 record_metric_event("skipped_filtered", item_id=id_item, platform="vinted", tcg_type=tcg_type, reason="titulo_invalido")
-                vistos.add(id_item)
-                guardar_visto(id_item)
                 continue
 
             assessment = assess_listing_for_tcg(tcg_type, titulo, preco, "vinted")
             if not assessment.is_valid:
+                diag_count(query_diag, "rejected")
                 record_metric_event(
                     "skipped_filtered",
                     item_id=id_item,
@@ -4617,18 +5527,14 @@ def procurar_anuncios(processar_ebay=True):
                     reason=assessment.reject_reason or "assessment_invalid",
                 )
                 log_listing_event(source="vinted", title=titulo, price=preco, assessment=assessment, priority=False, consulted_cardmarket=False, cardmarket_found=False)
-                vistos.add(id_item)
-                guardar_visto(id_item)
                 continue
 
             prioridade = is_priority(assessment) if tcg_type == "pokemon" else False
             comparavel_ebay_sold = should_consult_ebay_sold_reference(titulo, tcg_type, assessment)
             dados_ebay_sold = procurar_ebay_sold_leve(page_detalhe, titulo, assessment, cache_ebay_sold) if comparavel_ebay_sold else None
-            detected_at = now_iso()
+            detected_at = detected_at_now_iso()
 
             log_listing_event(source="vinted", title=titulo, price=preco, assessment=assessment, priority=prioridade, consulted_cardmarket=False, cardmarket_found=False)
-            vistos.add(id_item)
-            guardar_visto(id_item)
 
             novos.append({
                 "id": id_item,
@@ -4648,6 +5554,8 @@ def procurar_anuncios(processar_ebay=True):
                 "source_published_at": source_published_at,
                 "seller_feedback": seller_feedback,
             })
+            diag_count(query_diag, "accepted")
+            vinted_accepted += 1
             record_metric_event(
                 "captured",
                 item_id=id_item,
@@ -4655,15 +5563,29 @@ def procurar_anuncios(processar_ebay=True):
                 tcg_type=tcg_type,
                 score_label=obter_score_label(novos[-1]),
             )
+            if vinted_accepted >= MAX_VINTED_PER_CYCLE:
+                print(f"[VINTED_LIMIT] accepted={vinted_accepted} max_vinted={MAX_VINTED_PER_CYCLE}")
+                break
+
+        texto_vinted = None
+        page_lista = recycle_page(context, page_lista, "page_lista" if runtime else None)
+        gc.collect()
+        log_ram_usage("after_vinted")
 
         # OLX removed from active pipeline
 
         # EBAY
         try:
-            ebay_candidates = obter_ebay_links(page_lista) if processar_ebay else []
+            ebay_candidates = obter_ebay_links(page_lista, vistos=vistos, diag=diag) if processar_ebay else []
+            page_lista = recycle_page(context, page_lista, "page_lista" if runtime else None)
             if len(ebay_candidates) > EBAY_MAX_CANDIDATES_PER_CYCLE:
                 print(f"EBAY candidatos limitados a {EBAY_MAX_CANDIDATES_PER_CYCLE} neste ciclo")
+            ebay_accepted = 0
+            ebay_allocation_counts = Counter()
             for idx_ebay, ebay_candidate in enumerate(ebay_candidates[:EBAY_MAX_CANDIDATES_PER_CYCLE], start=1):
+                query_diag = None
+                if isinstance(ebay_candidate, dict):
+                    query_diag = diag_query_for_link(diag, "ebay", ebay_candidate.get("link"))
                 if runtime and EBAY_DETAIL_PAGE_RESET_EVERY and idx_ebay > 1 and (idx_ebay - 1) % EBAY_DETAIL_PAGE_RESET_EVERY == 0:
                     novo_page_detalhe = reset_runtime_page("page_detalhe")
                     if page_is_usable(novo_page_detalhe):
@@ -4672,25 +5594,41 @@ def procurar_anuncios(processar_ebay=True):
                 log_ebay_debug({
                     "final_status": "EBAY_CANDIDATE_RAW",
                     "item_type": str(type(ebay_candidate)),
-                    "item_repr": repr(ebay_candidate)[:1200],
+                    "item_repr": repr(ebay_candidate)[:120],
                 })
 
                 if not isinstance(ebay_candidate, dict):
+                    diag_count(query_diag, "rejected")
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        "parse_error",
+                        stage="candidate",
+                        detail="candidate_not_dict",
+                    )
                     log_ebay_debug({
                         "final_status": "EBAY_INVALID_ITEM_STRUCTURE",
                         "reason": "candidate_not_dict",
                         "item_type": str(type(ebay_candidate)),
-                        "item_repr": repr(ebay_candidate)[:1200],
+                        "item_repr": repr(ebay_candidate)[:120],
                     })
                     continue
 
                 link = ebay_candidate.get("link")
+                query_diag = diag_query_for_link(diag, "ebay", link)
                 if not link:
+                    diag_count(query_diag, "rejected")
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        "parse_error",
+                        title=ebay_candidate.get("search_title"),
+                        stage="candidate",
+                        detail="missing_link",
+                    )
                     log_ebay_debug({
                         "final_status": "EBAY_INVALID_ITEM_STRUCTURE",
                         "reason": "missing_link",
                         "item_type": str(type(ebay_candidate)),
-                        "item_repr": repr(ebay_candidate)[:1200],
+                        "item_repr": repr(ebay_candidate)[:120],
                     })
                     continue
 
@@ -4704,10 +5642,16 @@ def procurar_anuncios(processar_ebay=True):
                     "raw_listing_format_text": "",
                     "detected_as_buy_it_now": None,
                     "detected_as_auction": None,
+                    "buy_now_signals": [],
+                    "auction_signals": [],
+                    "strong_auction_signals": [],
+                    "weak_auction_signals": [],
+                    "classification": None,
                     "english_validation_passed": ebay_candidate.get("search_english_validation", {}).get("passed"),
                     "english_rejection_reason": ebay_candidate.get("search_english_validation", {}).get("reason"),
                     "excluded_keyword_hit": ebay_candidate.get("excluded_keyword_value") is not None,
                     "excluded_keyword_value": ebay_candidate.get("excluded_keyword_value"),
+                    "allocation_category": ebay_candidate.get("allocation_category"),
                     "tcg_type": None,
                     "score": None,
                     "score_label": None,
@@ -4717,21 +5661,34 @@ def procurar_anuncios(processar_ebay=True):
                 log_ebay_debug(debug_data)
 
                 duplicate_in_main = id_item in vistos
-                duplicate_in_debug = id_item in vistos_ebay_debug
                 if duplicate_in_main:
-                    if EBAY_DEBUG_MODE and EBAY_DEBUG_IGNORE_MAIN_VISTOS and not duplicate_in_debug:
-                        debug_data["duplicate"] = True
-                        debug_data["final_status"] = "EBAY_DUPLICATE_IGNORED_DEBUG"
-                        log_ebay_debug(debug_data)
-                    else:
-                        debug_data["duplicate"] = True
-                        debug_data["final_status"] = "EBAY_REJECTED_DUPLICATE"
-                        log_ebay_debug(debug_data)
-                        record_metric_event("skipped_duplicate", item_id=id_item, platform="ebay")
-                        continue
+                    diag_count(query_diag, "skipped_seen")
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        "already_seen",
+                        item_id=id_item,
+                        title=debug_data.get("title"),
+                        stage="candidate",
+                    )
+                    debug_data["duplicate"] = True
+                    debug_data["final_status"] = "EBAY_REJECTED_DUPLICATE"
+                    log_ebay_debug(debug_data)
+                    record_metric_event("skipped_duplicate", item_id=id_item, platform="ebay")
+                    continue
 
                 titulo, preco, imagem, source_published_at, tcg_type, scrape_reject_reason, ebay_debug, seller_feedback = extrair_ebay(page_detalhe, link)
+                page_detalhe = recycle_page(context, page_detalhe, "page_detalhe" if runtime else None)
+                gc.collect()
                 if not titulo:
+                    diag_count(query_diag, "rejected")
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        "parse_error",
+                        item_id=id_item,
+                        title=debug_data.get("title"),
+                        stage="detail",
+                        detail=scrape_reject_reason or "missing_title",
+                    )
                     debug_data["final_status"] = "EBAY_REJECTED_SCORE"
                     debug_data["english_rejection_reason"] = "scrape_error"
                     log_ebay_debug(debug_data)
@@ -4743,13 +5700,51 @@ def procurar_anuncios(processar_ebay=True):
                     "raw_listing_format_text": ebay_debug.get("raw_listing_format_text", ""),
                     "detected_as_buy_it_now": ebay_debug.get("detected_as_buy_it_now"),
                     "detected_as_auction": ebay_debug.get("detected_as_auction"),
+                    "buy_now_signals": ebay_debug.get("buy_now_signals", []),
+                    "auction_signals": ebay_debug.get("auction_signals", []),
+                    "strong_auction_signals": ebay_debug.get("strong_auction_signals", []),
+                    "weak_auction_signals": ebay_debug.get("weak_auction_signals", []),
+                    "classification": ebay_debug.get("classification"),
                     "english_validation_passed": ebay_debug.get("english_validation_passed"),
                     "english_rejection_reason": ebay_debug.get("english_rejection_reason"),
                     "excluded_keyword_hit": ebay_debug.get("excluded_keyword_hit"),
                     "excluded_keyword_value": ebay_debug.get("excluded_keyword_value"),
                 })
+                buy_now_signals = ebay_debug.get("buy_now_signals", [])
+                auction_signals = ebay_debug.get("auction_signals", [])
+                if ebay_debug.get("detected_as_buy_it_now"):
+                    print(
+                        f"[EBAY_DETAIL_BUY_NOW_DETECTED] id={id_item} "
+                        f"signals={','.join(buy_now_signals) or 'unknown'}"
+                    )
+                if ebay_debug.get("detected_as_auction"):
+                    print(
+                        f"[EBAY_DETAIL_AUCTION_DETECTED] id={id_item} "
+                        f"signals={','.join(auction_signals) or 'unknown'}"
+                    )
+                print(
+                    f"[EBAY_DETAIL_CLASSIFICATION] id={id_item} "
+                    f"result={ebay_debug.get('classification') or 'unknown'} "
+                    f"buy_signals={','.join(buy_now_signals) or 'none'} "
+                    f"auction_signals={','.join(auction_signals) or 'none'}"
+                )
 
                 if scrape_reject_reason:
+                    if scrape_reject_reason in {"ebay_noise", "placeholder_item"}:
+                        diag_count(query_diag, "excluded")
+                    else:
+                        diag_count(query_diag, "rejected")
+                    reject_detail = scrape_reject_reason
+                    if scrape_reject_reason == "ebay_noise":
+                        reject_detail = debug_data.get("excluded_keyword_value") or ebay_excluded_keyword(titulo) or scrape_reject_reason
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        ebay_rejection_reason_from_scrape(scrape_reject_reason),
+                        item_id=id_item,
+                        title=titulo,
+                        stage="detail",
+                        detail=reject_detail,
+                    )
                     if scrape_reject_reason == "not_buy_it_now":
                         debug_data["final_status"] = "EBAY_REJECTED_NOT_BUY_IT_NOW"
                     elif scrape_reject_reason == "auction":
@@ -4758,6 +5753,8 @@ def procurar_anuncios(processar_ebay=True):
                         debug_data["final_status"] = "EBAY_REJECTED_LANGUAGE"
                     elif scrape_reject_reason == "ebay_noise":
                         debug_data["final_status"] = "EBAY_REJECTED_EXCLUDED_KEYWORD"
+                    elif scrape_reject_reason == "placeholder_item":
+                        debug_data["final_status"] = "EBAY_REJECTED_PLACEHOLDER"
                     else:
                         debug_data["final_status"] = "EBAY_REJECTED_SCORE"
                     log_ebay_debug(debug_data)
@@ -4778,34 +5775,62 @@ def procurar_anuncios(processar_ebay=True):
                         cardmarket_found=False,
                         reject_reason=scrape_reject_reason,
                     )
-                    vistos.add(id_item)
-                    guardar_visto(id_item)
-                    if EBAY_DEBUG_MODE and EBAY_DEBUG_IGNORE_MAIN_VISTOS and not duplicate_in_debug:
-                        vistos_ebay_debug.add(id_item)
-                        guardar_visto_ebay_debug(id_item)
                     continue
 
                 if not tcg_type:
+                    diag_count(query_diag, "rejected")
+                    non_tcg_keyword = ebay_obvious_junk_keyword(titulo) or "no_ebay_product_keyword"
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        "non_tcg",
+                        item_id=id_item,
+                        title=titulo,
+                        stage="tcg_filter",
+                        detail=non_tcg_keyword,
+                    )
                     debug_data["final_status"] = "EBAY_REJECTED_TCG_TYPE"
                     log_ebay_debug(debug_data)
                     record_metric_event("skipped_filtered", item_id=id_item, platform="ebay", reason="tcg_irrelevante")
-                    vistos.add(id_item)
-                    guardar_visto(id_item)
-                    if EBAY_DEBUG_MODE and EBAY_DEBUG_IGNORE_MAIN_VISTOS and not duplicate_in_debug:
-                        vistos_ebay_debug.add(id_item)
-                        guardar_visto_ebay_debug(id_item)
+                    continue
+
+                if not tcg_enabled(tcg_type):
+                    diag_count(query_diag, "excluded")
+                    reason = disabled_tcg_reason(tcg_type)
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        "other",
+                        item_id=id_item,
+                        title=titulo,
+                        stage="tcg_filter",
+                        detail=reason,
+                    )
+                    debug_data["tcg_type"] = tcg_type
+                    debug_data["final_status"] = "EBAY_REJECTED_TCG_DISABLED"
+                    log_ebay_debug(debug_data)
+                    record_metric_event("skipped_filtered", item_id=id_item, platform="ebay", tcg_type=tcg_type, reason=reason)
+                    print(f"[TCG_DISABLED_SKIP] id={id_item} platform=ebay tcg_type={tcg_type} reason={reason}")
                     continue
 
                 if not titulo_valido_tcg(titulo, tcg_type, "ebay"):
+                    diag_count(query_diag, "excluded")
+                    excluded_keyword = ebay_excluded_keyword(titulo)
+                    invalid_title_reason = (
+                        "excluded_keyword"
+                        if debug_data.get("excluded_keyword_hit") or excluded_keyword
+                        else "non_tcg"
+                    )
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        invalid_title_reason,
+                        item_id=id_item,
+                        title=titulo,
+                        stage="title_filter",
+                        detail=excluded_keyword or "missing_required_ebay_keyword",
+                    )
                     debug_data["tcg_type"] = tcg_type
                     debug_data["final_status"] = "EBAY_REJECTED_EXCLUDED_KEYWORD"
                     log_ebay_debug(debug_data)
                     record_metric_event("skipped_filtered", item_id=id_item, platform="ebay", tcg_type=tcg_type, reason="titulo_invalido")
-                    vistos.add(id_item)
-                    guardar_visto(id_item)
-                    if EBAY_DEBUG_MODE and EBAY_DEBUG_IGNORE_MAIN_VISTOS and not duplicate_in_debug:
-                        vistos_ebay_debug.add(id_item)
-                        guardar_visto_ebay_debug(id_item)
                     continue
 
                 assessment = assess_listing_for_tcg(tcg_type, titulo, preco, "ebay")
@@ -4814,6 +5839,15 @@ def procurar_anuncios(processar_ebay=True):
                 debug_data["score_label"] = assessment.confidence.upper()
 
                 if not assessment.is_valid:
+                    diag_count(query_diag, "rejected")
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        ebay_rejection_reason_from_assessment(assessment, preco),
+                        item_id=id_item,
+                        title=titulo,
+                        stage="score_filter",
+                        detail=assessment.reject_reason or "assessment_invalid",
+                    )
                     debug_data["final_status"] = "EBAY_REJECTED_SCORE"
                     log_ebay_debug(debug_data)
                     record_metric_event(
@@ -4825,24 +5859,39 @@ def procurar_anuncios(processar_ebay=True):
                         reason=assessment.reject_reason or "assessment_invalid",
                     )
                     log_listing_event(source="ebay", title=titulo, price=preco, assessment=assessment, priority=False, consulted_cardmarket=False, cardmarket_found=False)
-                    vistos.add(id_item)
-                    guardar_visto(id_item)
-                    if EBAY_DEBUG_MODE and EBAY_DEBUG_IGNORE_MAIN_VISTOS and not duplicate_in_debug:
-                        vistos_ebay_debug.add(id_item)
-                        guardar_visto_ebay_debug(id_item)
+                    continue
+
+                allocation_category = ebay_allocation_category_for_assessment(
+                    assessment,
+                    titulo,
+                    ebay_candidate.get("allocation_category") or "raw",
+                )
+                debug_data["allocation_category"] = allocation_category
+                if ebay_allocation_counts[allocation_category] >= EBAY_ALLOCATION.get(allocation_category, 0):
+                    diag_count(query_diag, "excluded")
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        "other",
+                        item_id=id_item,
+                        title=titulo,
+                        stage="allocation",
+                        detail=f"{allocation_category}_allocation_full",
+                    )
+                    debug_data["final_status"] = "EBAY_REJECTED_ALLOCATION_CAP"
+                    log_ebay_debug(debug_data)
+                    print(
+                        f"[EBAY_ALLOCATION_SKIP] category={allocation_category} "
+                        f"count={ebay_allocation_counts[allocation_category]} "
+                        f"cap={EBAY_ALLOCATION.get(allocation_category, 0)} id={id_item}"
+                    )
                     continue
 
                 prioridade = is_priority(assessment) if tcg_type == "pokemon" else False
                 comparavel_ebay_sold = False
                 dados_ebay_sold = procurar_ebay_sold_leve(page_detalhe, titulo, assessment, cache_ebay_sold) if comparavel_ebay_sold else None
-                detected_at = now_iso()
+                detected_at = detected_at_now_iso()
 
                 log_listing_event(source="ebay", title=titulo, price=preco, assessment=assessment, priority=prioridade, consulted_cardmarket=False, cardmarket_found=False)
-                vistos.add(id_item)
-                guardar_visto(id_item)
-                if EBAY_DEBUG_MODE and EBAY_DEBUG_IGNORE_MAIN_VISTOS and not duplicate_in_debug:
-                    vistos_ebay_debug.add(id_item)
-                    guardar_visto_ebay_debug(id_item)
                 debug_data["final_status"] = "EBAY_ACCEPTED"
                 log_ebay_debug(debug_data)
 
@@ -4865,6 +5914,9 @@ def procurar_anuncios(processar_ebay=True):
                     "source_published_at": source_published_at,
                     "seller_feedback": seller_feedback,
                 })
+                diag_count(query_diag, "accepted")
+                ebay_accepted += 1
+                ebay_allocation_counts[allocation_category] += 1
                 record_metric_event(
                     "captured",
                     item_id=id_item,
@@ -4872,12 +5924,21 @@ def procurar_anuncios(processar_ebay=True):
                     tcg_type=tcg_type,
                     score_label=obter_score_label(novos[-1]),
                 )
+                if ebay_accepted >= EBAY_MAX_CANDIDATES_PER_CYCLE:
+                    print(f"[EBAY_LIMIT] accepted={ebay_accepted} max_ebay={EBAY_MAX_CANDIDATES_PER_CYCLE}")
+                    break
+            ebay_candidates.clear()
+            gc.collect()
+            log_ram_usage("after_ebay")
         except Exception as e:
+            print(f"[EBAY_PIPELINE_ERROR] error=\"{e}\"")
             log_ebay_debug({
                 "final_status": "EBAY_PIPELINE_ERROR",
                 "error": str(e),
                 "traceback": traceback.format_exc(),
             })
+            gc.collect()
+            log_ram_usage("after_ebay")
 
     finally:
         if not should_close_context and LIGHT_MODE:
@@ -4900,7 +5961,6 @@ def procurar_anuncios(processar_ebay=True):
     guardar_cache_ebay_sold(cache_ebay_sold)
     novos.sort(
         key=lambda x: (
-            sort_iso_key(x.get("source_published_at") or x.get("detected_at")),
             sort_iso_key(x.get("detected_at")),
         ),
         reverse=True,
@@ -4925,6 +5985,7 @@ def main():
         cycle_started_at = time.monotonic()
         try:
             ciclo += 1
+            log_ram_usage("cycle_start")
             maybe_refresh_runtime(ciclo)
             if LIGHT_MODE and ciclo % RUNTIME_DEBUG_EVERY_CYCLES == 0:
                 log_runtime_state(ciclo, refreshed=False)
@@ -4952,23 +6013,36 @@ def main():
                     "cycle": ciclo,
                     "message": "EBAY SKIPPED THIS CYCLE",
                 })
-            novos = procurar_anuncios(processar_ebay=processar_ebay)
+            diag = start_cycle_diag(ciclo, processar_ebay)
+            novos = procurar_anuncios(processar_ebay=processar_ebay, diag=diag)
             if LIGHT_MODE and _RUNTIME.get("browser") is not None and not _RUNTIME.get("created_cycle"):
                 _RUNTIME["created_cycle"] = ciclo
 
             for anuncio in novos:
+                if not tcg_enabled(anuncio.get("tcg_type")):
+                    print(
+                        f"[TCG_DISABLED_SKIP] id={anuncio.get('id')} platform={anuncio.get('source')} "
+                        f"tcg_type={anuncio.get('tcg_type')} stage=delivery"
+                    )
+                    continue
+
                 registar_tracking_anuncio(anuncio)
                 anuncio["app_sync"] = enviar_anuncio_app(anuncio)
                 mark_listing_app_synced(anuncio.get("id"), anuncio.get("app_sync"))
+                mark_seen_after_app_delivery(anuncio, anuncio.get("app_sync"))
                 free_result = enfileirar_anuncio_free(anuncio)
+                diag_record_delivery(diag, anuncio, anuncio.get("app_sync"), free_result)
                 print(
                     f"[delivery_result] id={anuncio.get('id')} "
                     f"app={anuncio.get('app_sync', {}).get('status')} "
                     f"free={(free_result or {}).get('status')}"
                 )
                 time.sleep(2)
+            log_cycle_diag(diag)
             novos.clear()
             del novos
+            gc.collect()
+            log_ram_usage("cycle_end")
 
             if ciclo % GC_COLLECT_EVERY_CYCLES == 0:
                 libertados = gc.collect()
@@ -4976,6 +6050,8 @@ def main():
 
         except Exception as e:
             print("Erro:", e)
+            gc.collect()
+            log_ram_usage("cycle_end")
 
         next_cycle_at = max(next_cycle_at + CHECK_INTERVAL, cycle_started_at + CHECK_INTERVAL)
         remaining_sleep = max(0.0, next_cycle_at - time.monotonic())

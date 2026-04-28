@@ -150,7 +150,7 @@ def ensure_runtime_schema(app):
         connection.execute(text("UPDATE listings SET is_deal = false WHERE is_deal IS NULL"))
         connection.execute(text("UPDATE listings SET is_vip_only = true WHERE is_vip_only IS NULL"))
         connection.execute(text("UPDATE listings SET free_sent = false WHERE free_sent IS NULL"))
-        connection.execute(text("UPDATE listings SET detected_at = posted_at WHERE detected_at IS NULL"))
+        connection.execute(text("UPDATE listings SET detected_at = created_at WHERE detected_at IS NULL"))
 
     from .models import CardmarketTrend
 

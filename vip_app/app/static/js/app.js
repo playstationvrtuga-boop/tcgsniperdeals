@@ -589,8 +589,14 @@ function initLiveFeed() {
 
   function updateCursor(cursor) {
     if (!cursor) return;
-    if (cursor.latest_detected_at) latestDetectedAt = cursor.latest_detected_at;
-    if (cursor.latest_id) latestId = Number(cursor.latest_id) || latestId;
+    if (cursor.latest_detected_at) {
+      const nextDetectedAt = Date.parse(cursor.latest_detected_at);
+      const currentDetectedAt = Date.parse(latestDetectedAt);
+      if (!Number.isFinite(currentDetectedAt) || !Number.isFinite(nextDetectedAt) || nextDetectedAt >= currentDetectedAt) {
+        latestDetectedAt = cursor.latest_detected_at;
+      }
+    }
+    if (cursor.latest_id) latestId = Math.max(latestId, Number(cursor.latest_id) || latestId);
     feedRoot.dataset.feedCursorDetectedAt = latestDetectedAt;
     feedRoot.dataset.feedCursorId = String(latestId);
   }
@@ -616,10 +622,21 @@ function initLiveFeed() {
     let insertedCount = 0;
 
     for (const item of [...items].reverse()) {
+      const platform = normalizePlatformKey(item?.platform_key || item?.platform);
       const node = htmlToElement(item.html);
-      if (!node) continue;
+      if (!node) {
+        console.debug(`[LIVE_SKIP] id=${item?.id || "unknown"} platform=${platform || "unknown"} reason=invalid_html`);
+        continue;
+      }
       const itemId = Number(item.id || node.dataset.listingId || 0);
-      if (seenIds.has(itemId)) continue;
+      if (!itemId) {
+        console.debug(`[LIVE_SKIP] id=unknown platform=${platform || "unknown"} reason=missing_id`);
+        continue;
+      }
+      if (seenIds.has(itemId)) {
+        console.debug(`[LIVE_SKIP] id=${itemId} platform=${platform || "unknown"} reason=duplicate`);
+        continue;
+      }
       if (item.detected_at) {
         node.dataset.detectedAt = item.detected_at;
         node.querySelectorAll("[data-relative-time]").forEach((label) => {
@@ -631,6 +648,7 @@ function initLiveFeed() {
       }
       seenIds.add(itemId);
       feedRoot.insertBefore(node, feedRoot.firstChild);
+      console.debug(`[LIVE_INSERT] id=${itemId} platform=${platform || "unknown"}`);
       insertedCount += 1;
       if (preserveScroll) {
         totalHeight += node.getBoundingClientRect().height || 0;
@@ -680,6 +698,11 @@ function initLiveFeed() {
       updateCursor(data.cursor);
 
       const items = Array.isArray(data.items) ? data.items : [];
+      console.debug(`[LIVE_POLL] received count=${items.length}`);
+      items.forEach((item) => {
+        const platform = normalizePlatformKey(item?.platform_key || item?.platform);
+        console.debug(`[LIVE_POLL_ITEM] id=${item?.id || "unknown"} platform=${platform || "unknown"}`);
+      });
       if (items.length) {
         playArrivalFeedback(items);
         window.setTimeout(() => {

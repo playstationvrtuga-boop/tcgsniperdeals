@@ -18,7 +18,7 @@ def _login_preview_listing():
             Listing.image_url != "",
             Listing.image_url.notlike("%example.com%"),
         )
-        .order_by(Listing.detected_at.desc().nullslast(), Listing.id.desc())
+        .order_by(Listing.detected_at.desc(), Listing.id.desc())
         .first()
     )
 
