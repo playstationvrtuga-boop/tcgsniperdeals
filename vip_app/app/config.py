@@ -72,7 +72,7 @@ class Config:
     MOBILE_APP_URL = os.getenv("MOBILE_APP_URL", SITE_URL)
     ANDROID_APK_URL = os.getenv("ANDROID_APK_URL", "").strip()
     IS_PRODUCTION = _bool_env("RENDER") or _bool_env("FLASK_FORCE_HTTPS") or SITE_URL.startswith("https://")
-    RUN_STARTUP_SCHEMA_CHECK = _bool_env_default("RUN_STARTUP_SCHEMA_CHECK", not IS_PRODUCTION)
+    RUN_STARTUP_SCHEMA_CHECK = _bool_env_default("RUN_STARTUP_SCHEMA_CHECK", True)
     RUN_DB_CREATE_ALL = _bool_env_default("RUN_DB_CREATE_ALL", not IS_PRODUCTION)
     LOG_STARTUP_TIMING = _bool_env_default("LOG_STARTUP_TIMING", IS_PRODUCTION)
     LOG_FEED_TIMING = _bool_env_default("LOG_FEED_TIMING", False)
