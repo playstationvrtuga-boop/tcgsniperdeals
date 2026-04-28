@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import random
+import re
 import time
 from datetime import timedelta
 from sqlalchemy import or_
@@ -136,6 +137,13 @@ def _mask_config_value(value: str) -> str:
     return "present" if value else "missing"
 
 
+def _mask_database_uri(value: str | None) -> str:
+    raw = str(value or "")
+    if "://" not in raw or "@" not in raw:
+        return raw
+    return re.sub(r"://([^:/@]+):([^@]+)@", r"://\1:***@", raw)
+
+
 def _runtime_setting(name: str, fallback: str = "") -> str:
     value = os.environ.get(name)
     if value is None:
@@ -240,6 +248,37 @@ def _describe_result(result) -> str:
     return f"{result.status.upper()} kind={kind} reason={result.reason or 'n/a'}"
 
 
+def _log_queue_snapshot() -> None:
+    since = utcnow() - timedelta(hours=24)
+    rows = (
+        db.session.query(
+            db.func.lower(db.func.coalesce(Listing.pricing_status, "pending")),
+            db.func.count(Listing.id),
+        )
+        .filter(Listing.created_at >= since)
+        .group_by(db.func.lower(db.func.coalesce(Listing.pricing_status, "pending")))
+        .all()
+    )
+    counts = {str(status or "pending"): int(count or 0) for status, count in rows}
+    pending_count = _pending_listing_query().limit(500).count()
+    latest_analyzed = (
+        Listing.query.filter(Listing.pricing_analyzed_at.isnot(None))
+        .order_by(Listing.pricing_analyzed_at.desc())
+        .first()
+    )
+    latest_text = (
+        f"id={latest_analyzed.id} status={latest_analyzed.pricing_status} "
+        f"score={latest_analyzed.pricing_score} confidence={latest_analyzed.confidence_score}"
+        if latest_analyzed
+        else "none"
+    )
+    print(
+        "[pricing_worker] queue_status "
+        f"pending_like={pending_count} last24={counts} latest_analyzed={latest_text}",
+        flush=True,
+    )
+
+
 def process_listing(listing: Listing) -> str:
     try:
         result = evaluate_listing(listing)
@@ -312,6 +351,7 @@ def process_listing(listing: Listing) -> str:
         return "worker_error"
 def run_worker(*, once: bool = False, limit: int | None = None) -> None:
     processed = 0
+    idle_cycles = 0
 
     with app.app_context():
         database_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
@@ -323,7 +363,7 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
             "PRICING_ENABLE_EBAY_HTML_FALLBACK",
             PRICING_ENABLE_EBAY_HTML_FALLBACK,
         )
-        print(f"[pricing_worker] database={database_uri}", flush=True)
+        print(f"[pricing_worker] database={_mask_database_uri(database_uri)}", flush=True)
         print(f"[pricing_worker] bot_app_api_url={APP_API_URL}", flush=True)
         print(
             "[pricing_worker] ebay_api "
@@ -352,11 +392,15 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
         while True:
             listing = fetch_next_pending_listing()
             if listing is not None:
+                idle_cycles = 0
                 status = process_listing(listing)
                 processed += 1
                 print(f"[pricing_worker] listing_id={listing.id} status={status}")
             else:
                 print("[pricing_worker] idle - no pending listings")
+                idle_cycles += 1
+                if idle_cycles == 1 or idle_cycles % 10 == 0:
+                    _log_queue_snapshot()
                 if once:
                     break
                 time.sleep(random.uniform(PRICING_WORKER_MIN_SLEEP, PRICING_WORKER_MAX_SLEEP))

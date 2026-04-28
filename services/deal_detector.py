@@ -564,9 +564,11 @@ def fetch_recent_comparables(product_name: str, listing_kind: str | None) -> lis
     return sales
 
 
-def _buy_now_min_comparables(listing_kind: str | None) -> int:
-    if listing_kind == "graded_card":
+def _buy_now_min_comparables(listing_kind: str | None, listing_type: str | None = None) -> int:
+    if listing_type == "graded_card" or listing_kind == "graded_card":
         return 1
+    if listing_type == "raw_card":
+        return RAW_COMPARABLE_MINIMUM
     return PRICING_BUY_NOW_MIN_COMPARABLES
 
 
@@ -657,6 +659,7 @@ def _pricing_basis_and_confidence(
     sold_median_price: float | None,
     buy_now_median_price: float | None,
     parser_confidence: str | None,
+    required_buy_now_count: int = PRICING_BUY_NOW_MIN_COMPARABLES,
 ) -> tuple[float | None, str | None, int]:
     if len(sold_prices) >= 2 and sold_median_price is not None:
         fair_value = sold_median_price
@@ -669,7 +672,7 @@ def _pricing_basis_and_confidence(
     elif buy_now_prices and buy_now_median_price is not None:
         fair_value = buy_now_median_price
         basis = "buy_now"
-        confidence = 58 if len(buy_now_prices) >= 3 else 48
+        confidence = 58 if len(buy_now_prices) >= required_buy_now_count else 48
     else:
         return None, None, 0
 
@@ -831,7 +834,7 @@ def _fetch_best_buy_now_for_queries(
 ) -> list[EbaySoldListing]:
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
-    required_comparables = _buy_now_min_comparables(listing_kind)
+    required_comparables = _buy_now_min_comparables(listing_kind, listing_type)
     for attempt, query in enumerate(queries, start=1):
         _log_pricing_attempt("buy_now", attempt, query)
         try:
@@ -937,7 +940,7 @@ def evaluate_listing(listing) -> DealResult:
         buy_now_error = str(error)
         buy_now_exception = error
 
-    required_buy_now_count = _buy_now_min_comparables(listing_kind)
+    required_buy_now_count = _buy_now_min_comparables(listing_kind, listing_type)
     _sold_min, sold_avg_price, sold_median_price, sold_prices = _price_stats(comparable_sales[:3])
     market_buy_now_min, market_buy_now_avg, market_buy_now_median, buy_now_prices_all = _price_stats(
         buy_now_listings[:PRICING_BUY_NOW_MAX_RESULTS]
@@ -956,6 +959,7 @@ def evaluate_listing(listing) -> DealResult:
         sold_median_price=sold_median_price,
         buy_now_median_price=buy_now_reference_price,
         parser_confidence=identity.confidence,
+        required_buy_now_count=required_buy_now_count,
     )
     language_penalty = _language_confidence_penalty(
         expected_language,

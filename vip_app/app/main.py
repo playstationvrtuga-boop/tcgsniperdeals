@@ -724,7 +724,7 @@ def smart_deals():
     return render_deals_board(
         query=query,
         order_by=smart_deal_order(),
-        cache_key="feed:smart:v3",
+        cache_key="feed:smart:v4",
         page_mode="smart",
         board_label="Sniper pricing",
         board_title="Sniper Deals with pricing edge",
