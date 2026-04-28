@@ -12,10 +12,21 @@ function isNativeShell() {
   return false;
 }
 
-async function initNativeShell() {
-  if (!isNativeShell()) return;
+function isStandaloneWebApp() {
+  return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
+}
 
-  document.documentElement.classList.add("is-native-shell", "splash-skipped");
+async function initNativeShell() {
+  const nativeShell = isNativeShell();
+  const installedWebApp = isStandaloneWebApp();
+  if (!nativeShell && !installedWebApp) return;
+
+  document.documentElement.classList.add("is-mobile-app-shell", "splash-skipped");
+  document.body.classList.add("is-mobile-app-shell");
+
+  if (!nativeShell) return;
+
+  document.documentElement.classList.add("is-native-shell");
   document.body.classList.add("is-native-shell");
 
   try {
