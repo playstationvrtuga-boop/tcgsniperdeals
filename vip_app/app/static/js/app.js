@@ -665,13 +665,9 @@ function initLiveFeed() {
       const items = Array.isArray(data.items) ? data.items : [];
       if (items.length) {
         playArrivalFeedback(items);
-        const preserveScroll = !isNearTop();
         window.setTimeout(() => {
-          const insertedCount = insertItems(items, preserveScroll);
-          if (insertedCount && preserveScroll) {
-            unseenCount += insertedCount;
-            setBannerCount(unseenCount);
-          } else if (!preserveScroll) {
+          const insertedCount = insertItems(items, false);
+          if (insertedCount) {
             setBannerCount(0);
           }
         }, cardAnimationsEnabled ? 140 : 0);

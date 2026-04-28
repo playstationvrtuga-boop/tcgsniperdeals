@@ -692,7 +692,7 @@ def feed():
     return render_deals_board(
         query=Listing.query,
         order_by=newest_listing_order(),
-        cache_key="feed:default",
+        cache_key=None,
         page_mode="live",
     )
 
@@ -793,12 +793,13 @@ def feed_updates():
             cursor_id = None
 
     started = time.perf_counter()
+    feed_timestamp_expr = db.func.coalesce(Listing.detected_at, Listing.created_at)
     query = Listing.query.options(defer(Listing.raw_payload))
     if cursor_detected_at is not None and cursor_id is not None:
         query = query.filter(
             or_(
-                Listing.detected_at > cursor_detected_at,
-                and_(Listing.detected_at == cursor_detected_at, Listing.id > cursor_id),
+                feed_timestamp_expr > cursor_detected_at,
+                and_(feed_timestamp_expr == cursor_detected_at, Listing.id > cursor_id),
             )
         )
     query = query.order_by(*newest_listing_order()).limit(limit)

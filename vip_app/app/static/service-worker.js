@@ -1,4 +1,4 @@
-const CACHE_NAME = "tcg-sniper-deals-v3";
+const CACHE_NAME = "tcg-sniper-deals-v4";
 const OFFLINE_URL = "/offline";
 const CORE_ASSETS = [
   OFFLINE_URL,
