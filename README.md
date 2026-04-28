@@ -740,17 +740,18 @@ If Cardmarket is unavailable, look for:
 If Cardmarket blocks the worker with `403 Forbidden`, use the safe manual import flow:
 
 1. Open the Cardmarket Pokemon trends page in your browser.
-2. Take one screenshot where `Best Sellers` and `Best Bargains` are visible.
+2. Take one screenshot where `Best Sellers` and `Best Bargains` are visible, or take two screenshots: one for `Best Sellers` and one for `Best Bargains`.
 3. Open the VIP app admin panel.
 4. Click `AI Market Intel Import`.
-5. Upload the screenshot and click `Import screenshot`.
+5. Upload the screenshot in `Combined screenshot`, or upload the two screenshots in `Best Sellers screenshot` and `Best Bargains screenshot`.
 6. Open `AI Market Intel` in the VIP app.
 
-The importer crops the top 3 Best Sellers and top 3 Best Bargains from the screenshot and saves them as app images. If optional OCR is available, it also tries to read product names and prices. If OCR is not available, the app still shows the cropped images with safe fallback names.
+The importer crops the top 3 Best Sellers and top 3 Best Bargains from the screenshot(s) and saves them as app images. If optional OCR is available, it also tries to read product names and prices. If OCR is not available, the app still shows the cropped images with safe fallback names.
 
 Optional helper:
 
 - paste the visible Cardmarket trend text into the import page textarea to improve names and prices
-- keep the screenshot clean and desktop-width so the top 3 cards are visible
+- keep the screenshot clean so the top 3 cards are visible
+- mobile screenshots are supported when uploaded into the separate Best Sellers / Best Bargains fields
 
 This does not bypass Cardmarket login, CAPTCHA, paywalls or anti-bot protection. It uses only the screenshot you provide.

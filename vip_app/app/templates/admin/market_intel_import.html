@@ -5,7 +5,7 @@
   <div>
     <span class="pill">Admin</span>
     <h1>AI Market Intel Import</h1>
-    <p>Upload one Cardmarket trends screenshot. The app extracts the top trend images and updates the VIP AI Market Intel tab.</p>
+    <p>Upload one Cardmarket trends screenshot, or separate Best Sellers / Best Bargains screenshots. The app extracts the top trend images and updates the VIP AI Market Intel tab.</p>
   </div>
   <div class="header-actions">
     <a class="ghost-button" href="{{ url_for('admin.dashboard') }}">Back to admin</a>
@@ -18,20 +18,28 @@
     <div class="admin-card-header">
       <div>
         <span class="eyebrow">Screenshot import</span>
-        <h2>Upload Cardmarket trends screenshot</h2>
+        <h2>Upload Cardmarket trend screenshots</h2>
       </div>
     </div>
     <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.market_intel_import') }}" class="stack-form">
       <label>
-        Screenshot
-        <input type="file" name="screenshot" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" required>
+        Combined screenshot
+        <input type="file" name="screenshot" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp">
+      </label>
+      <label>
+        Best Sellers screenshot
+        <input type="file" name="sellers_screenshot" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp">
+      </label>
+      <label>
+        Best Bargains screenshot
+        <input type="file" name="bargains_screenshot" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp">
       </label>
       <label>
         Optional text helper
-        <textarea name="pasted_text" rows="10" placeholder="Optional. If you have time, paste the visible Cardmarket text here. The screenshot alone still imports the top images."></textarea>
+        <textarea name="pasted_text" rows="10" placeholder="Optional. If you have time, paste the visible Cardmarket text here. The screenshots alone still import the top images."></textarea>
       </label>
       <p class="muted">
-        Best result: use a desktop screenshot where Best Sellers and Best Bargains are both visible, like the Cardmarket trends page.
+        Best result: upload either one desktop screenshot with both sections visible, or two mobile screenshots like Best Sellers first and Best Bargains second.
       </p>
       <button class="primary-button" type="submit">Import Market Intel</button>
     </form>

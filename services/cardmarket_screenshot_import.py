@@ -111,7 +111,28 @@ def _ocr_text_if_available(image_path: Path) -> str:
         return ""
 
 
-def _crop_trend_images(image_path: Path, output_dir: Path, static_root: Path) -> list[tuple[str, int, str]]:
+def _file_present(file: FileStorage | None) -> bool:
+    return bool(file and file.filename)
+
+
+def _save_upload(file: FileStorage, original_dir: Path, prefix: str) -> Path:
+    filename = secure_filename(file.filename or f"{prefix}.png")
+    extension = Path(filename).suffix.lower()
+    if extension not in ALLOWED_SCREENSHOT_EXTENSIONS:
+        raise ValueError("Use PNG, JPG, JPEG or WEBP screenshots.")
+    original_dir.mkdir(parents=True, exist_ok=True)
+    output_path = original_dir / f"{prefix}_{filename}"
+    file.save(output_path)
+    return output_path
+
+
+def _crop_trend_images(
+    image_path: Path,
+    output_dir: Path,
+    static_root: Path,
+    *,
+    category: str | None = None,
+) -> list[tuple[str, int, str]]:
     try:
         from PIL import Image  # type: ignore
     except Exception as error:
@@ -121,49 +142,74 @@ def _crop_trend_images(image_path: Path, output_dir: Path, static_root: Path) ->
     width, height = image.size
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Ratios tuned for the public Cardmarket Pokemon trends page desktop layout.
-    boxes = [
-        ("best_sellers", 1, (0.170, 0.300, 0.290, 0.585)),
-        ("best_sellers", 2, (0.295, 0.300, 0.415, 0.585)),
-        ("best_sellers", 3, (0.425, 0.300, 0.535, 0.585)),
-        ("best_bargains", 1, (0.550, 0.300, 0.670, 0.585)),
-        ("best_bargains", 2, (0.675, 0.300, 0.795, 0.585)),
-        ("best_bargains", 3, (0.800, 0.300, 0.920, 0.585)),
-    ]
+    if category:
+        # Ratios tuned for mobile/vertical grid screenshots of one Cardmarket section.
+        boxes = [
+            (category, 1, (0.140, 0.055, 0.370, 0.270)),
+            (category, 2, (0.390, 0.055, 0.620, 0.270)),
+            (category, 3, (0.640, 0.055, 0.870, 0.270)),
+        ]
+    else:
+        # Ratios tuned for the public Cardmarket Pokemon trends page desktop layout.
+        boxes = [
+            ("best_sellers", 1, (0.170, 0.300, 0.290, 0.585)),
+            ("best_sellers", 2, (0.295, 0.300, 0.415, 0.585)),
+            ("best_sellers", 3, (0.425, 0.300, 0.535, 0.585)),
+            ("best_bargains", 1, (0.550, 0.300, 0.670, 0.585)),
+            ("best_bargains", 2, (0.675, 0.300, 0.795, 0.585)),
+            ("best_bargains", 3, (0.800, 0.300, 0.920, 0.585)),
+        ]
     crops: list[tuple[str, int, str]] = []
     for category, rank, ratios in boxes:
         left, top, right, bottom = ratios
         crop = image.crop((int(width * left), int(height * top), int(width * right), int(height * bottom)))
-        filename = f"{category}_{rank}.jpg"
+        filename = f"{image_path.stem}_{category}_{rank}.jpg"
         crop_path = output_dir / filename
         crop.save(crop_path, format="JPEG", quality=86, optimize=True)
         crops.append((category, rank, _static_url(crop_path.relative_to(static_root))))
     return crops
 
 
-def import_cardmarket_trends_from_screenshot(
-    screenshot: FileStorage,
+def import_cardmarket_trends_from_screenshots(
     *,
+    combined_screenshot: FileStorage | None = None,
+    sellers_screenshot: FileStorage | None = None,
+    bargains_screenshot: FileStorage | None = None,
     pasted_text: str = "",
     source_url: str = "https://www.cardmarket.com/en/Pokemon",
 ) -> int:
-    filename = secure_filename(screenshot.filename or "cardmarket-trends.png")
-    extension = Path(filename).suffix.lower()
-    if extension not in ALLOWED_SCREENSHOT_EXTENSIONS:
-        raise ValueError("Use a PNG, JPG, JPEG or WEBP screenshot.")
-
     static_root = Path(__file__).resolve().parent.parent / "vip_app" / "app" / "static"
     stamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     import_dir = static_root / "uploads" / "market_intel" / stamp
     original_dir = import_dir / "original"
     crop_dir = import_dir / "cards"
-    original_dir.mkdir(parents=True, exist_ok=True)
 
-    original_path = original_dir / filename
-    screenshot.save(original_path)
+    crops: list[tuple[str, int, str]] = []
+    original_urls: list[str] = []
+    ocr_chunks: list[str] = []
 
-    crops = _crop_trend_images(original_path, crop_dir, static_root)
-    ocr_text = _ocr_text_if_available(original_path)
+    if _file_present(combined_screenshot):
+        original_path = _save_upload(combined_screenshot, original_dir, "combined")
+        original_urls.append(_static_url(original_path.relative_to(static_root)))
+        crops.extend(_crop_trend_images(original_path, crop_dir, static_root))
+        ocr_chunks.append(_ocr_text_if_available(original_path))
+
+    if _file_present(sellers_screenshot):
+        original_path = _save_upload(sellers_screenshot, original_dir, "best_sellers")
+        original_urls.append(_static_url(original_path.relative_to(static_root)))
+        crops.extend(_crop_trend_images(original_path, crop_dir, static_root, category="best_sellers"))
+        ocr_chunks.append("Best Sellers\n" + _ocr_text_if_available(original_path))
+
+    if _file_present(bargains_screenshot):
+        original_path = _save_upload(bargains_screenshot, original_dir, "best_bargains")
+        original_urls.append(_static_url(original_path.relative_to(static_root)))
+        crops.extend(_crop_trend_images(original_path, crop_dir, static_root, category="best_bargains"))
+        ocr_chunks.append("Best Bargains\n" + _ocr_text_if_available(original_path))
+
+    if not crops:
+        raise ValueError("Upload one combined screenshot or separate Best Sellers / Best Bargains screenshots.")
+
+    ocr_text = "\n".join(chunk for chunk in ocr_chunks if chunk)
     parsed_text_slots = parse_cardmarket_screenshot_text("\n".join([pasted_text, ocr_text]), max_items=3)
     text_by_key = {(slot.category, slot.rank): slot for slot in parsed_text_slots}
 
@@ -187,7 +233,7 @@ def import_cardmarket_trends_from_screenshot(
             raw_payload_json=json.dumps(
                 {
                     "source": "screenshot_upload",
-                    "original_image": _static_url(original_path.relative_to(static_root)),
+                    "original_images": original_urls,
                     "ocr_used": bool(ocr_text),
                     "manual_text_used": bool(pasted_text.strip()),
                 },
@@ -197,7 +243,7 @@ def import_cardmarket_trends_from_screenshot(
         created.append(trend)
 
     day_start = collected_at.replace(hour=0, minute=0, second=0, microsecond=0)
-    for category in ("best_sellers", "best_bargains"):
+    for category in {category for category, _, _ in crops}:
         CardmarketTrend.query.filter(
             CardmarketTrend.category == category,
             CardmarketTrend.collected_at >= day_start,
@@ -206,3 +252,16 @@ def import_cardmarket_trends_from_screenshot(
     db.session.commit()
     print(f"[ai_market_intel] CARDMARKET_SCREENSHOT_IMPORTED count={len(created)}", flush=True)
     return len(created)
+
+
+def import_cardmarket_trends_from_screenshot(
+    screenshot: FileStorage,
+    *,
+    pasted_text: str = "",
+    source_url: str = "https://www.cardmarket.com/en/Pokemon",
+) -> int:
+    return import_cardmarket_trends_from_screenshots(
+        combined_screenshot=screenshot,
+        pasted_text=pasted_text,
+        source_url=source_url,
+    )

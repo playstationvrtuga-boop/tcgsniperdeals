@@ -6,7 +6,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 from .decorators import admin_required
 from .extensions import db
-from services.cardmarket_screenshot_import import import_cardmarket_trends_from_screenshot
+from services.cardmarket_screenshot_import import import_cardmarket_trends_from_screenshots
 
 from .models import CardmarketTrend, Listing, Payment, User, utcnow
 
@@ -102,12 +102,19 @@ def dashboard():
 def market_intel_import():
     if request.method == "POST":
         screenshot = request.files.get("screenshot")
+        sellers_screenshot = request.files.get("sellers_screenshot")
+        bargains_screenshot = request.files.get("bargains_screenshot")
         pasted_text = request.form.get("pasted_text", "")
-        if not screenshot or not screenshot.filename:
+        if not any(file and file.filename for file in (screenshot, sellers_screenshot, bargains_screenshot)):
             flash("Upload a Cardmarket screenshot first.", "error")
             return redirect(url_for("admin.market_intel_import"))
         try:
-            count = import_cardmarket_trends_from_screenshot(screenshot, pasted_text=pasted_text)
+            count = import_cardmarket_trends_from_screenshots(
+                combined_screenshot=screenshot,
+                sellers_screenshot=sellers_screenshot,
+                bargains_screenshot=bargains_screenshot,
+                pasted_text=pasted_text,
+            )
         except Exception as error:
             flash(f"Market Intel import failed: {error}", "error")
             return redirect(url_for("admin.market_intel_import"))
