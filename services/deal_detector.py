@@ -327,15 +327,35 @@ def _same_card_identity(original_title: str, candidate_title: str) -> bool:
     candidate_name = candidate.pokemon_name or candidate.keyword_name
     if original_name and candidate_name and original_name != candidate_name:
         return False
-    original_number = original.full_number or original.card_number
-    candidate_number = candidate.full_number or candidate.card_number
-    if original_number and candidate_number and original_number != candidate_number:
+    original_numbers = _identity_card_numbers(original_title, original)
+    candidate_numbers = _identity_card_numbers(candidate_title, candidate)
+    if original_numbers and candidate_numbers and original_numbers.isdisjoint(candidate_numbers):
         return False
     original_set = original.set_code or original.set_name
     candidate_set = candidate.set_code or candidate.set_name
     if original_set and candidate_set and original_set != candidate_set:
         return False
     return True
+
+
+def _identity_card_numbers(title: str, signals) -> set[str]:
+    numbers: set[str] = set()
+    grade = _extract_grade(title) if _has_graded_signal(title) else None
+    grade_texts = {str(int(grade)), f"{grade:.1f}".rstrip("0").rstrip(".")} if grade is not None else set()
+    if signals.full_number:
+        numbers.add(str(signals.full_number).lower())
+    if signals.card_number and str(signals.card_number) not in grade_texts:
+        numbers.add(str(signals.card_number).lower())
+
+    text = _compare_text(title)
+    for match in re.finditer(r"\b([a-z]{2,6})\s+(\d{1,3})(?:/(\d{1,3}))?\b", text):
+        code, number, total = match.groups()
+        if code in {"psa", "bgs", "cgc", "ace", "rpa", "pca", "tag", "sgc"}:
+            continue
+        if number in grade_texts:
+            continue
+        numbers.add(f"{number}/{total}" if total else number)
+    return numbers
 
 
 def is_comparable_listing(
@@ -360,7 +380,7 @@ def is_comparable_listing(
             return False, "grading_company_mismatch"
         original_grade = _extract_grade(original_title)
         candidate_grade = _extract_grade(comparable_title)
-        if original_grade is not None and candidate_grade is not None and abs(original_grade - candidate_grade) > 0.5:
+        if original_grade is not None and candidate_grade is not None and abs(original_grade - candidate_grade) > 0.1:
             return False, "grade_mismatch"
     elif listing_type == "sealed_product":
         original_subtype = _sealed_subtype(original_title)
