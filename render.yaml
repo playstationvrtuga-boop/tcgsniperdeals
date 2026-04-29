@@ -240,6 +240,8 @@ services:
         value: "5"
       - key: WALLAPOP_WORKER_INTERVAL_SECONDS
         value: "300"
+      - key: WALLAPOP_AUTO_INSTALL_PLAYWRIGHT
+        value: "true"
   - type: worker
     name: tcg-sniper-deals-market-intel-worker
     env: python

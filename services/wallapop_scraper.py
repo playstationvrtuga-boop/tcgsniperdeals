@@ -11,6 +11,8 @@ import hashlib
 import os
 import random
 import re
+import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Iterable
@@ -264,6 +266,55 @@ def _extract_items_from_page(page, source_query: str) -> list[dict]:
     )
 
 
+def _playwright_browser_missing(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        "executable doesn't exist" in message
+        or "browser executable" in message
+        or "playwright install" in message
+    )
+
+
+def _auto_install_playwright_browser() -> bool:
+    enabled = str(os.getenv("WALLAPOP_AUTO_INSTALL_PLAYWRIGHT", "true")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if not enabled:
+        print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=disabled", flush=True)
+        return False
+    try:
+        print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=starting command=playwright_install_chromium", flush=True)
+        result = subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "chromium"],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=180,
+        )
+        output_tail = (result.stdout or "")[-800:].replace("\n", " ")
+        if result.returncode == 0:
+            print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=ok", flush=True)
+            return True
+        print(
+            f"[WALLAPOP_PLAYWRIGHT_INSTALL] status=failed returncode={result.returncode} output={output_tail}",
+            flush=True,
+        )
+    except Exception as exc:
+        print(f"[WALLAPOP_PLAYWRIGHT_INSTALL] status=error error={exc}", flush=True)
+    return False
+
+
+def _launch_wallapop_browser(playwright, headless: bool):
+    return playwright.chromium.launch(
+        headless=headless,
+        args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"],
+    )
+
+
 def fetch_wallapop_listings(
     *,
     max_items: int | None = None,
@@ -294,10 +345,13 @@ def fetch_wallapop_listings(
     rejected_count = 0
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=headless,
-                args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"],
-            )
+            try:
+                browser = _launch_wallapop_browser(p, headless)
+            except Exception as launch_exc:
+                if _playwright_browser_missing(launch_exc) and _auto_install_playwright_browser():
+                    browser = _launch_wallapop_browser(p, headless)
+                else:
+                    raise
             context = browser.new_context(
                 viewport={"width": 1280, "height": 720},
                 user_agent=(
