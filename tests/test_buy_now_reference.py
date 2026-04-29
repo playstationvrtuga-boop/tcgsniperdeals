@@ -85,6 +85,46 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.assertEqual(result.buy_now_reference_price, 110.0)
         self.assertEqual(result.buy_now_count, 3)
 
+    def test_low_confidence_listing_stops_after_sold_zero_without_buy_now(self):
+        sold_calls = []
+        buy_now_calls = []
+
+        def sold_zero(*_args, **_kwargs):
+            sold_calls.append("sold")
+            return []
+
+        def buy_now_should_not_run(*_args, **_kwargs):
+            buy_now_calls.append("buy_now")
+            return [
+                EbaySoldListing("Pokemon Dragonite active one", 100.0),
+                EbaySoldListing("Pokemon Dragonite active two", 110.0),
+            ]
+
+        deal_detector.fetch_recent_comparables = sold_zero
+        deal_detector.fetch_active_buy_now_comparables = buy_now_should_not_run
+
+        result = deal_detector.evaluate_listing(self.listing("Pokemon Dragonite", "20,00 EUR"))
+
+        self.assertEqual(result.status, "insufficient_comparables")
+        self.assertEqual(result.parser_confidence, "LOW")
+        self.assertEqual(result.buy_now_count, 0)
+        self.assertEqual(sold_calls, ["sold"])
+        self.assertEqual(buy_now_calls, [])
+        self.assertIn("BUY_NOW_SKIPPED", result.reason)
+
+    def test_generic_buy_now_query_is_blocked_even_with_medium_confidence(self):
+        identity = SimpleNamespace(confidence="MEDIUM")
+        signals = SimpleNamespace(full_number="56/165", card_number="56", set_code=None, variant=None)
+
+        reason = deal_detector._buy_now_skip_reason(
+            identity=identity,
+            signals=signals,
+            listing_price=20.0,
+            pricing_queries=["pokemon dragonite"],
+        )
+
+        self.assertEqual(reason, "generic_or_low_confidence")
+
     def test_limited_buy_now_comparables_still_price_with_lower_confidence(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
         deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [

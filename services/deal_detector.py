@@ -36,6 +36,7 @@ EBAY_RATE_LIMIT_PAUSE_SECONDS = 60
 EBAY_RATE_LIMIT_PAUSE_MAX_SECONDS = 180
 MAX_PRICING_QUERY_CANDIDATES = 2
 MAX_EBAY_QUERY_ATTEMPTS_PER_SOURCE = 1
+BUY_NOW_MIN_LISTING_PRICE_EUR = 15.0
 EBAY_REQUEST_DELAY_RANGE_SECONDS = (0.2, 0.5)
 _EBAY_PAUSED_UNTIL = 0.0
 _EBAY_RATE_LIMIT_STRIKES = 0
@@ -69,6 +70,15 @@ GENERIC_TITLE_TERMS = {
     "near", "mint", "nm", "holo", "reverse", "rare", "ultra",
     "double", "seller", "feedback", "sealed", "box", "trainer", "elite",
     "novo", "nueva", "nuevo", "neuf", "neuve", "bon", "estado", "etat",
+}
+GENERIC_BUY_NOW_QUERIES = {
+    "pokemon charizard",
+    "pokemon pikachu",
+    "pokemon dragonite",
+    "pokemon mewtwo",
+    "pokemon cards",
+    "pokemon card",
+    "pokemon lot",
 }
 
 KNOWN_POKEMON_NAMES = {
@@ -752,6 +762,52 @@ def _buy_now_min_comparables(listing_kind: str | None, listing_type: str | None 
     return PRICING_BUY_NOW_MIN_COMPARABLES
 
 
+def _confidence_rank(confidence: str | None) -> int:
+    ranks = {"UNKNOWN": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
+    return ranks.get((confidence or "").upper(), 0)
+
+
+def _has_buy_now_identity_anchor(signals) -> bool:
+    if signals is None:
+        return False
+    return bool(
+        getattr(signals, "full_number", None)
+        or getattr(signals, "card_number", None)
+        or getattr(signals, "set_code", None)
+        or getattr(signals, "variant", None)
+    )
+
+
+def _is_generic_buy_now_query(query: str) -> bool:
+    cleaned = title_parser.clean_pricing_query(query or "").lower()
+    if cleaned in GENERIC_BUY_NOW_QUERIES:
+        return True
+    tokens = cleaned.split()
+    if len(tokens) == 2 and tokens[0] == "pokemon" and tokens[1] in KNOWN_POKEMON_NAMES:
+        return True
+    if len(tokens) <= 3 and cleaned in {"pokemon card lot", "pokemon cards bundle"}:
+        return True
+    return False
+
+
+def _buy_now_skip_reason(
+    *,
+    identity: ParsedListingIdentity,
+    signals,
+    listing_price: float,
+    pricing_queries: list[str],
+) -> str | None:
+    if _confidence_rank(identity.confidence) < _confidence_rank("MEDIUM"):
+        return "generic_or_low_confidence"
+    if not _has_buy_now_identity_anchor(signals):
+        return "generic_or_low_confidence"
+    if listing_price < BUY_NOW_MIN_LISTING_PRICE_EUR:
+        return "generic_or_low_confidence"
+    if any(_is_generic_buy_now_query(query) for query in pricing_queries):
+        return "generic_or_low_confidence"
+    return None
+
+
 def _listing_description(listing) -> str:
     raw_payload = getattr(listing, "raw_payload", None)
     if not raw_payload:
@@ -1231,33 +1287,47 @@ def evaluate_listing(listing) -> DealResult:
     buy_now_listings: list[EbaySoldListing] = []
     buy_now_error: str | None = None
     buy_now_exception: EbaySoldError | None = None
+    buy_now_skipped_reason: str | None = None
     if comparable_sales:
         print(
             f"[pricing] BUY_NOW_SKIPPED reason=sold_results_found sold_count={len(comparable_sales)}",
             flush=True,
         )
     else:
-        try:
-            buy_now_listings = _fetch_best_buy_now_for_queries(
-                pricing_queries,
-                listing_kind=listing_kind,
-                original_title=title,
-                listing_type=listing_type,
+        buy_now_skipped_reason = _buy_now_skip_reason(
+            identity=identity,
+            signals=signals,
+            listing_price=listing_price,
+            pricing_queries=pricing_queries,
+        )
+        if buy_now_skipped_reason:
+            print(
+                f"[PRICING_BUY_NOW_SKIPPED] reason={buy_now_skipped_reason} "
+                f"confidence={identity.confidence} price={listing_price} query=\"{pricing_query}\"",
+                flush=True,
             )
-        except EbayPricingDeferred as error:
-            return _pricing_deferred_result(
-                listing_id=listing_id,
-                listing_price=listing_price,
-                listing_kind=listing_kind,
-                listing_type=listing_type,
-                identity=identity,
-                pricing_query=pricing_query,
-                pricing_queries=pricing_queries,
-                reason=str(error),
-            )
-        except EbaySoldError as error:
-            buy_now_error = str(error)
-            buy_now_exception = error
+        else:
+            try:
+                buy_now_listings = _fetch_best_buy_now_for_queries(
+                    pricing_queries,
+                    listing_kind=listing_kind,
+                    original_title=title,
+                    listing_type=listing_type,
+                )
+            except EbayPricingDeferred as error:
+                return _pricing_deferred_result(
+                    listing_id=listing_id,
+                    listing_price=listing_price,
+                    listing_kind=listing_kind,
+                    listing_type=listing_type,
+                    identity=identity,
+                    pricing_query=pricing_query,
+                    pricing_queries=pricing_queries,
+                    reason=str(error),
+                )
+            except EbaySoldError as error:
+                buy_now_error = str(error)
+                buy_now_exception = error
 
     required_buy_now_count = _buy_now_min_comparables(listing_kind, listing_type)
     _sold_min, sold_avg_price, sold_median_price, sold_prices = _price_stats(comparable_sales[:3])
@@ -1338,6 +1408,8 @@ def evaluate_listing(listing) -> DealResult:
                 reason_parts.append("SOLD_FAILED")
         if buy_now_error:
             reason_parts.append("SEARCH_FAILED")
+        if buy_now_skipped_reason:
+            reason_parts.append("BUY_NOW_SKIPPED")
         if not buy_now_listings:
             reason_parts.append("ZERO_RESULTS")
         if listing_type == "raw_card":
