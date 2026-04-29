@@ -592,18 +592,26 @@ select { font: inherit; }
 }
 
 .telegram-free-button {
-  border-color: rgba(0, 255, 166, 0.4);
+  border-color: rgba(42, 171, 238, 0.62);
+  background:
+    linear-gradient(135deg, #2aabee 0%, #229ed9 48%, #1677b8 100%);
+  color: #ffffff;
   box-shadow:
-    0 14px 34px rgba(0, 255, 166, 0.12),
-    0 0 22px rgba(53, 224, 255, 0.1);
+    0 18px 42px rgba(34, 158, 217, 0.24),
+    0 0 30px rgba(42, 171, 238, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  text-shadow: 0 1px 12px rgba(255, 255, 255, 0.24);
 }
 
 .telegram-free-nav-button {
-  border-color: rgba(0, 255, 166, 0.28);
+  border-color: rgba(42, 171, 238, 0.48);
   background:
-    linear-gradient(135deg, rgba(0, 255, 166, 0.1), rgba(53, 224, 255, 0.07)),
+    linear-gradient(135deg, rgba(42, 171, 238, 0.24), rgba(34, 158, 217, 0.14)),
     rgba(255, 255, 255, 0.03);
-  color: #e8fff6;
+  color: #eaf8ff;
+  box-shadow:
+    0 10px 26px rgba(34, 158, 217, 0.16),
+    0 0 18px rgba(42, 171, 238, 0.16);
 }
 
 .feed-hero-meta {
@@ -4801,7 +4809,7 @@ body:has(.feed-command-center) .topbar-actions .ghost-button {
 body:has(.feed-command-center) .topbar-actions a[href*="download"]::before { content: "▯"; font-size: 1rem; }
 body:has(.feed-command-center) .topbar-actions a[href*="billing"]::before { content: "▱"; font-size: 1rem; transform: rotate(-8deg); }
 body:has(.feed-command-center) .topbar-actions a[href*="profile"]::before { content: "▰"; color: #d996ff; font-size: 0.92rem; }
-body:has(.feed-command-center) .topbar-actions .telegram-free-nav-button::before { content: "T"; color: #00ffa6; font-size: 0.86rem; font-weight: 950; }
+body:has(.feed-command-center) .topbar-actions .telegram-free-nav-button::before { content: "T"; color: #2aabee; font-size: 0.86rem; font-weight: 950; }
 body:has(.feed-command-center) .topbar-actions form .ghost-button::before { content: "↪"; font-size: 1rem; }
 
 body:has(.feed-command-center) .feed-command-center {

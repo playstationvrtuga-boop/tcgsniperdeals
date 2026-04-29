@@ -71,7 +71,7 @@ class Config:
     SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:5000")
     MOBILE_APP_URL = os.getenv("MOBILE_APP_URL", SITE_URL)
     ANDROID_APK_URL = os.getenv("ANDROID_APK_URL", "").strip()
-    TELEGRAM_FREE_URL = os.getenv("TELEGRAM_FREE_URL", "https://t.me/tcgsniperdeals").strip()
+    TELEGRAM_FREE_URL = os.getenv("TELEGRAM_FREE_URL", "https://t.me/pokemonsniperdeals").strip()
     IS_PRODUCTION = _bool_env("RENDER") or _bool_env("FLASK_FORCE_HTTPS") or SITE_URL.startswith("https://")
     RUN_STARTUP_SCHEMA_CHECK = _bool_env_default("RUN_STARTUP_SCHEMA_CHECK", True)
     RUN_DB_CREATE_ALL = _bool_env_default("RUN_DB_CREATE_ALL", not IS_PRODUCTION)
