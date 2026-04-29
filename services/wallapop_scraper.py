@@ -249,7 +249,12 @@ def _extract_items_from_page(page, source_query: str) -> list[dict]:
             const text = (root.innerText || anchor.innerText || '').trim();
             const lines = text.split('\\n').map((line) => line.trim()).filter(Boolean);
             const priceLine = lines.find((line) => /\\d+[,.]?\\d*\\s*(€|eur)/i.test(line)) || '';
-            const titleLine = lines.find((line) => line !== priceLine && line.length > 2) || anchor.getAttribute('title') || '';
+            const titleLine = lines.find((line) => {
+              if (line === priceLine || line.length <= 2) return false;
+              if (/^\\d+\\s*\\/\\s*\\d+$/.test(line)) return false;
+              if (/destacado/i.test(line)) return false;
+              return true;
+            }) || anchor.getAttribute('title') || '';
             const img = root.querySelector('img');
             return {
               title: titleLine,
@@ -264,6 +269,21 @@ def _extract_items_from_page(page, source_query: str) -> list[dict]:
         """,
         source_query,
     )
+
+
+def _wait_for_wallapop_results(page, query: str) -> None:
+    try:
+        page.wait_for_selector('a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"]', timeout=6000)
+    except Exception as exc:
+        print(f"[WALLAPOP_RESULTS_WAIT_SKIPPED] query={query} error={exc}", flush=True)
+
+
+def _read_wallapop_body_text(page, query: str) -> str:
+    try:
+        return str(page.evaluate("() => document.body ? document.body.innerText : ''") or "").lower()
+    except Exception as exc:
+        print(f"[WALLAPOP_TEXT_SKIPPED] query={query} error={exc}", flush=True)
+        return ""
 
 
 def _playwright_browser_missing(exc: Exception) -> bool:
@@ -370,7 +390,8 @@ def fetch_wallapop_listings(
                     try:
                         page.goto(url, wait_until="domcontentloaded", timeout=12000)
                         page.wait_for_timeout(int(random.uniform(delay_min_seconds, delay_max_seconds) * 1000))
-                        body_text = (page.locator("body").inner_text(timeout=2500) or "").lower()
+                        _wait_for_wallapop_results(page, query)
+                        body_text = _read_wallapop_body_text(page, query)
                         if any(marker in body_text for marker in BLOCKED_TEXT_MARKERS):
                             if "too many requests" in body_text:
                                 print(f"[WALLAPOP_RATE_LIMITED] query={query}", flush=True)

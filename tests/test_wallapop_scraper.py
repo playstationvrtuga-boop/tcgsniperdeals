@@ -1,6 +1,7 @@
 import unittest
 
 from services.wallapop_scraper import (
+    _read_wallapop_body_text,
     derive_wallapop_external_id,
     filter_wallapop_candidates,
     should_send_wallapop_to_telegram,
@@ -63,6 +64,13 @@ class WallapopScraperTests(unittest.TestCase):
     def test_wallapop_telegram_disabled_by_default_flag(self):
         self.assertFalse(should_send_wallapop_to_telegram({"source": "wallapop"}, send_enabled=False))
         self.assertTrue(should_send_wallapop_to_telegram({"source": "vinted"}, send_enabled=False))
+
+    def test_body_text_timeout_does_not_abort_scrape(self):
+        class FailingPage:
+            def evaluate(self, _script):
+                raise TimeoutError("body timed out")
+
+        self.assertEqual(_read_wallapop_body_text(FailingPage(), "pokemon tcg"), "")
 
 
 if __name__ == "__main__":
