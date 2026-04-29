@@ -37,6 +37,7 @@ from vip_app.app.push import send_deal_push
 
 app = create_app()
 EBAY_PAUSE_WORKER_BACKOFF_MAX_SECONDS = 60
+DB_TEXT_LIMIT = 250
 
 
 def _pending_listing_query():
@@ -101,8 +102,8 @@ def _mark_processed(listing: Listing, result) -> None:
         listing.score_level = _score_level(result.score)
         listing.is_deal = False
         listing.pricing_status = result.status
-        listing.pricing_error = result.reason
-        listing.pricing_reason = _pricing_reason(result)
+        listing.pricing_error = _truncate_db_text(result.reason)
+        listing.pricing_reason = _truncate_db_text(_pricing_reason(result))
         listing.pricing_checked_at = checked_at
         listing.pricing_analyzed_at = checked_at
         return
@@ -127,15 +128,15 @@ def _mark_processed(listing: Listing, result) -> None:
     listing.score_level = _score_level(result.score)
     listing.is_deal = bool(result.is_deal)
     listing.pricing_status = "analyzed" if result.status in {"deal", "priced"} else result.status
-    listing.pricing_error = result.reason if result.status not in {"deal", "priced"} else None
-    listing.pricing_reason = _pricing_reason(result)
+    listing.pricing_error = _truncate_db_text(result.reason) if result.status not in {"deal", "priced"} else None
+    listing.pricing_reason = _truncate_db_text(_pricing_reason(result))
     listing.pricing_checked_at = checked_at
     listing.pricing_analyzed_at = checked_at
 
 
 def _mark_error(listing: Listing, status: str, message: str) -> None:
     listing.pricing_status = status
-    listing.pricing_error = message[:255]
+    listing.pricing_error = _truncate_db_text(message)
     listing.pricing_checked_at = utcnow()
 
 
@@ -155,6 +156,13 @@ def _score_level(score: int | float | None) -> str:
     if value >= 45:
         return "MEDIUM"
     return "LOW"
+
+
+def _truncate_db_text(value, limit: int = DB_TEXT_LIMIT) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text[:limit]
 
 
 def _mask_config_value(value: str) -> str:
@@ -210,7 +218,7 @@ def _pricing_reason(result) -> str:
         parts.append("last_2_sales=" + ",".join(f"{price:.2f}" for price in result.last_2_sales[:2]))
     if result.reason:
         parts.append(f"note={result.reason}")
-    return "; ".join(parts)[:255]
+    return _truncate_db_text("; ".join(parts)) or ""
 
 
 def _describe_result(result) -> str:

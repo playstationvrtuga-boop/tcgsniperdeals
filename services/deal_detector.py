@@ -32,9 +32,13 @@ from services.price_cache import price_cache
 
 
 USD_TO_EUR_FALLBACK = 0.88
-EBAY_RATE_LIMIT_PAUSE_SECONDS = 240
+EBAY_RATE_LIMIT_PAUSE_SECONDS = 60
+EBAY_RATE_LIMIT_PAUSE_MAX_SECONDS = 180
+MAX_PRICING_QUERY_CANDIDATES = 2
+MAX_EBAY_QUERY_ATTEMPTS_PER_SOURCE = 1
 EBAY_REQUEST_DELAY_RANGE_SECONDS = (0.2, 0.5)
 _EBAY_PAUSED_UNTIL = 0.0
+_EBAY_RATE_LIMIT_STRIKES = 0
 ETB_TERMS = ("etb", "elite trainer box")
 BOOSTER_BOX_TERMS = ("booster box", "display")
 GRADED_TERMS = (
@@ -680,7 +684,7 @@ def _raise_if_ebay_paused(source: str, query: str) -> None:
 
 
 def _pause_ebay_calls(error: Exception) -> bool:
-    global _EBAY_PAUSED_UNTIL
+    global _EBAY_PAUSED_UNTIL, _EBAY_RATE_LIMIT_STRIKES
     should_pause, reason, status_code = _rate_limit_trigger_details(error)
     if not should_pause:
         print(
@@ -689,15 +693,24 @@ def _pause_ebay_calls(error: Exception) -> bool:
             flush=True,
         )
         return False
-    pause_seconds = EBAY_RATE_LIMIT_PAUSE_SECONDS + random.randint(0, 60)
+    _EBAY_RATE_LIMIT_STRIKES = min(3, _EBAY_RATE_LIMIT_STRIKES + 1)
+    pause_seconds = min(
+        EBAY_RATE_LIMIT_PAUSE_MAX_SECONDS,
+        EBAY_RATE_LIMIT_PAUSE_SECONDS * _EBAY_RATE_LIMIT_STRIKES,
+    )
     _EBAY_PAUSED_UNTIL = max(_EBAY_PAUSED_UNTIL, time.time() + pause_seconds)
     print(
         f"[EBAY_RATE_LIMIT_TRIGGER] reason={reason} status_code={status_code or 'n/a'} "
         f"error=\"{str(error)[:160]}\"",
         flush=True,
     )
-    print(f"[EBAY_PAUSE_SET] seconds={pause_seconds}", flush=True)
+    print(f"[EBAY_PAUSE_SET seconds={pause_seconds}]", flush=True)
     return True
+
+
+def _record_ebay_success() -> None:
+    global _EBAY_RATE_LIMIT_STRIKES
+    _EBAY_RATE_LIMIT_STRIKES = 0
 
 
 def _delay_before_ebay_call() -> None:
@@ -726,6 +739,7 @@ def fetch_recent_comparables(product_name: str, listing_kind: str | None) -> lis
         if _pause_ebay_calls(error):
             raise EbayPricingDeferred(f"EBAY_RATE_LIMIT_TRIGGERED: {error}") from error
         raise
+    _record_ebay_success()
     price_cache.set(cache_key, _serialize_price_references(sales))
     return sales
 
@@ -806,6 +820,7 @@ def fetch_active_buy_now_comparables(product_name: str, listing_kind: str | None
         if _pause_ebay_calls(error):
             raise EbayPricingDeferred(f"EBAY_RATE_LIMIT_TRIGGERED: {error}") from error
         raise
+    _record_ebay_success()
     price_cache.set(cache_key, _serialize_price_references(listings))
     return listings
 
@@ -973,12 +988,12 @@ def _log_pricing_attempt(source: str, attempt: int, query: str) -> None:
     print(f"[pricing] query_attempt={attempt} source={source} query=\"{query}\"", flush=True)
 
 
-def _log_pricing_results(results_count: int, success: bool) -> None:
+def _log_pricing_results(results_count: int, success: bool, *, fallback_next_query: bool = False) -> None:
     print(f"[pricing] results={results_count}", flush=True)
     if success:
         print("[pricing] SUCCESS", flush=True)
     else:
-        print("[pricing] fallback_next_query=true", flush=True)
+        print(f"[pricing] fallback_next_query={str(fallback_next_query).lower()}", flush=True)
 
 
 def _prepare_pricing_queries(raw_queries: list[str]) -> list[str]:
@@ -1010,13 +1025,13 @@ def _pricing_deferred_result(
     pricing_queries: list[str],
     reason: str,
 ) -> DealResult:
-    print(f"[PRICING_DEFERRED] listing_id={listing_id} reason=ebay_pause_active", flush=True)
+    print(f"[PRICING_DEFERRED reason=rate_limit] listing_id={listing_id}", flush=True)
     return DealResult(
         status="retry_later",
         score=0,
         is_deal=False,
         listing_price=listing_price,
-        reason=f"diagnostic_reason=EBAY_PAUSE_ACTIVE; {reason}",
+        reason=f"diagnostic_reason=EBAY_RATE_LIMIT; {reason}",
         price_source="ebay_sold+buy_now",
         listing_kind=listing_kind,
         listing_type=listing_type,
@@ -1037,17 +1052,17 @@ def _fetch_best_recent_for_queries(
 ) -> list[EbaySoldListing]:
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
-    for attempt, query in enumerate(queries[:5], start=1):
+    for attempt, query in enumerate(queries[:MAX_EBAY_QUERY_ATTEMPTS_PER_SOURCE], start=1):
         _log_pricing_attempt("sold", attempt, query)
         try:
             listings = fetch_recent_comparables(query, listing_kind=listing_kind)
         except EbayPricingDeferred:
-            _log_pricing_results(0, success=False)
+            _log_pricing_results(0, success=False, fallback_next_query=attempt < MAX_EBAY_QUERY_ATTEMPTS_PER_SOURCE)
             raise
         except EbaySoldError as error:
             last_error = error
             print(f"[pricing] source=sold query_error={error}", flush=True)
-            _log_pricing_results(0, success=False)
+            _log_pricing_results(0, success=False, fallback_next_query=attempt < MAX_EBAY_QUERY_ATTEMPTS_PER_SOURCE)
             continue
         filtered = _filter_comparables(
             original_title=original_title,
@@ -1063,7 +1078,11 @@ def _fetch_best_recent_for_queries(
         if len(filtered) > len(best):
             best = filtered
         success = len(filtered) >= 2
-        _log_pricing_results(len(filtered), success=success)
+        _log_pricing_results(
+            len(filtered),
+            success=success,
+            fallback_next_query=attempt < MAX_EBAY_QUERY_ATTEMPTS_PER_SOURCE,
+        )
         if success:
             return filtered
     if best:
@@ -1083,17 +1102,17 @@ def _fetch_best_buy_now_for_queries(
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
     required_comparables = _buy_now_min_comparables(listing_kind, listing_type)
-    for attempt, query in enumerate(queries[:5], start=1):
+    for attempt, query in enumerate(queries[:MAX_EBAY_QUERY_ATTEMPTS_PER_SOURCE], start=1):
         _log_pricing_attempt("buy_now", attempt, query)
         try:
             listings = fetch_active_buy_now_comparables(query, listing_kind=listing_kind)
         except EbayPricingDeferred:
-            _log_pricing_results(0, success=False)
+            _log_pricing_results(0, success=False, fallback_next_query=attempt < MAX_EBAY_QUERY_ATTEMPTS_PER_SOURCE)
             raise
         except EbaySoldError as error:
             last_error = error
             print(f"[pricing] source=buy_now query_error={error}", flush=True)
-            _log_pricing_results(0, success=False)
+            _log_pricing_results(0, success=False, fallback_next_query=attempt < MAX_EBAY_QUERY_ATTEMPTS_PER_SOURCE)
             continue
         filtered = _filter_comparables(
             original_title=original_title,
@@ -1109,7 +1128,11 @@ def _fetch_best_buy_now_for_queries(
         if len(filtered) > len(best):
             best = filtered
         success = len(filtered) >= required_comparables
-        _log_pricing_results(len(filtered), success=success)
+        _log_pricing_results(
+            len(filtered),
+            success=success,
+            fallback_next_query=attempt < MAX_EBAY_QUERY_ATTEMPTS_PER_SOURCE,
+        )
         if success:
             return filtered
     if best:
@@ -1175,7 +1198,7 @@ def evaluate_listing(listing) -> DealResult:
             reason=f"retry_later; pause_remaining={pause_remaining}s",
         )
 
-    pricing_queries = _prepare_pricing_queries(pricing_queries)
+    pricing_queries = _prepare_pricing_queries(pricing_queries)[:MAX_PRICING_QUERY_CANDIDATES]
     pricing_query = pricing_queries[0] if pricing_queries else pricing_query
     signals = getattr(identity, "signals", None)
     expected_language = getattr(signals, "language", None)
@@ -1208,27 +1231,33 @@ def evaluate_listing(listing) -> DealResult:
     buy_now_listings: list[EbaySoldListing] = []
     buy_now_error: str | None = None
     buy_now_exception: EbaySoldError | None = None
-    try:
-        buy_now_listings = _fetch_best_buy_now_for_queries(
-            pricing_queries,
-            listing_kind=listing_kind,
-            original_title=title,
-            listing_type=listing_type,
+    if comparable_sales:
+        print(
+            f"[pricing] BUY_NOW_SKIPPED reason=sold_results_found sold_count={len(comparable_sales)}",
+            flush=True,
         )
-    except EbayPricingDeferred as error:
-        return _pricing_deferred_result(
-            listing_id=listing_id,
-            listing_price=listing_price,
-            listing_kind=listing_kind,
-            listing_type=listing_type,
-            identity=identity,
-            pricing_query=pricing_query,
-            pricing_queries=pricing_queries,
-            reason=str(error),
-        )
-    except EbaySoldError as error:
-        buy_now_error = str(error)
-        buy_now_exception = error
+    else:
+        try:
+            buy_now_listings = _fetch_best_buy_now_for_queries(
+                pricing_queries,
+                listing_kind=listing_kind,
+                original_title=title,
+                listing_type=listing_type,
+            )
+        except EbayPricingDeferred as error:
+            return _pricing_deferred_result(
+                listing_id=listing_id,
+                listing_price=listing_price,
+                listing_kind=listing_kind,
+                listing_type=listing_type,
+                identity=identity,
+                pricing_query=pricing_query,
+                pricing_queries=pricing_queries,
+                reason=str(error),
+            )
+        except EbaySoldError as error:
+            buy_now_error = str(error)
+            buy_now_exception = error
 
     required_buy_now_count = _buy_now_min_comparables(listing_kind, listing_type)
     _sold_min, sold_avg_price, sold_median_price, sold_prices = _price_stats(comparable_sales[:3])

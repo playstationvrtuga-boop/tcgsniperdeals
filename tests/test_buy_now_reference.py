@@ -13,11 +13,13 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.original_recent = deal_detector.fetch_recent_comparables
         self.original_buy_now = deal_detector.fetch_active_buy_now_comparables
         self.original_pause_until = deal_detector._EBAY_PAUSED_UNTIL
+        self.original_rate_limit_strikes = deal_detector._EBAY_RATE_LIMIT_STRIKES
 
     def tearDown(self):
         deal_detector.fetch_recent_comparables = self.original_recent
         deal_detector.fetch_active_buy_now_comparables = self.original_buy_now
         deal_detector._EBAY_PAUSED_UNTIL = self.original_pause_until
+        deal_detector._EBAY_RATE_LIMIT_STRIKES = self.original_rate_limit_strikes
         price_cache.clear()
 
     def listing(self, title="Charizard PFL 125/094", price="70,00 EUR"):
@@ -43,9 +45,9 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.assertEqual(result.reference_price, 110.0)
         self.assertEqual(result.estimated_fair_value, 110.0)
         self.assertEqual(result.sold_median_price, 110.0)
-        self.assertEqual(result.market_buy_now_median, 85.0)
+        self.assertIsNone(result.market_buy_now_median)
         self.assertEqual(result.last_2_sales, [100.0, 110.0])
-        self.assertEqual(result.buy_now_count, 3)
+        self.assertEqual(result.buy_now_count, 0)
         self.assertEqual(result.comparable_count, 3)
 
     def test_one_recent_sale_sets_medium_confidence_fair_value(self):
@@ -157,7 +159,7 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.assertEqual(result.status, "retry_later")
         self.assertEqual(result.score, 0)
         self.assertFalse(result.is_deal)
-        self.assertEqual(result.reason.split("; ")[0], "diagnostic_reason=EBAY_PAUSE_ACTIVE")
+        self.assertEqual(result.reason.split("; ")[0], "diagnostic_reason=EBAY_RATE_LIMIT")
         self.assertEqual(result.last_2_sales, [])
         self.assertEqual(calls, [])
 
@@ -171,6 +173,22 @@ class BuyNowReferenceTests(unittest.TestCase):
         triggered = deal_detector._pause_ebay_calls(EbaySoldRateLimitError("RATE_LIMIT: official lookup refused with HTTP 429."))
         self.assertTrue(triggered)
         self.assertGreater(deal_detector.ebay_pause_remaining_seconds(), 0)
+
+    def test_rate_limit_backoff_caps_at_three_minutes(self):
+        deal_detector._EBAY_PAUSED_UNTIL = 0.0
+        deal_detector._EBAY_RATE_LIMIT_STRIKES = 0
+
+        pauses = []
+        for _ in range(4):
+            deal_detector._pause_ebay_calls(EbaySoldRateLimitError("RATE_LIMIT: HTTP 429"))
+            pauses.append(deal_detector.ebay_pause_remaining_seconds())
+            deal_detector._EBAY_PAUSED_UNTIL = 0.0
+
+        self.assertGreaterEqual(pauses[0], 59)
+        self.assertGreaterEqual(pauses[1], 119)
+        self.assertGreaterEqual(pauses[2], 179)
+        self.assertGreaterEqual(pauses[3], 179)
+        self.assertLessEqual(pauses[3], 180)
 
 
 if __name__ == "__main__":

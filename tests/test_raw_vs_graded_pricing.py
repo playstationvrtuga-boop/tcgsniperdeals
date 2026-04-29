@@ -179,11 +179,13 @@ class RawVsGradedPricingTests(unittest.TestCase):
         self.assertEqual(result.comparable_count, 0)
         self.assertEqual(result.buy_now_count, 0)
 
-    def test_query_fallback_continues_after_graded_results_for_raw_card(self):
+    def test_query_reduction_does_not_chase_fallback_after_graded_results_for_raw_card(self):
         deal_detector._prepare_pricing_queries = lambda _queries: ["bad graded query", "good raw query"]
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
+        calls = []
 
         def buy_now(query, *_args, **_kwargs):
+            calls.append(query)
             if query == "bad graded query":
                 return self.graded_only("Zapdos Fossil 15/62")
             return [
@@ -199,10 +201,10 @@ class RawVsGradedPricingTests(unittest.TestCase):
         )
 
         self.assertEqual(result.listing_type, "raw_card")
-        self.assertEqual(result.pricing_basis, "buy_now")
-        self.assertEqual(result.buy_now_count, 3)
-        self.assertNotEqual(result.status, "insufficient_comparables")
-        self.assertLessEqual(result.score, 69)
+        self.assertEqual(result.status, "insufficient_comparables")
+        self.assertIsNone(result.pricing_basis)
+        self.assertEqual(result.buy_now_count, 0)
+        self.assertEqual(calls, ["bad graded query"])
 
     def test_raw_buy_now_only_cannot_become_high_confidence_deal(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
