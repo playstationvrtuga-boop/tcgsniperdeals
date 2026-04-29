@@ -76,6 +76,9 @@
       {% endif %}
       {% if current_user.is_authenticated %}
       <div class="topbar-actions">
+        {% if telegram_free_url %}
+        <a class="ghost-button telegram-free-nav-button" href="{{ telegram_free_url }}" target="_blank" rel="noopener noreferrer">FREE Telegram</a>
+        {% endif %}
         <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
         <a class="ghost-button" href="{{ url_for('main.billing') }}">Buy Now!</a>
         <a class="ghost-button" href="{{ url_for('main.profile') }}">My VIP access</a>
@@ -88,6 +91,9 @@
       </div>
       {% else %}
       <div class="topbar-actions">
+        {% if telegram_free_url %}
+        <a class="ghost-button telegram-free-nav-button" href="{{ telegram_free_url }}" target="_blank" rel="noopener noreferrer">FREE Telegram</a>
+        {% endif %}
         <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
         <a class="ghost-button" href="{{ url_for('auth.login') }}">Sign in</a>
       </div>

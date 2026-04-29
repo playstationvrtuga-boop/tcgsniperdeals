@@ -34,6 +34,17 @@
     </div>
   </section>
 
+  {% if telegram_free_url %}
+  <section class="free-telegram-strip" aria-labelledby="free-telegram-title">
+    <div class="free-telegram-copy">
+      <span class="eyebrow">Free preview</span>
+      <h2 id="free-telegram-title">Join the FREE Telegram</h2>
+      <p>Get a small taste of real-time Pok&eacute;mon TCG deals for free &mdash; VIP members see everything first.</p>
+    </div>
+    <a class="primary-button telegram-free-button" href="{{ telegram_free_url }}" target="_blank" rel="noopener noreferrer">Join FREE Telegram</a>
+  </section>
+  {% endif %}
+
   <section class="live-radar-shell public-radar-shell{% if not enable_live_radar %} is-disabled{% endif %}" data-live-radar-shell>
     <div class="live-radar-copy">
       <span class="eyebrow">Live radar</span>

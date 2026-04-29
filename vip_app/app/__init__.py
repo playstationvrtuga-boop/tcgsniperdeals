@@ -215,6 +215,13 @@ def create_app(minimal=False, skip_db=False, skip_blueprints=False):
     app.add_template_filter(datetime_format, "datetime_format")
     app.add_template_filter(relative_time, "relative_time")
     app.add_template_filter(urgency_hint, "urgency_hint")
+
+    @app.context_processor
+    def inject_public_links():
+        return {
+            "telegram_free_url": app.config.get("TELEGRAM_FREE_URL", ""),
+        }
+
     print("[startup] 4.3) template filters registered", flush=True)
 
     if skip_blueprints:

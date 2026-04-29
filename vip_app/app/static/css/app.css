@@ -559,6 +559,53 @@ select { font: inherit; }
   margin-top: 14px;
 }
 
+.free-telegram-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px;
+  border: 1px solid rgba(0, 255, 166, 0.18);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(0, 255, 166, 0.08), rgba(53, 224, 255, 0.06) 42%, rgba(124, 92, 255, 0.08)),
+    linear-gradient(180deg, rgba(12, 20, 31, 0.98), rgba(7, 12, 20, 0.98));
+  box-shadow: 0 16px 42px rgba(2, 8, 23, 0.28);
+}
+
+.free-telegram-copy h2 {
+  margin: 2px 0 0;
+  font-size: clamp(1.18rem, 2.5vw, 1.55rem);
+  line-height: 1.16;
+}
+
+.free-telegram-copy p {
+  margin: 8px 0 0;
+  max-width: 58ch;
+  color: var(--muted-strong);
+  line-height: 1.55;
+}
+
+.telegram-free-button,
+.telegram-free-nav-button {
+  white-space: nowrap;
+}
+
+.telegram-free-button {
+  border-color: rgba(0, 255, 166, 0.4);
+  box-shadow:
+    0 14px 34px rgba(0, 255, 166, 0.12),
+    0 0 22px rgba(53, 224, 255, 0.1);
+}
+
+.telegram-free-nav-button {
+  border-color: rgba(0, 255, 166, 0.28);
+  background:
+    linear-gradient(135deg, rgba(0, 255, 166, 0.1), rgba(53, 224, 255, 0.07)),
+    rgba(255, 255, 255, 0.03);
+  color: #e8fff6;
+}
+
 .feed-hero-meta {
   display: flex;
   flex-wrap: wrap;
@@ -2687,6 +2734,18 @@ select { font: inherit; }
 }
 
 @media (max-width: 719px) {
+  .free-telegram-strip {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .free-telegram-strip .telegram-free-button {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+
   .vip-tab-nav {
     position: sticky;
     top: 82px;
@@ -4742,6 +4801,7 @@ body:has(.feed-command-center) .topbar-actions .ghost-button {
 body:has(.feed-command-center) .topbar-actions a[href*="download"]::before { content: "▯"; font-size: 1rem; }
 body:has(.feed-command-center) .topbar-actions a[href*="billing"]::before { content: "▱"; font-size: 1rem; transform: rotate(-8deg); }
 body:has(.feed-command-center) .topbar-actions a[href*="profile"]::before { content: "▰"; color: #d996ff; font-size: 0.92rem; }
+body:has(.feed-command-center) .topbar-actions .telegram-free-nav-button::before { content: "T"; color: #00ffa6; font-size: 0.86rem; font-weight: 950; }
 body:has(.feed-command-center) .topbar-actions form .ghost-button::before { content: "↪"; font-size: 1rem; }
 
 body:has(.feed-command-center) .feed-command-center {
@@ -4957,25 +5017,29 @@ body:has(.feed-command-center) .brand-subtitle {
 }
 
 body:has(.feed-command-center) .topbar-actions .ghost-button {
-  padding-inline: 13px;
-  font-size: 0.78rem;
+  padding-inline: 10px;
+  font-size: 0.74rem;
   white-space: nowrap;
 }
 
+body:has(.feed-command-center) .topbar-actions .telegram-free-nav-button {
+  min-width: 108px;
+}
+
 body:has(.feed-command-center) .topbar-actions a[href*="download"] {
-  min-width: 124px;
+  min-width: 108px;
 }
 
 body:has(.feed-command-center) .topbar-actions a[href*="billing"] {
-  min-width: 88px;
+  min-width: 78px;
 }
 
 body:has(.feed-command-center) .topbar-actions a[href*="profile"] {
-  min-width: 124px;
+  min-width: 108px;
 }
 
 body:has(.feed-command-center) .topbar-actions form .ghost-button {
-  min-width: 100px;
+  min-width: 86px;
 }
 
 body:has(.feed-command-center) .flash-stack {
@@ -5008,7 +5072,7 @@ body:has(.feed-command-center) .feed-local-tab-nav {
 
 body:has(.feed-command-center) .topbar {
   display: grid;
-  grid-template-columns: 290px 420px 460px;
+  grid-template-columns: 330px 430px minmax(0, 1fr);
   column-gap: 8px;
 }
 
@@ -5303,7 +5367,7 @@ body:has(.feed-command-center) .control-panel .toolbar-top p {
   line-height: 1.3;
 }
 
-@media (max-width: 1180px) and (min-width: 980px) {
+@media (max-width: 1280px) and (min-width: 980px) {
   body:has(.feed-command-center) .topbar {
     grid-template-columns: 1fr auto;
   }
