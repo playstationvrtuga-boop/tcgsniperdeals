@@ -4631,7 +4631,7 @@ body {
 }
 
 .filter-grid {
-  grid-template-columns: minmax(220px, 1.35fr) minmax(140px, 0.55fr) minmax(140px, 0.55fr) minmax(140px, 0.55fr) minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(220px, 1.25fr) minmax(130px, 0.5fr) minmax(130px, 0.5fr) minmax(130px, 0.5fr) minmax(170px, 0.7fr) minmax(220px, 1fr) auto;
   padding: 0;
   border: 0;
   background: transparent;
@@ -4696,6 +4696,12 @@ body {
   background: rgba(42, 171, 238, 0.18);
   border-color: rgba(42, 171, 238, 0.38);
   color: #dff7ff;
+}
+
+.badge-set {
+  background: rgba(0, 255, 166, 0.14);
+  border-color: rgba(0, 255, 166, 0.34);
+  color: #e8fff8;
 }
 
 .control-feature-strip {
@@ -5046,7 +5052,7 @@ body:has(.feed-command-center) .control-panel {
 }
 
 body:has(.feed-command-center) .filter-grid {
-  grid-template-columns: minmax(260px, 1.35fr) minmax(145px, 0.5fr) minmax(145px, 0.5fr) minmax(145px, 0.5fr) minmax(220px, 0.9fr) auto;
+  grid-template-columns: minmax(250px, 1.25fr) minmax(130px, 0.45fr) minmax(130px, 0.45fr) minmax(130px, 0.45fr) minmax(170px, 0.65fr) minmax(220px, 0.9fr) auto;
 }
 
 body:has(.feed-command-center) .filter-grid input {

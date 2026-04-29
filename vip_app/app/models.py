@@ -109,6 +109,8 @@ class Listing(TimestampMixin, db.Model):
     confidence_score = db.Column(db.Integer)
     listing_type = db.Column(db.String(40))
     card_language = db.Column(db.String(20), default="unknown", index=True)
+    set_code = db.Column(db.String(20), index=True)
+    set_name = db.Column(db.String(100))
     cardmarket_trending_score = db.Column(db.Integer)
     cardmarket_trend_rank = db.Column(db.Integer)
     cardmarket_trend_category = db.Column(db.String(40))
@@ -288,6 +290,18 @@ class Listing(TimestampMixin, db.Model):
     def card_language_display(self):
         value = (self.card_language or "unknown").strip().lower()
         return value.upper() if value != "unknown" else "Unknown"
+
+    @property
+    def set_display(self):
+        code = (self.set_code or "").strip().upper()
+        name = (self.set_name or "").strip()
+        if code and name:
+            return f"{code} \u00b7 {name}"
+        if code:
+            return code
+        if name:
+            return name
+        return "Unknown"
 
     @property
     def pokemon_name_display(self):

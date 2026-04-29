@@ -568,6 +568,7 @@ function initLiveFeed() {
   const relativeTimeEnabled = feedRoot.dataset.feedRelativeTimeUpdates === "1";
   const relativeTimeIntervalMs = Number(feedRoot.dataset.feedRelativeTimeIntervalMs || 15000);
   const languageFilter = feedRoot.dataset.feedLanguage || "";
+  const setFilter = feedRoot.dataset.feedSet || "";
   const radar = createRadarController(radarRoot, radarEnabled);
   const sourceFeedback = createSourceController(sourceRail, radarEnabled && targetFeedbackEnabled);
   const linkTimers = new Map();
@@ -735,6 +736,7 @@ function initLiveFeed() {
       }
       url.searchParams.set("limit", String(deltaLimit));
       if (languageFilter) url.searchParams.set("language", languageFilter);
+      if (setFilter) url.searchParams.set("set", setFilter);
 
       const response = await fetch(url.toString(), {
         credentials: "same-origin",

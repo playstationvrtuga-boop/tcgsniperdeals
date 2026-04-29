@@ -9,6 +9,7 @@ from sqlalchemy import and_, case, or_
 from sqlalchemy.orm import defer
 
 from services.ai_market_intel import build_ai_market_intel_payload
+from services.pokemon_title_parser import detect_pokemon_set
 
 from .decorators import vip_required
 from .extensions import db
@@ -28,6 +29,25 @@ LANGUAGE_FILTER_OPTIONS = [
     ("de", "DE"),
     ("it", "IT"),
     ("unknown", "Unknown"),
+]
+
+
+SET_FILTER_OPTIONS = [
+    ("PFL", "PFL - Phantasmal Flames"),
+    ("MEG", "MEG - Mega Evolution"),
+    ("PRE", "PRE - Prismatic Evolutions"),
+    ("SSP", "SSP - Surging Sparks"),
+    ("TWM", "TWM - Twilight Masquerade"),
+    ("TEF", "TEF - Temporal Forces"),
+    ("PAF", "PAF - Paldean Fates"),
+    ("OBF", "OBF - Obsidian Flames"),
+    ("PAL", "PAL - Paldea Evolved"),
+    ("SVI", "SVI - Scarlet & Violet"),
+    ("CRZ", "CRZ - Crown Zenith"),
+    ("EVS", "EVS - Evolving Skies"),
+    ("BRS", "BRS - Brilliant Stars"),
+    ("FST", "FST - Fusion Strike"),
+    ("CEL", "CEL - Celebrations"),
 ]
 
 
@@ -476,9 +496,31 @@ def parse_language_filter(raw_value: str) -> list[str]:
     return selected
 
 
-def apply_listing_filters(query, search, platform, badge, languages=None):
+def parse_set_filter(raw_value: str) -> list[str]:
+    allowed = {value for value, _label in SET_FILTER_OPTIONS}
+    selected = []
+    for item in (raw_value or "").split(","):
+        value = item.strip().upper()
+        if value in allowed and value not in selected:
+            selected.append(value)
+    return selected
+
+
+def _search_set_conditions(search: str):
+    detected = detect_pokemon_set(search)
+    conditions = []
+    if detected.get("set_code"):
+        conditions.append(db.func.upper(db.func.coalesce(Listing.set_code, "")).in_([detected["set_code"]]))
+    if detected.get("set_name"):
+        conditions.append(Listing.set_name.ilike(f"%{detected['set_name']}%"))
+    return conditions
+
+
+def apply_listing_filters(query, search, platform, badge, languages=None, sets=None):
     if search:
-        query = query.filter(Listing.title.ilike(f"%{search}%"))
+        search_conditions = [Listing.title.ilike(f"%{search}%")]
+        search_conditions.extend(_search_set_conditions(search))
+        query = query.filter(or_(*search_conditions))
     if platform:
         query = query.filter(Listing.platform == platform)
     if badge:
@@ -492,6 +534,9 @@ def apply_listing_filters(query, search, platform, badge, languages=None):
         if "unknown" in normalized_languages:
             language_conditions.append(Listing.card_language.is_(None))
         query = query.filter(or_(*language_conditions))
+    if sets:
+        normalized_sets = [set_code.upper() for set_code in sets]
+        query = query.filter(db.func.upper(db.func.coalesce(Listing.set_code, "")).in_(normalized_sets))
     return query
 
 
@@ -537,10 +582,19 @@ def render_deals_board(
     badge = request.args.get("badge", "").strip()
     language_raw = request.args.get("language", "").strip()
     selected_languages = parse_language_filter(language_raw)
-    query = apply_listing_filters(query.options(defer(Listing.raw_payload)), search, platform, badge, selected_languages)
+    set_raw = request.args.get("set", "").strip()
+    selected_sets = parse_set_filter(set_raw)
+    query = apply_listing_filters(
+        query.options(defer(Listing.raw_payload)),
+        search,
+        platform,
+        badge,
+        selected_languages,
+        selected_sets,
+    )
 
     cache_hit = False
-    if cache_key and not search and not platform and not badge and not selected_languages:
+    if cache_key and not search and not platform and not badge and not selected_languages and not selected_sets:
         def build_snapshot():
             listings = query.order_by(*order_by).limit(30).all()
             return {
@@ -570,7 +624,8 @@ def render_deals_board(
     feed_cursor_id = max((listing.id for listing in listings), default=0)
     platforms, badges = feed_options()
     current_app.logger.info(
-        "[FEED_FILTER] language=%s results=%s",
+        "[FEED_FILTER] set=%s language=%s results=%s",
+        ",".join(selected_sets) if selected_sets else "all",
         ",".join(selected_languages) if selected_languages else "all",
         len(listings),
     )
@@ -605,6 +660,9 @@ def render_deals_board(
         selected_languages=selected_languages,
         language_filter_value=",".join(selected_languages),
         language_options=LANGUAGE_FILTER_OPTIONS,
+        selected_sets=selected_sets,
+        set_filter_value=",".join(selected_sets),
+        set_options=SET_FILTER_OPTIONS,
         live_stats=live_stats,
         feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
         feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
@@ -838,6 +896,7 @@ def feed_updates():
     cursor_id_raw = request.args.get("latest_id", "").strip()
     limit_raw = request.args.get("limit", "").strip()
     selected_languages = parse_language_filter(request.args.get("language", "").strip())
+    selected_sets = parse_set_filter(request.args.get("set", "").strip())
 
     try:
         limit = max(1, min(int(limit_raw or current_app.config.get("FEED_DELTA_MAX_ITEMS", 12)), 24))
@@ -859,7 +918,7 @@ def feed_updates():
     started = time.perf_counter()
     detected_at_expr = Listing.detected_at
     query = Listing.query.options(defer(Listing.raw_payload))
-    query = apply_listing_filters(query, "", "", "", selected_languages)
+    query = apply_listing_filters(query, "", "", "", selected_languages, selected_sets)
     if cursor_detected_at is not None and cursor_id is not None:
         query = query.filter(
             or_(
@@ -906,7 +965,8 @@ def feed_updates():
         len(rendered_items),
     )
     current_app.logger.info(
-        "[FEED_FILTER] language=%s results=%s",
+        "[FEED_FILTER] set=%s language=%s results=%s",
+        ",".join(selected_sets) if selected_sets else "all",
         ",".join(selected_languages) if selected_languages else "all",
         len(rendered_items),
     )

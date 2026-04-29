@@ -63,6 +63,7 @@
       {% endif %}
       <span class="badge deal-rating-badge deal-rating-{{ deal_tone }}">{{ deal_tone_label }}</span>
       <span class="badge badge-language">LANG: {{ listing.card_language_display }}</span>
+      <span class="badge badge-set">SET: {{ listing.set_code or "Unknown" }}</span>
     </div>
 
     <div class="listing-overlay-bottom">
@@ -146,6 +147,10 @@
       <div>
         <span class="signal-label">Language</span>
         <strong>{{ listing.card_language_display }}</strong>
+      </div>
+      <div>
+        <span class="signal-label">Set</span>
+        <strong>{{ listing.set_display }}</strong>
       </div>
       {% if listing.pokemon_name_display %}
       <div>

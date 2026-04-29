@@ -5,6 +5,7 @@ from services.pokemon_title_parser import (
     classify_listing_kind,
     detect_card_language,
     detect_pokemon_name,
+    detect_pokemon_set,
     extract_card_signals,
     generate_generic_alias_queries,
     is_valid_query,
@@ -87,6 +88,23 @@ class PokemonTitleParserTests(unittest.TestCase):
         self.assertEqual(mewtwo["canonical_name"], "mewtwo")
         self.assertEqual(mewtwo["language_hint"], "fr")
 
+    def test_set_detection_examples(self):
+        self.assertEqual(detect_pokemon_set("Charizard PFL 125 English")["set_code"], "PFL")
+        self.assertEqual(detect_pokemon_set("Brilliant Stars Charizard 174 PSA 10")["set_code"], "BRS")
+        self.assertEqual(detect_pokemon_set("Evolving Skies Booster Box")["set_code"], "EVS")
+
+    def test_set_language_and_kind_examples(self):
+        sealed = extract_card_signals("Phantasmal Flames ETB Japanese")
+
+        self.assertEqual(sealed.set_code, "PFL")
+        self.assertEqual(sealed.language, "jp")
+        self.assertEqual(sealed.kind, "sealed_product")
+
+        french = extract_card_signals("PFL Dracaufeu francais")
+        self.assertEqual(french.set_code, "PFL")
+        self.assertEqual(french.pokemon_name, "charizard")
+        self.assertEqual(french.language, "fr")
+
     def test_localized_alias_queries_use_canonical_name_first(self):
         signals = extract_card_signals("Dracaufeu 4/102")
 
@@ -108,8 +126,9 @@ class PokemonTitleParserTests(unittest.TestCase):
 
         self.assertEqual(signals.pokemon_name, "inteleon")
         self.assertEqual(signals.card_number, "142")
-        self.assertEqual(signals.set_name, "mega evolution")
-        self.assertEqual(signals.confidence, "MEDIUM")
+        self.assertEqual(signals.set_code, "MEG")
+        self.assertEqual(signals.set_name, "Mega Evolution")
+        self.assertEqual(signals.confidence, "HIGH")
 
     def test_query_generation_multiple_aliases(self):
         signals = extract_card_signals("Pikachu 025/198")

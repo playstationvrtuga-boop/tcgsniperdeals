@@ -6,7 +6,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
-from services.pokemon_title_parser import detect_card_language
+from services.pokemon_title_parser import detect_card_language, detect_pokemon_set
 from services.ebay_api_client import ebay_api_client
 from .extensions import db
 from .feed_cache import invalidate
@@ -208,7 +208,14 @@ def build_listing_from_payload(payload):
         description=str(payload.get("description") or payload.get("body") or ""),
         marketplace=platform,
     )
+    set_info = detect_pokemon_set(title, description=str(payload.get("description") or payload.get("body") or ""))
     current_app.logger.info("[LANG_DETECT] listing_id=new language=%s", card_language)
+    current_app.logger.info(
+        "[SET_DETECT] listing_id=new set_code=%s set_name=%s confidence=%s",
+        set_info.get("set_code") or "unknown",
+        set_info.get("set_name") or "unknown",
+        set_info.get("confidence") or "unknown",
+    )
 
     listing = Listing(
         source=source,
@@ -241,6 +248,8 @@ def build_listing_from_payload(payload):
         confidence_score=None,
         listing_type=None,
         card_language=card_language,
+        set_code=set_info.get("set_code"),
+        set_name=set_info.get("set_name"),
         discount_percent=None,
         gross_margin=None,
         pricing_score=None,

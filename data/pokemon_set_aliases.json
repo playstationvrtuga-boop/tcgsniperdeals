@@ -1,0 +1,197 @@
+{
+  "PFL": {
+    "canonical_name": "Phantasmal Flames",
+    "aliases": ["pfl", "phantasmal flames", "mega evolution phantasmal flames"],
+    "languages": {
+      "en": ["phantasmal flames", "pfl"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "MEG": {
+    "canonical_name": "Mega Evolution",
+    "aliases": ["meg", "mega evolution"],
+    "languages": {
+      "en": ["mega evolution", "meg"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "PRE": {
+    "canonical_name": "Prismatic Evolutions",
+    "aliases": ["pre", "prismatic evolutions"],
+    "languages": {
+      "en": ["prismatic evolutions", "pre"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "SSP": {
+    "canonical_name": "Surging Sparks",
+    "aliases": ["ssp", "surging sparks"],
+    "languages": {
+      "en": ["surging sparks", "ssp"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "TWM": {
+    "canonical_name": "Twilight Masquerade",
+    "aliases": ["twm", "twilight masquerade"],
+    "languages": {
+      "en": ["twilight masquerade", "twm"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "TEF": {
+    "canonical_name": "Temporal Forces",
+    "aliases": ["tef", "temporal forces"],
+    "languages": {
+      "en": ["temporal forces", "tef"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "PAF": {
+    "canonical_name": "Paldean Fates",
+    "aliases": ["paf", "paldean fates"],
+    "languages": {
+      "en": ["paldean fates", "paf"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "OBF": {
+    "canonical_name": "Obsidian Flames",
+    "aliases": ["obf", "obsidian flames"],
+    "languages": {
+      "en": ["obsidian flames", "obf"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "PAL": {
+    "canonical_name": "Paldea Evolved",
+    "aliases": ["pal", "paldea evolved"],
+    "languages": {
+      "en": ["paldea evolved", "pal"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "SVI": {
+    "canonical_name": "Scarlet & Violet Base",
+    "aliases": ["svi", "scarlet violet", "scarlet and violet", "scarlet violet base"],
+    "languages": {
+      "en": ["scarlet violet", "scarlet and violet", "scarlet violet base", "svi"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "CRZ": {
+    "canonical_name": "Crown Zenith",
+    "aliases": ["crz", "crown zenith"],
+    "languages": {
+      "en": ["crown zenith", "crz"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "EVS": {
+    "canonical_name": "Evolving Skies",
+    "aliases": ["evs", "evolving skies"],
+    "languages": {
+      "en": ["evolving skies", "evs"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "BRS": {
+    "canonical_name": "Brilliant Stars",
+    "aliases": ["brs", "brilliant stars"],
+    "languages": {
+      "en": ["brilliant stars", "brs"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "FST": {
+    "canonical_name": "Fusion Strike",
+    "aliases": ["fst", "fusion strike"],
+    "languages": {
+      "en": ["fusion strike", "fst"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  },
+  "CEL": {
+    "canonical_name": "Celebrations",
+    "aliases": ["cel", "celebrations"],
+    "languages": {
+      "en": ["celebrations", "cel"],
+      "jp": [],
+      "fr": [],
+      "de": [],
+      "es": [],
+      "it": [],
+      "pt": []
+    }
+  }
+}

@@ -43,6 +43,8 @@ def ensure_runtime_schema(app):
             "confidence_score": "ALTER TABLE listings ADD COLUMN confidence_score INTEGER",
             "listing_type": "ALTER TABLE listings ADD COLUMN listing_type VARCHAR(40)",
             "card_language": "ALTER TABLE listings ADD COLUMN card_language VARCHAR(20)",
+            "set_code": "ALTER TABLE listings ADD COLUMN set_code VARCHAR(20)",
+            "set_name": "ALTER TABLE listings ADD COLUMN set_name VARCHAR(100)",
             "cardmarket_trending_score": "ALTER TABLE listings ADD COLUMN cardmarket_trending_score INTEGER",
             "cardmarket_trend_rank": "ALTER TABLE listings ADD COLUMN cardmarket_trend_rank INTEGER",
             "cardmarket_trend_category": "ALTER TABLE listings ADD COLUMN cardmarket_trend_category VARCHAR(40)",
@@ -96,6 +98,8 @@ def ensure_runtime_schema(app):
             "confidence_score": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS confidence_score INTEGER",
             "listing_type": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS listing_type VARCHAR(40)",
             "card_language": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS card_language VARCHAR(20)",
+            "set_code": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS set_code VARCHAR(20)",
+            "set_name": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS set_name VARCHAR(100)",
             "cardmarket_trending_score": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS cardmarket_trending_score INTEGER",
             "cardmarket_trend_rank": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS cardmarket_trend_rank INTEGER",
             "cardmarket_trend_category": "ALTER TABLE listings ADD COLUMN IF NOT EXISTS cardmarket_trend_category VARCHAR(40)",
@@ -144,6 +148,7 @@ def ensure_runtime_schema(app):
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_platform_detected_at ON listings (platform, detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_is_deal_detected_at ON listings (is_deal, detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_badge_label_detected_at ON listings (badge_label, detected_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_set_code ON listings (set_code)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_cardmarket_trend ON listings (cardmarket_trend_category, cardmarket_trend_rank)"))
         connection.execute(text("UPDATE listings SET normalized_url = external_url WHERE normalized_url IS NULL"))
         connection.execute(text("UPDATE listings SET available_status = 'available' WHERE available_status IS NULL"))
@@ -167,6 +172,46 @@ def ensure_runtime_schema(app):
         )
         with db.engine.begin() as connection:
             connection.execute(text(statement))
+
+
+def backfill_listing_set_metadata(app, limit=1000):
+    if not app.config.get("RUN_STARTUP_SCHEMA_CHECK", False):
+        return
+
+    from services.pokemon_title_parser import detect_pokemon_set
+    from .models import Listing
+
+    try:
+        missing_rows = (
+            Listing.query.filter(
+                (Listing.set_code.is_(None)) | (Listing.set_code == ""),
+            )
+            .order_by(Listing.id.desc())
+            .limit(limit)
+            .all()
+        )
+    except Exception as error:
+        app.logger.warning("[SET_DETECT] backfill skipped error=%s", error)
+        return
+
+    updated = 0
+    for listing in missing_rows:
+        detected = detect_pokemon_set(listing.title or "")
+        if not detected.get("set_code"):
+            continue
+        listing.set_code = detected.get("set_code")
+        listing.set_name = detected.get("set_name")
+        updated += 1
+        app.logger.info(
+            "[SET_DETECT] listing_id=%s set_code=%s set_name=%s confidence=%s",
+            listing.id,
+            listing.set_code,
+            listing.set_name,
+            detected.get("confidence") or "unknown",
+        )
+    if updated:
+        db.session.commit()
+        app.logger.info("[SET_DETECT] backfill updated=%s scanned=%s", updated, len(missing_rows))
 
 
 def create_app(minimal=False, skip_db=False, skip_blueprints=False):
@@ -259,6 +304,7 @@ def create_app(minimal=False, skip_db=False, skip_blueprints=False):
             print("[startup] 4.6) models imported", flush=True)
             db.create_all()
             ensure_runtime_schema(app)
+            backfill_listing_set_metadata(app)
             print("[startup] 4.7) database init completed", flush=True)
     else:
         print("[startup] 4.5) database create_all skipped", flush=True)
@@ -268,6 +314,7 @@ def create_app(minimal=False, skip_db=False, skip_blueprints=False):
                 from . import models  # noqa: F401
 
                 ensure_runtime_schema(app)
+                backfill_listing_set_metadata(app)
             print("[startup] 4.7) lightweight schema check completed", flush=True)
 
     if app.config.get("LOG_STARTUP_TIMING", False):

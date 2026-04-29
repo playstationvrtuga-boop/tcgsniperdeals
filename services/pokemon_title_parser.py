@@ -11,6 +11,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 POKEMON_NAMES_PATH = PROJECT_ROOT / "data" / "pokemon_names.json"
 POKEMON_ALIASES_PATH = PROJECT_ROOT / "data" / "pokemon_name_aliases.json"
+POKEMON_SET_ALIASES_PATH = PROJECT_ROOT / "data" / "pokemon_set_aliases.json"
 
 BASE_POKEMON_NAMES = {
     "charizard", "pikachu", "mew", "mewtwo", "lugia", "ho-oh", "hooh",
@@ -36,14 +37,17 @@ NAME_ALIASES = {
 }
 
 SET_CODES = {
-    "PFL", "ME1", "SV8", "SFA", "PAL", "OBF", "TWM", "PAF", "TEF", "PAR",
+    "PFL", "MEG", "ME1", "SV8", "SFA", "PAL", "OBF", "TWM", "PAF", "TEF", "PAR",
     "SVI", "SCR", "SSP", "PRE", "MEW", "CRZ", "LOR", "SIT", "BRS", "ASR",
     "FST", "EVS", "BST", "VIV", "DAA", "RCL", "SSH", "CEL", "HIF", "SHF",
 }
 
 RARITIES = {"AR", "SAR", "SR", "UR", "IR", "SIR", "HR", "RR"}
 VARIANTS = {"ex", "gx", "v", "vmax", "vstar", "mega", "tag team"}
-SET_CODE_EXCLUDES = {"PSA", "CGC", "BGS", "ACE", "EX", "GX", "VMAX", "VSTAR", "TAG", "TEAM"}
+SET_CODE_EXCLUDES = {
+    "PSA", "CGC", "BGS", "ACE", "EX", "GX", "VMAX", "VSTAR", "TAG", "TEAM",
+    "SET", "PV", "DE", "HOLO", "REVERSE", "STAR",
+}
 STOPWORDS = {
     "de", "des", "da", "do", "dos", "das", "du", "la", "le", "les",
     "the", "a", "an", "et", "and", "y", "pour", "para", "avec", "com",
@@ -100,7 +104,7 @@ LOT_TERMS = {
     "30 cartas", "variadas", "bulk",
 }
 SET_NAME_TERMS = {
-    "mega evolution", "mega symphonia", "paldea evolved", "obsidian flames",
+    "phantasmal flames", "mega evolution", "mega symphonia", "paldea evolved", "obsidian flames",
     "twilight masquerade", "prismatic evolutions", "surging sparks",
     "evolving skies", "brilliant stars", "lost origin", "silver tempest",
     "crown zenith", "flammes fantasmagoriques", "ascended heroes",
@@ -157,6 +161,22 @@ class PokemonNameNormalization:
             "canonical_name": self.canonical_name,
             "localized_name": self.localized_name,
             "language_hint": self.language_hint,
+            "confidence": self.confidence,
+        }
+
+
+@dataclass
+class PokemonSetDetection:
+    set_code: str | None = None
+    set_name: str | None = None
+    matched_alias: str | None = None
+    confidence: str = "unknown"
+
+    def as_dict(self) -> dict[str, str | None]:
+        return {
+            "set_code": self.set_code,
+            "set_name": self.set_name,
+            "matched_alias": self.matched_alias,
             "confidence": self.confidence,
         }
 
@@ -226,6 +246,53 @@ def _load_alias_index() -> dict[str, tuple[str, str | None]]:
     return index
 
 
+@lru_cache(maxsize=1)
+def _load_set_payload() -> dict[str, dict]:
+    payload: dict[str, dict] = {}
+    if POKEMON_SET_ALIASES_PATH.exists():
+        try:
+            raw_payload = json.loads(POKEMON_SET_ALIASES_PATH.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raw_payload = {}
+        if isinstance(raw_payload, dict):
+            for code, data in raw_payload.items():
+                set_code = str(code or "").strip().upper()
+                if not set_code or not isinstance(data, dict):
+                    continue
+                canonical_name = str(data.get("canonical_name") or set_code).strip()
+                aliases = [
+                    normalize_title(str(alias))
+                    for alias in data.get("aliases", [])
+                    if str(alias).strip()
+                ]
+                languages = data.get("languages") or {}
+                if isinstance(languages, dict):
+                    for values in languages.values():
+                        if isinstance(values, list):
+                            aliases.extend(
+                                normalize_title(str(alias))
+                                for alias in values
+                                if str(alias).strip()
+                            )
+                aliases.extend([normalize_title(set_code), normalize_title(canonical_name)])
+                payload[set_code] = {
+                    "canonical_name": canonical_name,
+                    "aliases": sorted({alias for alias in aliases if alias}, key=len, reverse=True),
+                }
+    return payload
+
+
+@lru_cache(maxsize=1)
+def _load_set_alias_index() -> dict[str, tuple[str, str]]:
+    index: dict[str, tuple[str, str]] = {}
+    for code, data in _load_set_payload().items():
+        set_name = str(data.get("canonical_name") or code)
+        index[normalize_title(code)] = (code, set_name)
+        for alias in data.get("aliases", []):
+            index.setdefault(alias, (code, set_name))
+    return index
+
+
 def _load_pokemon_names() -> set[str]:
     names = set(BASE_POKEMON_NAMES)
     if POKEMON_NAMES_PATH.exists():
@@ -279,6 +346,35 @@ def normalize_pokemon_name(raw_title: str, detected_language: str | None = None)
     ).as_dict()
 
 
+def detect_pokemon_set(title: str, description: str = "") -> dict[str, str | None]:
+    normalized = normalize_title(f"{title or ''} {description or ''}")
+    if not normalized:
+        return PokemonSetDetection().as_dict()
+
+    aliases = _load_set_alias_index()
+    tokens = normalized.split()
+    for token in tokens:
+        if token in aliases:
+            set_code, set_name = aliases[token]
+            return PokemonSetDetection(
+                set_code=set_code,
+                set_name=set_name,
+                matched_alias=token,
+                confidence="high",
+            ).as_dict()
+
+    for alias, (set_code, set_name) in sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True):
+        if len(alias) >= 4 and re.search(rf"\b{re.escape(alias)}\b", normalized):
+            return PokemonSetDetection(
+                set_code=set_code,
+                set_name=set_name,
+                matched_alias=alias,
+                confidence="high" if len(alias.split()) > 1 else "medium",
+            ).as_dict()
+
+    return PokemonSetDetection().as_dict()
+
+
 def detect_pokemon_name(title: str) -> str | None:
     normalized = normalize_title(title)
     match = _find_alias_match(normalized)
@@ -309,6 +405,9 @@ def _extract_set_code(normalized: str) -> str | None:
     code_match = re.search(r"\b([A-Z]{2,5}\d?)\s*\d{1,3}(?:/\d{1,3})?\b", upper_text)
     if code_match and code_match.group(1) not in SET_CODE_EXCLUDES:
         return code_match.group(1)
+    detected = detect_pokemon_set(normalized)
+    if detected.get("set_code"):
+        return detected["set_code"]
     return None
 
 
@@ -359,6 +458,9 @@ def _extract_language(normalized: str) -> str | None:
 
 
 def _extract_set_name(normalized: str) -> str | None:
+    detected = detect_pokemon_set(normalized)
+    if detected.get("set_name"):
+        return detected["set_name"]
     return _extract_first_known(normalized, SET_NAME_TERMS)
 
 
@@ -379,7 +481,7 @@ def _extract_keyword_name(normalized: str, pokemon_name: str | None) -> str | No
             continue
         if token in VARIANTS:
             continue
-        if token.upper() in SET_CODES or token.upper() in RARITIES or token.upper() in SET_CODE_EXCLUDES:
+        if token.upper() in SET_CODES or token.upper() in _load_set_payload() or token.upper() in RARITIES or token.upper() in SET_CODE_EXCLUDES:
             continue
         return token
     return None
@@ -483,7 +585,7 @@ def _is_strong_number_token(token: str) -> bool:
 
 def _is_set_code_token(token: str) -> bool:
     upper = token.upper()
-    if upper in SET_CODES:
+    if upper in SET_CODES or upper in _load_set_payload():
         return True
     if upper in SET_CODE_EXCLUDES or upper in RARITIES:
         return False
@@ -528,6 +630,7 @@ def generate_generic_alias_queries(signals: CardSignals) -> list[str]:
     number = signals.card_number
     full_number = signals.full_number
     code = signals.set_code
+    set_name = signals.set_name
     variant = signals.variant
 
     if name and variant and full_number:
@@ -553,6 +656,10 @@ def generate_generic_alias_queries(signals: CardSignals) -> list[str]:
         _append_unique(queries, f"{code} {number}")
         _append_unique(queries, f"pokemon {code} {number}")
 
+    if name and set_name and number:
+        _append_unique(queries, f"{name} {set_name} {number}")
+        _append_unique(queries, f"pokemon {name} {set_name}")
+
     if name and number:
         if variant:
             _append_unique(queries, f"{name} {variant} {number}")
@@ -575,7 +682,14 @@ def generate_generic_alias_queries(signals: CardSignals) -> list[str]:
 
     if signals.kind == "sealed_product":
         if signals.set_name:
-            _append_unique(queries, f"pokemon {signals.set_name}")
+            if "etb" in signals.normalized_title or "elite trainer box" in signals.normalized_title:
+                _append_unique(queries, f"{signals.set_name} etb")
+                _append_unique(queries, f"pokemon {signals.set_name} elite trainer box")
+            elif "booster" in signals.normalized_title or "display" in signals.normalized_title:
+                _append_unique(queries, f"{signals.set_name} booster box")
+                _append_unique(queries, f"pokemon {signals.set_name} booster")
+            else:
+                _append_unique(queries, f"pokemon {signals.set_name}")
         if "etb" in signals.normalized_title or "elite trainer box" in signals.normalized_title:
             _append_unique(queries, "pokemon etb")
             _append_unique(queries, "pokemon elite trainer box")

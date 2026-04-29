@@ -26,6 +26,7 @@ from services.deal_detector import (
     EbaySoldError,
     EbaySoldRateLimitError,
     detect_card_language,
+    detect_pokemon_set,
     ebay_pause_remaining_seconds,
     evaluate_listing,
 )
@@ -100,6 +101,9 @@ def _mark_processed(listing: Listing, result) -> None:
         listing.title or "",
         marketplace=listing.platform,
     )
+    set_info = detect_pokemon_set(listing.title or "")
+    listing.set_code = result.set_code or listing.set_code or set_info.get("set_code")
+    listing.set_name = result.set_name or listing.set_name or set_info.get("set_name")
     if result.status in {"retry_later", "pricing_deferred"}:
         listing.confidence_score = result.confidence_score
         listing.listing_type = result.listing_type or listing.listing_type

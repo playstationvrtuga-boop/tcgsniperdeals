@@ -154,6 +154,8 @@ class DealResult:
     pricing_basis: str | None = None
     confidence_score: int = 0
     card_language: str | None = None
+    set_code: str | None = None
+    set_name: str | None = None
 
 
 class EbayPricingDeferred(EbaySoldError):
@@ -460,6 +462,10 @@ def detect_card_language(title: str, description: str = "", marketplace: str | N
     return title_parser.detect_card_language(title, description=description, marketplace=marketplace)
 
 
+def detect_pokemon_set(title: str, description: str = "") -> dict[str, str | None]:
+    return title_parser.detect_pokemon_set(title, description=description)
+
+
 def _log_parser(identity: ParsedListingIdentity) -> None:
     signals = getattr(identity, "signals", None)
     if signals is not None:
@@ -473,6 +479,7 @@ def _log_parser(identity: ParsedListingIdentity) -> None:
         print(f"[parser] card_number={signals.card_number or ''}", flush=True)
         print(f"[parser] full_number={signals.full_number or ''}", flush=True)
         print(f"[parser] set_code={signals.set_code or ''}", flush=True)
+        print(f"[parser] set_name={signals.set_name or ''}", flush=True)
         print(f"[parser] variant={signals.variant or ''}", flush=True)
         print(f"[parser] generated_queries={signals.queries}", flush=True)
         print(f"[parser] decision={signals.decision}", flush=True)
@@ -1103,6 +1110,8 @@ def _pricing_deferred_result(
         listing_type=listing_type,
         confidence_score=0,
         card_language=getattr(signals, "language", None),
+        set_code=getattr(signals, "set_code", None),
+        set_name=getattr(signals, "set_name", None),
         parser_confidence=identity.confidence,
         parser_query=pricing_query,
         parser_queries=pricing_queries,
@@ -1219,6 +1228,9 @@ def evaluate_listing(listing) -> DealResult:
     card_language = detect_card_language(title, description=description, marketplace=getattr(listing, "platform", None))
     if card_language == "unknown" and signals is not None and signals.language:
         card_language = signals.language
+    set_info = detect_pokemon_set(title, description=description)
+    set_code = set_info.get("set_code") or getattr(signals, "set_code", None)
+    set_name = set_info.get("set_name") or getattr(signals, "set_name", None)
     listing_kind = identity.listing_kind
     listing_type = classify_listing_type(title, listing_kind, description=description)
     parser_queries = list(getattr(getattr(identity, "signals", None), "queries", None) or [])
@@ -1231,6 +1243,11 @@ def evaluate_listing(listing) -> DealResult:
     print(f"[PRICING_TYPE] listing_id={listing_id} type={listing_type} title={title[:160]}", flush=True)
     _log_parser(identity)
     print(f"[LANG_DETECT] listing_id={listing_id} language={card_language}", flush=True)
+    print(
+        f"[SET_DETECT] listing_id={listing_id} set_code={set_code or 'unknown'} "
+        f"set_name={set_name or 'unknown'} confidence={set_info.get('confidence') or 'unknown'}",
+        flush=True,
+    )
     if identity.confidence == "UNKNOWN":
         return DealResult(
             status="skipped",
@@ -1238,6 +1255,8 @@ def evaluate_listing(listing) -> DealResult:
             listing_kind=listing_kind,
             listing_type=listing_type,
             card_language=card_language,
+            set_code=set_code,
+            set_name=set_name,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1252,6 +1271,8 @@ def evaluate_listing(listing) -> DealResult:
             listing_kind=listing_kind,
             listing_type=listing_type,
             card_language=card_language,
+            set_code=set_code,
+            set_name=set_name,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1456,6 +1477,8 @@ def evaluate_listing(listing) -> DealResult:
             pricing_basis=pricing_basis,
             confidence_score=confidence_score,
             card_language=card_language,
+            set_code=set_code,
+            set_name=set_name,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1495,6 +1518,8 @@ def evaluate_listing(listing) -> DealResult:
             pricing_basis=pricing_basis,
             confidence_score=confidence_score,
             card_language=card_language,
+            set_code=set_code,
+            set_name=set_name,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1567,6 +1592,8 @@ def evaluate_listing(listing) -> DealResult:
             pricing_basis=pricing_basis,
             confidence_score=confidence_score,
             card_language=card_language,
+            set_code=set_code,
+            set_name=set_name,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1608,6 +1635,8 @@ def evaluate_listing(listing) -> DealResult:
             pricing_basis=pricing_basis,
             confidence_score=confidence_score,
             card_language=card_language,
+            set_code=set_code,
+            set_name=set_name,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1681,6 +1710,8 @@ def evaluate_listing(listing) -> DealResult:
         pricing_basis=pricing_basis,
         confidence_score=confidence_score,
         card_language=card_language,
+        set_code=set_code,
+        set_name=set_name,
         reason=result_reason,
         parser_confidence=identity.confidence,
         parser_query=pricing_query,
@@ -1698,6 +1729,7 @@ __all__ = [
     "detect_listing_kind",
     "detect_listing_market_type",
     "detect_card_language",
+    "detect_pokemon_set",
     "evaluate_listing",
     "classify_listing_type",
     "is_comparable_ebay_result",

@@ -148,6 +148,12 @@
       <option value="25">Min profit: 25 EUR</option>
       <option value="50">Min profit: 50 EUR</option>
     </select>
+    <select name="set" aria-label="Set / Collection">
+      <option value="">All Sets</option>
+      {% for value, label in set_options %}
+      <option value="{{ value }}" {% if value in selected_sets %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
     <input type="hidden" name="language" value="{{ language_filter_value }}" data-language-filter-input>
     <fieldset class="language-filter" aria-label="Language">
       <legend>Language</legend>
@@ -190,6 +196,7 @@
   data-feed-cursor-detected-at="{{ listings[0].detected_at_iso if listings else '' }}"
   data-feed-cursor-id="{{ feed_cursor_id|default(0) }}"
   data-feed-language="{{ language_filter_value }}"
+  data-feed-set="{{ set_filter_value }}"
   {% endif %}
 >
   {% for listing in listings %}
