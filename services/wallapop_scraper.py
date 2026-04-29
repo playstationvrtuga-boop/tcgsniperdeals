@@ -15,6 +15,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from html import unescape
+from pathlib import Path
 from typing import Iterable
 from urllib.parse import quote_plus, urljoin, urlsplit
 
@@ -38,6 +39,7 @@ WALLAPOP_VISIBLE_CARD_SCAN_LIMIT = 12
 WALLAPOP_SEARCH_LINK_SCAN_LIMIT = 50
 WALLAPOP_MEMORY_LIMIT_MB = 400
 _PLAYWRIGHT_INSTALL_LOGGED = False
+WALLAPOP_PLAYWRIGHT_INSTALL_FLAG = "/tmp/playwright_installed"
 
 POSITIVE_TCG_TERMS = {
     "pokemon",
@@ -639,9 +641,17 @@ def _playwright_browser_missing(exc: Exception) -> bool:
     )
 
 
+def _playwright_install_flag_path() -> Path:
+    return Path(os.getenv("WALLAPOP_PLAYWRIGHT_INSTALL_FLAG", WALLAPOP_PLAYWRIGHT_INSTALL_FLAG))
+
+
 def _auto_install_playwright_browser() -> bool:
     global _PLAYWRIGHT_INSTALL_LOGGED
-    enabled = str(os.getenv("WALLAPOP_AUTO_INSTALL_PLAYWRIGHT", "false")).strip().lower() in {
+    flag_path = _playwright_install_flag_path()
+    if flag_path.exists():
+        print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=skipped_cached", flush=True)
+        return True
+    enabled = str(os.getenv("WALLAPOP_AUTO_INSTALL_PLAYWRIGHT", "true")).strip().lower() in {
         "1",
         "true",
         "yes",
@@ -654,7 +664,7 @@ def _auto_install_playwright_browser() -> bool:
         return False
     try:
         if not _PLAYWRIGHT_INSTALL_LOGGED:
-            print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=starting command=playwright_install_chromium", flush=True)
+            print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=starting", flush=True)
             _PLAYWRIGHT_INSTALL_LOGGED = True
         result = subprocess.run(
             [sys.executable, "-m", "playwright", "install", "chromium"],
@@ -666,6 +676,11 @@ def _auto_install_playwright_browser() -> bool:
         )
         output_tail = (result.stdout or "")[-300:].replace("\n", " ")
         if result.returncode == 0:
+            try:
+                flag_path.parent.mkdir(parents=True, exist_ok=True)
+                flag_path.write_text(str(int(time.time())), encoding="utf-8")
+            except Exception as flag_exc:
+                print(f"[WALLAPOP_PLAYWRIGHT_INSTALL] status=cache_write_failed error={_brief_error(flag_exc)}", flush=True)
             print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=ok", flush=True)
             return True
         print(

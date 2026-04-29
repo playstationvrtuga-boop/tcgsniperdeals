@@ -1,11 +1,14 @@
 import io
+import tempfile
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import patch
 
 from services.wallapop_scraper import (
     WALLAPOP_BASE_URL,
     WALLAPOP_QUERIES,
+    _auto_install_playwright_browser,
     _extract_wallapop_link_urls_from_html,
     _extract_items_from_page,
     _read_wallapop_body_text,
@@ -29,6 +32,34 @@ class WallapopScraperTests(unittest.TestCase):
         with patch.dict("os.environ", {}, clear=True):
             self.assertEqual(wallapop_max_items(), 1)
             self.assertEqual(wallapop_max_queries_per_run(), 2)
+
+    def test_playwright_install_is_cached_by_flag_file(self):
+        class Result:
+            returncode = 0
+            stdout = "installed"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            flag = Path(tmpdir) / "playwright_installed"
+            output = io.StringIO()
+            with patch.dict(
+                "os.environ",
+                {
+                    "WALLAPOP_AUTO_INSTALL_PLAYWRIGHT": "true",
+                    "WALLAPOP_PLAYWRIGHT_INSTALL_FLAG": str(flag),
+                },
+            ):
+                with patch("services.wallapop_scraper._PLAYWRIGHT_INSTALL_LOGGED", False):
+                    with patch("services.wallapop_scraper.subprocess.run", return_value=Result()) as run_mock:
+                        with redirect_stdout(output):
+                            self.assertTrue(_auto_install_playwright_browser())
+                            self.assertTrue(_auto_install_playwright_browser())
+
+            run_mock.assert_called_once()
+            self.assertTrue(flag.exists())
+            logs = output.getvalue()
+            self.assertIn("[WALLAPOP_PLAYWRIGHT_INSTALL] status=starting", logs)
+            self.assertIn("[WALLAPOP_PLAYWRIGHT_INSTALL] status=ok", logs)
+            self.assertIn("[WALLAPOP_PLAYWRIGHT_INSTALL] status=skipped_cached", logs)
 
     def test_source_wallapop_is_accepted(self):
         [item] = filter_wallapop_candidates(
