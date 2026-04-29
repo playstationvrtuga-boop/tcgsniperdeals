@@ -61,7 +61,7 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.assertEqual(result.estimated_fair_value, 100.0)
         self.assertEqual(result.confidence_score, 72)
 
-    def test_buy_now_can_price_listing_when_recent_sales_are_missing(self):
+    def test_buy_now_can_price_listing_when_recent_sales_are_missing_without_sniper_deal(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
         deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
             EbaySoldListing("Charizard PFL 125/094 active one", 100.0),
@@ -71,7 +71,9 @@ class BuyNowReferenceTests(unittest.TestCase):
 
         result = deal_detector.evaluate_listing(self.listing())
 
-        self.assertEqual(result.status, "deal")
+        self.assertEqual(result.status, "priced")
+        self.assertFalse(result.is_deal)
+        self.assertLess(result.confidence_score, 70)
         self.assertEqual(result.price_source, "buy_now")
         self.assertEqual(result.pricing_basis, "buy_now")
         self.assertEqual(result.reference_price, 110.0)
@@ -99,7 +101,7 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.assertEqual(deal_detector.extract_listing_price_eur("US $16.95"), 14.92)
         self.assertEqual(deal_detector.extract_listing_price_eur("$1,234.56"), 1086.41)
 
-    def test_buy_now_still_runs_when_recent_sales_are_blocked(self):
+    def test_buy_now_still_runs_when_recent_sales_are_blocked_without_sniper_deal(self):
         def blocked_recent(*_args, **_kwargs):
             raise EbaySoldRateLimitError("eBay sold lookup returned an anti-bot interruption page.")
 
@@ -112,7 +114,9 @@ class BuyNowReferenceTests(unittest.TestCase):
 
         result = deal_detector.evaluate_listing(self.listing())
 
-        self.assertEqual(result.status, "deal")
+        self.assertEqual(result.status, "priced")
+        self.assertFalse(result.is_deal)
+        self.assertLess(result.confidence_score, 70)
         self.assertEqual(result.price_source, "buy_now")
         self.assertEqual(result.reference_price, 110.0)
         self.assertIn("SOLD_BLOCKED", result.reason)

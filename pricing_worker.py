@@ -159,10 +159,13 @@ def _runtime_flag(name: str, fallback: bool = False) -> bool:
 
 
 def _pricing_reason(result) -> str:
+    sold_refs = result.comparable_count or 0
+    buy_now_refs = getattr(result, "buy_now_count", 0) or 0
     parts = [
         f"source={result.price_source or 'unknown'}",
-        f"sold_refs={result.comparable_count or 0}",
-        f"buy_now_refs={getattr(result, 'buy_now_count', 0) or 0}",
+        f"sold_refs={sold_refs}",
+        f"buy_now_refs={buy_now_refs}",
+        f"comparable_results={sold_refs + buy_now_refs}",
     ]
     if getattr(result, "parser_confidence", None):
         parts.append(f"confidence={result.parser_confidence}")
@@ -176,6 +179,7 @@ def _pricing_reason(result) -> str:
         parts.append(f"basis={result.pricing_basis}")
     if getattr(result, "listing_type", None):
         parts.append(f"listing_type={result.listing_type}")
+        parts.append(f"market_type={result.listing_type}")
     if getattr(result, "confidence_score", None) is not None:
         parts.append(f"confidence_score={result.confidence_score}")
     if getattr(result, "last_2_sales", None):

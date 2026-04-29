@@ -38,15 +38,23 @@ _EBAY_PAUSED_UNTIL = 0.0
 ETB_TERMS = ("etb", "elite trainer box")
 BOOSTER_BOX_TERMS = ("booster box", "display")
 GRADED_TERMS = (
-    "psa", "bgs", "beckett", "cgc", "ace", "sgc", "tag", "aura", "rpa",
+    "psa", "bgs", "beckett", "cgc", "ace", "sgc", "tag", "aura", "rpa", "pca",
     "graded", "grade", "graad", "graduada", "graduado", "slab",
     "encapsulated", "gem mint", "mint 10", "cert", "certificate",
     "certificado",
 )
-SEALED_TERMS = ("sealed", "booster bundle", "tin", "collection box")
+SEALED_TERMS = (
+    "sealed", "sealed box", "booster", "booster box", "booster bundle",
+    "elite trainer box", "etb", "tin", "blister", "display",
+    "collection box", "premium collection",
+)
 ACCESSORY_TERMS = ("binder", "sleeves", "deck box", "toploader", "top loader", "album")
 POKEMON_CENTER_TERMS = ("pokemon center", "pc etb", "center etb")
 BOOSTER_PACK_TERMS = ("booster pack", "pack", "sobre")
+LOT_BUNDLE_TERMS = (
+    "lot", "bundle", "cards", "collection", "binder", "bulk", "pack of cards",
+    "many cards", "lote", "conjunto", "colecao", "coleção", "cartas",
+)
 RAW_COMPARABLE_MINIMUM = 2
 GENERIC_TITLE_TERMS = {
     "pokemon", "pok", "mon", "tcg", "card", "cards", "carta", "cartas",
@@ -206,6 +214,11 @@ def _compare_text(value: str) -> str:
 
 def _has_graded_signal(value: str) -> bool:
     text = _compare_text(value)
+    compact = text.replace(" ", "")
+    if re.search(r"\b(?:psa|bgs|beckett|cgc|ace|aura|rpa|pca)\s*(?:10|9\.5|9|8\.5|8)\b", text):
+        return True
+    if re.search(r"(?:psa|bgs|cgc|ace|aura|rpa|pca)(?:10|9\.5|9|8\.5|8)\b", compact):
+        return True
     if any(f" {term} " in text for term in GRADED_TERMS if " " not in term):
         return True
     if any(term in text for term in GRADED_TERMS if " " in term):
@@ -231,6 +244,7 @@ def _extract_grading_company(value: str) -> str | None:
         "tag": "TAG",
         "aura": "AURA",
         "rpa": "RPA",
+        "pca": "PCA",
     }
     for alias, company in aliases.items():
         if f" {alias} " in text:
@@ -241,7 +255,7 @@ def _extract_grading_company(value: str) -> str | None:
 def _extract_grade(value: str) -> float | None:
     text = _compare_text(value).replace(",", ".")
     match = re.search(
-        r"\b(?:psa|bgs|beckett|cgc|ace|sgc|tag|aura|rpa|grade|graded|graad|graduada|graduado)\s*"
+        r"\b(?:psa|bgs|beckett|cgc|ace|sgc|tag|aura|rpa|pca|grade|graded|graad|graduada|graduado)\s*"
         r"(10|[1-9](?:\.\d)?)\b",
         text,
     )
@@ -270,21 +284,40 @@ def _sealed_subtype(value: str) -> str | None:
     return None
 
 
-def classify_listing_type(title: str, listing_kind: str | None = None) -> str:
-    text = _compare_text(title)
-    if _has_graded_signal(title):
-        print("[pricing] LISTING_TYPE_DETECTED_GRADED", flush=True)
+def _has_lot_bundle_signal(value: str) -> bool:
+    text = _compare_text(value)
+    if any(f" {term} " in text for term in LOT_BUNDLE_TERMS if " " not in term):
+        return True
+    if any(term in text for term in LOT_BUNDLE_TERMS if " " in term):
+        return True
+    return bool(re.search(r"\b\d{2,4}\s+(?:cards|cartas|cartes|kaarten)\b", text))
+
+
+def detect_listing_market_type(title: str, description: str = "", image_context=None) -> str:
+    del image_context
+    combined = _clean_text(f"{title or ''} {description or ''}")
+    if _has_graded_signal(combined):
         return "graded_card"
-    if _sealed_subtype(title):
+    if _sealed_subtype(combined):
         return "sealed_product"
-    if any(term in text for term in ACCESSORY_TERMS):
-        return "accessory"
-    if listing_kind == "lot_bundle" or " lot " in text or " lote " in text or " bundle " in text:
+    if _has_lot_bundle_signal(combined):
         return "lot_bundle"
-    if listing_kind in {"single_card", "unknown_pokemon"} or _is_pokemon_related(title) or _has_card_number_pattern(title):
-        print("[pricing] LISTING_TYPE_DETECTED_RAW", flush=True)
+    if _is_pokemon_related(combined) or _has_card_number_pattern(combined):
         return "raw_card"
     return "unknown"
+
+
+def classify_listing_type(title: str, listing_kind: str | None = None, description: str = "") -> str:
+    market_type = detect_listing_market_type(title, description=description)
+    if market_type == "unknown" and any(term in _compare_text(title) for term in ACCESSORY_TERMS):
+        return "accessory"
+    if market_type == "unknown" and listing_kind in {"single_card", "unknown_pokemon"}:
+        market_type = "raw_card"
+    if market_type == "graded_card":
+        print("[pricing] LISTING_TYPE_DETECTED_GRADED", flush=True)
+    elif market_type == "raw_card":
+        print("[pricing] LISTING_TYPE_DETECTED_RAW", flush=True)
+    return market_type
 
 
 def _same_card_identity(original_title: str, candidate_title: str) -> bool:
@@ -316,9 +349,9 @@ def is_comparable_listing(
 
     comparable_is_graded = _has_graded_signal(comparable_title)
     if listing_type == "raw_card" and comparable_is_graded:
-        return False, "COMPARABLE_REJECTED_GRADED_FOR_RAW"
+        return False, "graded_vs_raw"
     if listing_type == "graded_card" and not comparable_is_graded:
-        return False, "COMPARABLE_REJECTED_RAW_FOR_GRADED"
+        return False, "raw_vs_graded"
 
     if listing_type == "graded_card":
         original_company = _extract_grading_company(original_title)
@@ -332,6 +365,10 @@ def is_comparable_listing(
     elif listing_type == "sealed_product":
         original_subtype = _sealed_subtype(original_title)
         candidate_subtype = _sealed_subtype(comparable_title)
+        if _has_graded_signal(comparable_title):
+            return False, "graded_vs_sealed"
+        if _has_card_number_pattern(comparable_title) and not candidate_subtype:
+            return False, "single_card_vs_sealed"
         if original_subtype and candidate_subtype and original_subtype != candidate_subtype:
             return False, "sealed_subtype_mismatch"
         if original_subtype and not candidate_subtype:
@@ -345,6 +382,11 @@ def is_comparable_listing(
         return False, "identity_mismatch"
 
     return True, "accepted"
+
+
+def is_comparable_ebay_result(original_market_type: str, original_grade, ebay_title: str) -> bool:
+    del original_grade
+    return is_comparable_listing("", ebay_title, original_market_type)[0]
 
 
 def detect_listing_kind(title: str) -> str | None:
@@ -620,6 +662,41 @@ def _buy_now_min_comparables(listing_kind: str | None, listing_type: str | None 
     return PRICING_BUY_NOW_MIN_COMPARABLES
 
 
+def _listing_description(listing) -> str:
+    raw_payload = getattr(listing, "raw_payload", None)
+    if not raw_payload:
+        return ""
+    try:
+        import json
+
+        payload = json.loads(raw_payload)
+    except Exception:
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    for key in ("description", "body", "details"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _market_basis_label(listing_type: str | None, pricing_basis: str | None) -> str:
+    if listing_type == "raw_card":
+        return "RAW market"
+    if listing_type == "graded_card":
+        return "Graded market"
+    if listing_type == "sealed_product":
+        return "Sealed market"
+    if listing_type == "lot_bundle":
+        return "Bundle / lot estimate"
+    return pricing_basis or "unknown"
+
+
+def _accepted_comparable_count(sold_count: int, buy_now_count: int) -> int:
+    return int(sold_count or 0) + int(buy_now_count or 0)
+
+
 def fetch_active_buy_now_comparables(product_name: str, listing_kind: str | None) -> list[EbaySoldListing]:
     if not PRICING_ENABLE_BUY_NOW_REFERENCE:
         return []
@@ -802,12 +879,17 @@ def _filter_comparables(
             listing_kind=listing_kind,
         )
         if not is_valid:
-            print(f"[pricing] {reason} source={source} title={listing.title[:100]}", flush=True)
+            print(
+                f"[EBAY_FILTER] rejected_result reason={reason} "
+                f"type={listing_type} source={source} ebay_title={listing.title[:140]}",
+                flush=True,
+            )
             continue
-        if listing_type == "raw_card":
-            print(f"[pricing] COMPARABLE_ACCEPTED_RAW source={source} title={listing.title[:100]}", flush=True)
-        elif listing_type == "graded_card":
-            print(f"[pricing] COMPARABLE_ACCEPTED_GRADED source={source} title={listing.title[:100]}", flush=True)
+        print(
+            f"[EBAY_FILTER] accepted_result type={listing_type} "
+            f"source={source} ebay_title={listing.title[:140]}",
+            flush=True,
+        )
         accepted.append(listing)
     return accepted
 
@@ -851,7 +933,7 @@ def _fetch_best_recent_for_queries(
 ) -> list[EbaySoldListing]:
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
-    for attempt, query in enumerate(queries[:1], start=1):
+    for attempt, query in enumerate(queries[:5], start=1):
         _log_pricing_attempt("sold", attempt, query)
         try:
             listings = fetch_recent_comparables(query, listing_kind=listing_kind)
@@ -873,7 +955,7 @@ def _fetch_best_recent_for_queries(
         )
         if len(filtered) > len(best):
             best = filtered
-        success = len(filtered) >= 3
+        success = len(filtered) >= 2
         _log_pricing_results(len(filtered), success=success)
         if success:
             return filtered
@@ -894,7 +976,7 @@ def _fetch_best_buy_now_for_queries(
     best: list[EbaySoldListing] = []
     last_error: EbaySoldError | None = None
     required_comparables = _buy_now_min_comparables(listing_kind, listing_type)
-    for attempt, query in enumerate(queries[:1], start=1):
+    for attempt, query in enumerate(queries[:5], start=1):
         _log_pricing_attempt("buy_now", attempt, query)
         try:
             listings = fetch_active_buy_now_comparables(query, listing_kind=listing_kind)
@@ -928,11 +1010,13 @@ def _fetch_best_buy_now_for_queries(
 
 
 def evaluate_listing(listing) -> DealResult:
+    listing_id = getattr(listing, "id", "n/a")
     title = _clean_text(getattr(listing, "title", "") or "")
     price_display = _clean_text(getattr(listing, "price_display", "") or "")
+    description = _listing_description(listing)
     identity = parse_listing_identity(title)
     listing_kind = identity.listing_kind
-    listing_type = classify_listing_type(title, listing_kind)
+    listing_type = classify_listing_type(title, listing_kind, description=description)
     parser_queries = list(getattr(getattr(identity, "signals", None), "queries", None) or [])
     pricing_query = identity.query or title
     pricing_queries = parser_queries or [pricing_query]
@@ -940,6 +1024,7 @@ def evaluate_listing(listing) -> DealResult:
     if not title:
         return DealResult(status="skipped", reason="missing_title")
 
+    print(f"[PRICING_TYPE] listing_id={listing_id} type={listing_type} title={title[:160]}", flush=True)
     _log_parser(identity)
     if identity.confidence == "UNKNOWN":
         return DealResult(
@@ -1043,6 +1128,12 @@ def evaluate_listing(listing) -> DealResult:
             f"reason=grade_near_match penalty={grading_penalty}",
             flush=True,
         )
+    comparable_result_count = _accepted_comparable_count(len(sold_prices), len(buy_now_prices_all))
+    print(
+        f"[PRICING_CONFIDENCE] listing_id={listing_id} confidence={confidence_score} "
+        f"comparable_count={comparable_result_count}",
+        flush=True,
+    )
 
     if buy_now_prices_all:
         print(
@@ -1166,6 +1257,94 @@ def evaluate_listing(listing) -> DealResult:
             "reason=raw_buy_now_very_low_confidence max_score=44",
             flush=True,
         )
+    if listing_type == "lot_bundle":
+        confidence_score = min(confidence_score, 40)
+        score = min(score, 40)
+        print(
+            f"[PRICING_CONFIDENCE] listing_id={listing_id} confidence={confidence_score} "
+            f"comparable_count={comparable_result_count} reason=lot_bundle_cap",
+            flush=True,
+        )
+    if listing_type == "raw_card" and gross_margin > 150 and len(sold_prices) < 2:
+        print(
+            f"[PRICING_SANITY] listing_id={listing_id} action=needs_review "
+            "reason=raw_profit_too_high_without_sold",
+            flush=True,
+        )
+        return DealResult(
+            status="needs_review",
+            reference_price=reference_price,
+            discount_percent=discount_percent,
+            gross_margin=gross_margin,
+            score=0,
+            is_deal=False,
+            comparable_prices=comparable_prices,
+            comparable_titles=comparable_titles,
+            buy_now_prices=buy_now_prices,
+            buy_now_titles=buy_now_titles,
+            listing_price=listing_price,
+            reason="profit_too_high_without_sold",
+            price_source=price_source,
+            listing_kind=listing_kind,
+            listing_type=listing_type,
+            comparable_count=len(comparable_prices),
+            buy_now_count=len(buy_now_prices),
+            buy_now_reference_price=buy_now_reference_price,
+            market_buy_now_min=market_buy_now_min,
+            market_buy_now_avg=market_buy_now_avg,
+            market_buy_now_median=market_buy_now_median,
+            last_sold_prices=comparable_prices,
+            last_2_sales=comparable_prices[:2],
+            sold_avg_price=sold_avg_price,
+            sold_median_price=sold_median_price,
+            estimated_fair_value=estimated_fair_value,
+            pricing_basis=pricing_basis,
+            confidence_score=confidence_score,
+            parser_confidence=identity.confidence,
+            parser_query=pricing_query,
+            parser_queries=pricing_queries,
+            parser_name=identity.extracted_name,
+        )
+    if gross_margin > listing_price * 3 and (confidence_score < 85 or len(sold_prices) < 2):
+        print(
+            f"[PRICING_SANITY] listing_id={listing_id} action=needs_review "
+            "reason=profit_too_high_without_sold",
+            flush=True,
+        )
+        return DealResult(
+            status="needs_review",
+            reference_price=reference_price,
+            discount_percent=discount_percent,
+            gross_margin=gross_margin,
+            score=0,
+            is_deal=False,
+            comparable_prices=comparable_prices,
+            comparable_titles=comparable_titles,
+            buy_now_prices=buy_now_prices,
+            buy_now_titles=buy_now_titles,
+            listing_price=listing_price,
+            reason="profit_too_high_without_sold",
+            price_source=price_source,
+            listing_kind=listing_kind,
+            listing_type=listing_type,
+            comparable_count=len(comparable_prices),
+            buy_now_count=len(buy_now_prices),
+            buy_now_reference_price=buy_now_reference_price,
+            market_buy_now_min=market_buy_now_min,
+            market_buy_now_avg=market_buy_now_avg,
+            market_buy_now_median=market_buy_now_median,
+            last_sold_prices=comparable_prices,
+            last_2_sales=comparable_prices[:2],
+            sold_avg_price=sold_avg_price,
+            sold_median_price=sold_median_price,
+            estimated_fair_value=estimated_fair_value,
+            pricing_basis=pricing_basis,
+            confidence_score=confidence_score,
+            parser_confidence=identity.confidence,
+            parser_query=pricing_query,
+            parser_queries=pricing_queries,
+            parser_name=identity.extracted_name,
+        )
     if identity.confidence == "MEDIUM":
         score = max(0, score - 3)
     elif identity.confidence == "LOW":
@@ -1175,6 +1354,9 @@ def evaluate_listing(listing) -> DealResult:
         and discount_percent >= PRICING_DEAL_MIN_DISCOUNT
         and gross_margin >= PRICING_DEAL_MIN_MARGIN
         and score >= PRICING_DEAL_MIN_SCORE
+        and listing_type != "unknown"
+        and comparable_result_count >= 2
+        and confidence_score >= 70
     )
     result_reason = "DEAL_ACCEPTED" if is_deal else "DEAL_REJECTED_THRESHOLDS"
     if buy_now_reference_price is not None:
@@ -1184,6 +1366,11 @@ def evaluate_listing(listing) -> DealResult:
     if buy_now_only_low_confidence:
         result_reason = f"{result_reason}; PRICING_LOW_CONFIDENCE_BUY_NOW_ONLY"
     result_reason = f"{result_reason}; pricing_basis={pricing_basis}; confidence_score={confidence_score}"
+    result_reason = (
+        f"{result_reason}; market_type={listing_type}; "
+        f"market_basis_label={_market_basis_label(listing_type, pricing_basis)}; "
+        f"comparable_results={comparable_result_count}"
+    )
     if recent_sales_error:
         result_reason = f"{result_reason}; SOLD_BLOCKED" if isinstance(recent_sales_exception, EbaySoldRateLimitError) else f"{result_reason}; SOLD_FAILED"
     result_reason = f"{result_reason}; confidence={identity.confidence}; query={pricing_query}"
@@ -1238,8 +1425,10 @@ __all__ = [
     "EbaySoldError",
     "EbaySoldRateLimitError",
     "detect_listing_kind",
+    "detect_listing_market_type",
     "evaluate_listing",
     "classify_listing_type",
+    "is_comparable_ebay_result",
     "is_comparable_listing",
     "is_precisely_identified_listing",
     "parse_listing_identity",

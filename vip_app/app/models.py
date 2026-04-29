@@ -252,6 +252,38 @@ class Listing(TimestampMixin, db.Model):
             return []
 
     @property
+    def comparable_results_count(self):
+        reason = self.pricing_reason or ""
+        if "comparable_results=" in reason:
+            try:
+                return int(reason.split("comparable_results=", 1)[1].split(";", 1)[0].strip())
+            except (TypeError, ValueError):
+                pass
+        total = 0
+        found = False
+        for marker in ("sold_refs=", "buy_now_refs="):
+            if marker in reason:
+                found = True
+                try:
+                    total += int(reason.split(marker, 1)[1].split(";", 1)[0].strip())
+                except (TypeError, ValueError):
+                    pass
+        if found:
+            return total
+        return len(self.last_sold_prices) + (1 if self.market_buy_now_median is not None else 0)
+
+    @property
+    def market_type_display(self):
+        value = (self.listing_type or "unknown").strip().lower()
+        labels = {
+            "raw_card": "RAW",
+            "graded_card": "GRADED",
+            "sealed_product": "SEALED",
+            "lot_bundle": "LOT",
+        }
+        return labels.get(value, "UNKNOWN")
+
+    @property
     def effective_status(self):
         return (self.status or self.available_status or "available").strip().lower()
 

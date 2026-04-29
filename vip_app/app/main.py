@@ -712,12 +712,30 @@ def smart_deals():
     profit_value = db.func.coalesce(Listing.estimated_profit, Listing.profit_margin, Listing.gross_margin, 0)
     pricing_status = db.func.lower(db.func.coalesce(Listing.pricing_status, ""))
     pricing_basis = db.func.lower(db.func.coalesce(Listing.pricing_basis, ""))
+    listing_type = db.func.lower(db.func.coalesce(Listing.listing_type, "unknown"))
     confidence_value = db.func.coalesce(Listing.confidence_score, 0)
+    enough_comparables = or_(
+        and_(Listing.last_2_sales_json.isnot(None), Listing.last_2_sales_json.ilike("%,%")),
+        Listing.pricing_reason.ilike("%comparable_results=2%"),
+        Listing.pricing_reason.ilike("%comparable_results=3%"),
+        Listing.pricing_reason.ilike("%comparable_results=4%"),
+        Listing.pricing_reason.ilike("%comparable_results=5%"),
+        Listing.pricing_reason.ilike("%comparable_results=6%"),
+        Listing.pricing_reason.ilike("%comparable_results=7%"),
+        Listing.pricing_reason.ilike("%comparable_results=8%"),
+        Listing.pricing_reason.ilike("%comparable_results=9%"),
+        Listing.pricing_reason.ilike("%buy_now_refs=2%"),
+        Listing.pricing_reason.ilike("%buy_now_refs=3%"),
+        Listing.pricing_reason.ilike("%buy_now_refs=4%"),
+        Listing.pricing_reason.ilike("%buy_now_refs=5%"),
+    )
     query = Listing.query.filter(
         pricing_status.in_(["analyzed", "priced", "deal"]),
         pricing_basis.in_(["sold", "buy_now", "mixed"]),
+        listing_type.in_(["raw_card", "graded_card", "sealed_product"]),
         or_(Listing.estimated_fair_value.isnot(None), Listing.reference_price.isnot(None)),
-        confidence_value >= 50,
+        confidence_value >= 70,
+        enough_comparables,
         or_(
             Listing.pricing_reason.is_(None),
             ~Listing.pricing_reason.ilike("%PRICE_COMPARE_INSUFFICIENT_RAW_COMPARABLES%"),

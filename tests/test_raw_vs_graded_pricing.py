@@ -29,6 +29,32 @@ class RawVsGradedPricingTests(unittest.TestCase):
             EbaySoldListing(f"CGC 10 {title_prefix}", 200.0),
         ]
 
+    def test_detects_raw_individual_cards_without_grading_signals(self):
+        self.assertEqual(deal_detector.detect_listing_market_type("Mewtwo 56/165 Expedition"), "raw_card")
+        self.assertEqual(deal_detector.detect_listing_market_type("Alakazam Star 99/100"), "raw_card")
+        self.assertEqual(deal_detector.detect_listing_market_type("Charizard ex 199/165"), "raw_card")
+
+    def test_detects_graded_card_and_grade(self):
+        title = "Charizard brs 174 PSA 10"
+
+        self.assertEqual(deal_detector.detect_listing_market_type(title), "graded_card")
+        self.assertEqual(deal_detector._extract_grading_company(title), "PSA")
+        self.assertEqual(deal_detector._extract_grade(title), 10.0)
+
+    def test_raw_comparable_filter_rejects_graded_titles(self):
+        for ebay_title in ("PSA 10 Mewtwo 56/165", "CGC 9 Mewtwo 56/165", "Mewtwo slab", "Mewtwo graded"):
+            with self.subTest(ebay_title=ebay_title):
+                self.assertFalse(
+                    deal_detector.is_comparable_ebay_result("raw_card", None, ebay_title)
+                )
+
+    def test_graded_comparable_filter_rejects_raw_titles(self):
+        for ebay_title in ("Charizard 4/102 raw card", "Charizard 4/102 ungraded"):
+            with self.subTest(ebay_title=ebay_title):
+                self.assertFalse(
+                    deal_detector.is_comparable_ebay_result("graded_card", 10.0, ebay_title)
+                )
+
     def assert_raw_rejects_graded_market(self, title: str, comparable_prefix: str) -> None:
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: self.graded_only(comparable_prefix)
         deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: self.graded_only(comparable_prefix)
@@ -144,11 +170,31 @@ class RawVsGradedPricingTests(unittest.TestCase):
         ]
 
         result = deal_detector.evaluate_listing(
-            self.listing("Charizard PFL 125/094 Pokemon", "1,00 EUR")
+            self.listing("Charizard PFL 125/094 Pokemon", "70,00 EUR")
         )
 
         self.assertEqual(result.pricing_basis, "buy_now")
+        self.assertEqual(result.status, "priced")
+        self.assertFalse(result.is_deal)
+        self.assertLess(result.confidence_score, 70)
         self.assertLessEqual(result.score, 69)
+
+    def test_absurd_raw_profit_without_sold_comparable_needs_review(self):
+        deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
+        deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
+            EbaySoldListing("Alakazam Star 99/100 raw Pokemon card", 220.0),
+            EbaySoldListing("Pokemon Alakazam Star 99/100 raw", 230.0),
+            EbaySoldListing("Alakazam Star 99/100 Pokemon card raw", 240.0),
+        ]
+
+        result = deal_detector.evaluate_listing(
+            self.listing("Alakazam Star 99/100", "20,00 EUR")
+        )
+
+        self.assertEqual(result.status, "needs_review")
+        self.assertFalse(result.is_deal)
+        self.assertEqual(result.score, 0)
+        self.assertIn("profit_too_high_without_sold", result.reason)
 
 
 if __name__ == "__main__":

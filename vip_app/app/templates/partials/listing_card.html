@@ -22,15 +22,28 @@
     {% set deal_tone_label = "Tracking" %}
   {% endif %}
   {% if listing_type == 'graded_card' %}
-    {% set market_basis_label = 'Graded market' %}
+    {% set market_type_label = 'GRADED' %}
   {% elif listing_type == 'raw_card' and listing.pricing_basis == 'sold' %}
-    {% set market_basis_label = 'RAW comparable sales' %}
+    {% set market_type_label = 'RAW' %}
   {% elif listing_type == 'raw_card' and listing.pricing_basis == 'buy_now' %}
-    {% set market_basis_label = 'RAW Buy Now references' %}
+    {% set market_type_label = 'RAW' %}
   {% elif listing_type == 'raw_card' %}
-    {% set market_basis_label = 'RAW market' %}
+    {% set market_type_label = 'RAW' %}
+  {% elif listing_type == 'sealed_product' %}
+    {% set market_type_label = 'SEALED' %}
+  {% elif listing_type == 'lot_bundle' %}
+    {% set market_type_label = 'LOT' %}
   {% else %}
-    {% set market_basis_label = (listing.pricing_basis or 'pending')|replace('_', ' ')|title %}
+    {% set market_type_label = 'UNKNOWN' %}
+  {% endif %}
+  {% if listing.pricing_basis == 'sold' %}
+    {% set market_basis_label = 'SOLD comparable' %}
+  {% elif listing.pricing_basis == 'buy_now' %}
+    {% set market_basis_label = 'Buy Now comparable' %}
+  {% elif listing.pricing_basis %}
+    {% set market_basis_label = (listing.pricing_basis or '')|replace('_', ' ')|title %}
+  {% else %}
+    {% set market_basis_label = 'Weak estimate' %}
   {% endif %}
   <div class="listing-image-wrap">
     {% if listing.image_url %}
@@ -126,12 +139,20 @@
         <strong>{{ market_basis_label }}</strong>
       </div>
       <div>
+        <span class="signal-label">Market Type</span>
+        <strong>{{ market_type_label }}</strong>
+      </div>
+      <div>
+        <span class="signal-label">Comparable Results</span>
+        <strong>{{ listing.comparable_results_count }}</strong>
+      </div>
+      <div>
         <span class="signal-label">Buy Now median</span>
         <strong>{% if listing.market_buy_now_median is not none %}{{ "%.2f"|format(listing.market_buy_now_median) }} EUR{% else %}Pending{% endif %}</strong>
       </div>
       <div>
         <span class="signal-label">Last 2 sales</span>
-        <strong>{% if listing.last_2_sales %}{% for price in listing.last_2_sales[:2] %}{{ "%.2f"|format(price) }}{% if not loop.last %} / {% endif %}{% endfor %} EUR{% else %}Pending{% endif %}</strong>
+        <strong>{% if listing.last_2_sales %}{% for price in listing.last_2_sales[:2] %}{{ "%.2f"|format(price) }}{% if not loop.last %} / {% endif %}{% endfor %} EUR{% else %}Not enough data{% endif %}</strong>
       </div>
       <div>
         <span class="signal-label">Potential profit</span>
