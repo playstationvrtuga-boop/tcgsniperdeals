@@ -5821,3 +5821,264 @@ body:has(.feed-command-center) .control-panel .toolbar-top p {
     font-size: 0.68rem;
   }
 }
+
+/* Responsive overflow hardening for the deals dashboards */
+html,
+body,
+.app-shell {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+body:has(.feed-command-center) .topbar,
+body:has(.feed-command-center) .page,
+body:has(.feed-command-center) .feed-command-center,
+body:has(.feed-command-center) .feed-hero-grid,
+body:has(.feed-command-center) .live-radar-status-panel,
+body:has(.feed-command-center) .stats-strip,
+body:has(.feed-command-center) .control-panel,
+body:has(.feed-command-center) .filter-grid,
+body:has(.feed-command-center) .listing-grid {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+body:has(.feed-command-center) .page {
+  width: min(1600px, calc(100% - clamp(24px, 3vw, 56px)));
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+body:has(.feed-command-center) .topbar {
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
+  grid-template-columns: minmax(240px, 0.82fr) minmax(360px, auto) minmax(280px, 1fr);
+  column-gap: clamp(8px, 1.1vw, 18px);
+  row-gap: 8px;
+  overflow: visible;
+}
+
+body:has(.feed-command-center) .topbar-brand,
+body:has(.feed-command-center) .brand,
+body:has(.feed-command-center) .brand-copy,
+body:has(.feed-command-center) .topbar .vip-tab-nav,
+body:has(.feed-command-center) .topbar-actions,
+body:has(.feed-command-center) .topbar-actions form {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body:has(.feed-command-center) .brand {
+  display: inline-flex;
+  align-items: center;
+}
+
+body:has(.feed-command-center) .brand-name,
+body:has(.feed-command-center) .brand-subtitle {
+  overflow-wrap: anywhere;
+}
+
+body:has(.feed-command-center) .topbar .vip-tab-nav {
+  gap: clamp(10px, 1.1vw, 18px);
+}
+
+body:has(.feed-command-center) .topbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-self: center;
+  gap: 7px;
+}
+
+body:has(.feed-command-center) .topbar-actions .ghost-button,
+body:has(.feed-command-center) .topbar-actions form .ghost-button {
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+body:has(.feed-command-center) .feed-command-center {
+  overflow: visible;
+}
+
+body:has(.feed-command-center) .feed-hero-grid {
+  grid-template-columns: minmax(0, 1.18fr) minmax(250px, 0.64fr) minmax(230px, 0.58fr);
+  gap: clamp(18px, 2.2vw, 32px);
+  min-height: 0;
+}
+
+body:has(.feed-command-center) .feed-hero-copy,
+body:has(.feed-command-center) .live-radar-showcase,
+body:has(.feed-command-center) .deal-alert-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body:has(.feed-command-center) .deal-alert-panel {
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body:has(.feed-command-center) .deal-alert-panel p {
+  max-width: 100%;
+}
+
+body:has(.feed-command-center) .deal-alert-actions .primary-button,
+body:has(.feed-command-center) .deal-alert-actions .ghost-button {
+  width: 100%;
+  max-width: 100%;
+}
+
+body:has(.feed-command-center) .live-radar-status-panel {
+  height: auto;
+  min-height: 0;
+}
+
+body:has(.feed-command-center) .live-status-row,
+body:has(.feed-command-center) .source-trail {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body:has(.feed-command-center) .source-trail {
+  flex-wrap: wrap;
+}
+
+body:has(.feed-command-center) .control-panel {
+  overflow: clip;
+}
+
+body:has(.feed-command-center) .control-panel .toolbar-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 0;
+}
+
+body:has(.feed-command-center) .control-panel .toolbar-top > div,
+body:has(.feed-command-center) .control-feature-strip > div,
+body:has(.feed-command-center) .stat-card {
+  min-width: 0;
+}
+
+body:has(.feed-command-center) .control-panel .toolbar-top .ghost-button {
+  max-width: 100%;
+  justify-self: end;
+  white-space: nowrap;
+}
+
+body:has(.feed-command-center) .filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(176px, 100%), 1fr));
+  gap: 10px;
+  min-height: 0;
+}
+
+body:has(.feed-command-center) .filter-grid input,
+body:has(.feed-command-center) .filter-grid select,
+body:has(.feed-command-center) .filter-grid .primary-button,
+body:has(.feed-command-center) .language-filter {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body:has(.feed-command-center) .filter-grid input[type="search"] {
+  grid-column: span 2;
+}
+
+body:has(.feed-command-center) .filter-grid .primary-button {
+  width: 100%;
+  white-space: nowrap;
+}
+
+body:has(.feed-command-center) .language-filter-options {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body:has(.feed-command-center) .control-feature-strip {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+body:has(.feed-command-center) .bottom-nav {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media (max-width: 1500px) and (min-width: 980px) {
+  body:has(.feed-command-center) .topbar {
+    grid-template-columns: minmax(220px, 1fr) minmax(0, auto);
+  }
+
+  body:has(.feed-command-center) .topbar .vip-tab-nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding-top: 4px;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 980px) {
+  body:has(.feed-command-center) .feed-hero-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.74fr);
+  }
+
+  body:has(.feed-command-center) .deal-alert-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 979px) {
+  body:has(.feed-command-center) .page {
+    width: calc(100% - 24px);
+  }
+
+  body:has(.feed-command-center) .topbar {
+    max-width: calc(100% - 16px);
+  }
+
+  body:has(.feed-command-center) .feed-hero-grid,
+  body:has(.feed-command-center) .stats-strip {
+    grid-template-columns: 1fr;
+  }
+
+  body:has(.feed-command-center) .control-panel .toolbar-top {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  body:has(.feed-command-center) .control-panel .toolbar-top .ghost-button {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    width: 100%;
+  }
+}
+
+@media (max-width: 719px) {
+  body:has(.feed-command-center) .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  body:has(.feed-command-center) .topbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  body:has(.feed-command-center) .topbar-actions .ghost-button,
+  body:has(.feed-command-center) .topbar-actions form .ghost-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  body:has(.feed-command-center) .filter-grid input[type="search"] {
+    grid-column: auto;
+  }
+
+  body:has(.feed-command-center) .control-feature-strip {
+    grid-template-columns: 1fr;
+  }
+}
