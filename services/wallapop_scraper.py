@@ -30,15 +30,11 @@ WALLAPOP_QUERIES = [
     "pokemon tcg",
 ]
 WALLAPOP_BASE_URL = "https://pt.wallapop.com/colecionismo?keywords={query}"
-WALLAPOP_RESULTS_SELECTOR = (
-    'a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"], '
-    'a[href*="/app/search"], article, li, [data-testid], [data-item-id], [data-product-id], '
-    '[class*="ItemCard"], [class*="Card"]'
-)
+WALLAPOP_RESULTS_SELECTOR = 'a[href*="/item/"]'
 WALLAPOP_GOTO_TIMEOUT_MS = 20000
 WALLAPOP_RESULTS_TIMEOUT_MS = 9000
 WALLAPOP_AFTER_GOTO_WAIT_MS = 2000
-WALLAPOP_VISIBLE_CARD_SCAN_LIMIT = 5
+WALLAPOP_VISIBLE_CARD_SCAN_LIMIT = 12
 WALLAPOP_SEARCH_LINK_SCAN_LIMIT = 50
 
 POSITIVE_TCG_TERMS = {
@@ -268,98 +264,99 @@ def _route_light_resources(route):
 
 
 def _extract_items_from_page(page, source_query: str) -> list[dict]:
-    return page.evaluate(
-        """
-        ({ sourceQuery, limit }) => {
-          const nodes = [...document.querySelectorAll('article, li, [data-testid], [data-item-id], [data-product-id], [class*="ItemCard"], [class*="Card"], a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"], a[href*="/app/search"]')];
-          return nodes.slice(0, 30).map((node) => {
-            const anchor = node.matches && node.matches('a[href]') ? node : node.querySelector('a[href]');
-            const root = node.closest('article, li, [data-testid], [data-item-id], [data-product-id], .ItemCard, .ItemCardList__item, [class*="ItemCard"], [class*="Card"]') || node;
-            const text = (root.innerText || (anchor && anchor.innerText) || '').trim();
-            const lines = text.split('\\n').map((line) => line.trim()).filter(Boolean);
-            const priceLine = lines.find((line) => /\\d+[,.]?\\d*\\s*(€|eur)/i.test(line)) || '';
-            const titleLine = lines.find((line) => {
-              if (line === priceLine || line.length <= 2) return false;
-              if (/^\\d+\\s*\\/\\s*\\d+$/.test(line)) return false;
-              if (/destacado/i.test(line)) return false;
-              return true;
-            }) || (anchor && anchor.getAttribute('title')) || root.getAttribute('title') || root.getAttribute('aria-label') || '';
-            const img = root.querySelector('img');
-            return {
-              title: titleLine,
-              price: priceLine,
-              url: anchor ? anchor.href : (root.getAttribute('data-url') || root.getAttribute('href') || ''),
-              image_url: img ? (img.currentSrc || img.src || '') : '',
-              location: '',
-              source_query: sourceQuery
-            };
-          }).filter((item) => item.title && item.price && item.url).slice(0, limit);
-        }
-        """,
-        {"sourceQuery": source_query, "limit": WALLAPOP_VISIBLE_CARD_SCAN_LIMIT},
-    )
-
-
-def _strip_html(text: str) -> str:
-    text = re.sub(r"<[^>]+>", " ", text or "")
-    return " ".join(unescape(text).split())
-
-
-def _extract_items_from_html(html_text: str, source_query: str) -> list[dict]:
     items = []
-    seen_urls = set()
-    anchor_pattern = re.compile(
-        r"<a\b(?=[^>]*href=[\"'](?P<href>[^\"']*(?:/item/|/app/item/)[^\"']*)[\"'])[^>]*>(?P<body>.*?)</a>",
-        flags=re.I | re.S,
-    )
-    price_pattern = re.compile(r"\d+(?:[,.]\d{1,2})?\s*(?:€|eur)", flags=re.I)
-    for match in anchor_pattern.finditer(html_text or ""):
-        url = normalize_wallapop_url(unescape(match.group("href")))
-        if not url or url in seen_urls:
+    anchors = page.query_selector_all('a[href*="/item/"]')
+    for anchor in anchors[:30]:
+        try:
+            item = _extract_wallapop_item_from_anchor(anchor, source_query)
+        except Exception:
+            item = None
+        if not item:
             continue
-        seen_urls.add(url)
-        text = _strip_html(match.group("body"))
-        price_match = price_pattern.search(text)
-        price = price_match.group(0) if price_match else ""
-        if not price:
-            continue
-        title = text
-        if price:
-            title = " ".join(text.replace(price, " ").split())
-        title = title[:140].strip()
-        if not title:
-            title = urlsplit(url).path.rsplit("/", 1)[-1].replace("-", " ")[:140].strip()
-        items.append(
-            {
-                "title": title,
-                "price": price,
-                "url": url,
-                "image_url": "",
-                "location": "",
-                "source_query": source_query,
-            }
-        )
+        items.append(item)
         if len(items) >= WALLAPOP_VISIBLE_CARD_SCAN_LIMIT:
             break
     return items
 
 
-def _extract_items_from_page_html(page, query: str) -> list[dict]:
+def _wallapop_required_title(title: str) -> bool:
+    normalized = normalize_text(title or "")
+    return any(term in normalized for term in ("pokemon", "carta", "cartas", "tcg", "booster", "etb"))
+
+
+def _visible_text_from_element(element) -> str:
     try:
-        return _extract_items_from_html(page.content(), query)
-    except Exception as exc:
-        print(f"[WALLAPOP_HTML_FALLBACK_SKIPPED] level=warning query={query} error={_brief_error(exc)}", flush=True)
-        return []
+        return (element.inner_text() or "").strip()
+    except Exception:
+        return ""
+
+
+def _wallapop_card_root(anchor):
+    try:
+        return anchor.query_selector(
+            "xpath=ancestor::*[self::article or self::li or @data-testid or @data-item-id or @data-product-id or contains(@class, 'Card')][1]"
+        ) or anchor
+    except Exception:
+        return anchor
+
+
+def _wallapop_title_from_lines(lines: list[str], price: str) -> str:
+    for line in lines:
+        cleaned = " ".join(line.split()).strip()
+        if not cleaned or cleaned == price or len(cleaned) <= 2:
+            continue
+        lowered = normalize_text(cleaned)
+        if any(marker in lowered for marker in ("envio disponivel", "perfil top", "reservado", "destacado")):
+            continue
+        if _wallapop_required_title(cleaned):
+            return cleaned
+    for line in lines:
+        cleaned = " ".join(line.split()).strip()
+        if cleaned and cleaned != price and len(cleaned) > 2:
+            return cleaned
+    return ""
+
+
+def _extract_wallapop_item_from_anchor(anchor, source_query: str) -> dict | None:
+    href = anchor.get_attribute("href") or ""
+    url = normalize_wallapop_url(href)
+    if not url:
+        return None
+    root = _wallapop_card_root(anchor)
+    text = _visible_text_from_element(root) or _visible_text_from_element(anchor)
+    if not text:
+        return None
+    price = _wallapop_price_from_text(text)
+    if not price:
+        return None
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) <= 1:
+        lines = [part.strip() for part in re.split(r"\s{2,}", text) if part.strip()]
+    title = _wallapop_title_from_lines(lines, price)
+    if not title or not _wallapop_required_title(title):
+        return None
+    image_url = ""
+    try:
+        image = root.query_selector("img") or anchor.query_selector("img")
+        if image:
+            image_url = (image.get_attribute("currentSrc") or image.get_attribute("src") or "").strip()
+    except Exception:
+        image_url = ""
+    print(f"[WALLAPOP_DOM_EXTRACT] title={title[:90]} price={price}", flush=True)
+    return {
+        "title": title,
+        "price": price,
+        "url": url,
+        "image_url": image_url,
+        "location": "",
+        "source_query": source_query,
+        "description": text[:1200],
+    }
 
 
 def _texto_card_wallapop_link(element) -> str:
     try:
-        return element.evaluate(
-            """element => {
-                const card = element.closest('article, li, [data-testid], [data-item-id], [data-product-id], div');
-                return card ? card.innerText : element.innerText;
-            }"""
-        ).lower()
+        return _visible_text_from_element(_wallapop_card_root(element)).lower()
     except Exception:
         return ""
 
@@ -398,12 +395,12 @@ def _obter_wallapop_links(
     max_items: int,
     stats: dict[str, int],
     delay_ms: int,
-) -> list[str]:
-    links = []
+) -> list[dict]:
+    candidates = []
     seen_links = set()
     seen_ids = set(seen_ids or set())
     for query in queries:
-        if len(links) >= max_items:
+        if len(candidates) >= max_items:
             break
         search_url = WALLAPOP_BASE_URL.format(query=quote_plus(query))
         print(f"[WALLAPOP_CATEGORY_URL] url={search_url}", flush=True)
@@ -411,16 +408,36 @@ def _obter_wallapop_links(
             page.goto(search_url, timeout=WALLAPOP_GOTO_TIMEOUT_MS, wait_until="domcontentloaded")
             page.wait_for_timeout(delay_ms)
             results_ready = _wait_for_wallapop_results(page, query)
-            elements = page.query_selector_all('a[href*="/item/"], a[href*="/app/item/"], a[href*="/product/"]') if results_ready else []
-            print(f"[WALLAPOP_CANDIDATES] count={len(elements)} query={query}", flush=True)
-            if not elements:
+            dom_items = _extract_items_from_page(page, query) if results_ready else []
+            print(f"[WALLAPOP_CANDIDATES] count={len(dom_items)} query={query}", flush=True)
+            for item in dom_items:
+                item_id = _wallapop_link_id(item["url"])
+                print(
+                    f"[WALLAPOP_CANDIDATE] title={item['title'][:90]} price={item['price']} url={item['url']}",
+                    flush=True,
+                )
+                if item_id in seen_ids:
+                    stats["duplicates"] += 1
+                    stats["rejected"] += 1
+                    print(f"[WALLAPOP_DUPLICATE] external_id={item_id} title={item['title'][:90]}", flush=True)
+                    print(f"[WALLAPOP_REJECTED] reason=duplicate title={item['title'][:90]}", flush=True)
+                    continue
+                if item["url"] not in seen_links:
+                    seen_links.add(item["url"])
+                    item["external_id"] = item_id
+                    candidates.append(item)
+                else:
+                    stats["duplicates"] += 1
+                    stats["rejected"] += 1
+                if len(candidates) >= max_items:
+                    break
+            if not dom_items:
                 fallback_urls = _extract_wallapop_link_urls_from_page_html(page, query)
                 if fallback_urls:
                     print(f"[WALLAPOP_HTML_FALLBACK] query={query} links={len(fallback_urls)}", flush=True)
                     print(f"[WALLAPOP_CANDIDATES] count={len(fallback_urls)} query={query} source=html", flush=True)
                 for url in fallback_urls:
                     item_id = _wallapop_link_id(url)
-                    print(f"[WALLAPOP_CANDIDATE] title=html_fallback price= url={url}", flush=True)
                     if item_id in seen_ids:
                         stats["duplicates"] += 1
                         stats["rejected"] += 1
@@ -429,42 +446,11 @@ def _obter_wallapop_links(
                         continue
                     if url not in seen_links:
                         seen_links.add(url)
-                        links.append(url)
-                    if len(links) >= max_items:
+                        candidates.append({"url": url, "external_id": item_id})
+                    if len(candidates) >= max_items:
                         break
                 if not results_ready and not fallback_urls:
                     stats["timeouts"] += 1
-            for element in elements[:WALLAPOP_SEARCH_LINK_SCAN_LIMIT]:
-                try:
-                    href = element.get_attribute("href")
-                    if not href:
-                        stats["rejected"] += 1
-                        continue
-                    href = normalize_wallapop_url(href)
-                    if not href:
-                        stats["rejected"] += 1
-                        continue
-                    item_id = _wallapop_link_id(href)
-                    card_text = _texto_card_wallapop_link(element)[:90]
-                    price = _wallapop_price_from_text(card_text)
-                    print(f"[WALLAPOP_CANDIDATE] title={card_text} price={price} url={href}", flush=True)
-                    if item_id in seen_ids:
-                        stats["duplicates"] += 1
-                        stats["rejected"] += 1
-                        print(f"[WALLAPOP_DUPLICATE] external_id={item_id} title={card_text}", flush=True)
-                        print(f"[WALLAPOP_REJECTED] reason=duplicate title={card_text}", flush=True)
-                        continue
-                    if href not in seen_links:
-                        seen_links.add(href)
-                        links.append(href)
-                    else:
-                        stats["duplicates"] += 1
-                        stats["rejected"] += 1
-                    if len(links) >= max_items:
-                        break
-                except Exception as exc:
-                    stats["rejected"] += 1
-                    print(f"[WALLAPOP_QUERY_SKIPPED] level=warning query={query} error={_brief_error(exc)}", flush=True)
             _clear_wallapop_page(page)
         except Exception as exc:
             brief = _brief_error(exc)
@@ -477,7 +463,7 @@ def _obter_wallapop_links(
             _clear_wallapop_page(page)
             continue
     _clear_wallapop_page(page)
-    return links
+    return candidates
 
 
 def _get_meta_content(page, selector: str) -> str:
@@ -495,7 +481,7 @@ def _wallapop_title_from_page(page) -> str:
         try:
             element = page.query_selector(selector)
             if element:
-                text = (element.inner_text() or "").strip()
+                text = _visible_text_from_element(element)
                 if text:
                     return text
         except Exception:
@@ -711,7 +697,7 @@ def fetch_wallapop_listings(
             page_lista = context.new_page()
             page_detalhe = context.new_page()
             try:
-                links = _obter_wallapop_links(
+                candidates = _obter_wallapop_links(
                     page_lista,
                     selected_queries,
                     seen_ids=set(seen_ids or set()),
@@ -720,10 +706,13 @@ def fetch_wallapop_listings(
                     delay_ms=search_delay_ms,
                 )
                 current_seen_ids = set(seen_ids or set())
-                for link in links:
+                for candidate in candidates:
                     if len(accepted) >= max_items:
                         break
-                    item = _extrair_wallapop(page_detalhe, link)
+                    if candidate.get("title") and candidate.get("price"):
+                        item = candidate
+                    else:
+                        item = _extrair_wallapop(page_detalhe, candidate["url"])
                     if not item:
                         stats["rejected"] += 1
                         continue

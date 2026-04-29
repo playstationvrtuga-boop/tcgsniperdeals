@@ -5,7 +5,6 @@ from contextlib import redirect_stdout
 from services.wallapop_scraper import (
     WALLAPOP_BASE_URL,
     WALLAPOP_QUERIES,
-    _extract_items_from_html,
     _extract_wallapop_link_urls_from_html,
     _extract_items_from_page,
     _read_wallapop_body_text,
@@ -100,35 +99,37 @@ class WallapopScraperTests(unittest.TestCase):
         self.assertIn("[WALLAPOP_CANDIDATE]", output.getvalue())
         self.assertIn("[WALLAPOP_DUPLICATE]", output.getvalue())
 
-    def test_extract_items_uses_diverse_wallapop_selectors_with_five_item_limit(self):
+    def test_extract_items_uses_dom_item_links_with_scan_limit(self):
+        class Anchor:
+            def __init__(self, idx):
+                self.idx = idx
+
+            def get_attribute(self, name):
+                if name == "href":
+                    return f"https://pt.wallapop.com/item/pokemon-card-{self.idx}"
+                if name == "src":
+                    return f"https://img.example/{self.idx}.jpg"
+                return ""
+
+            def query_selector(self, _selector):
+                return self
+
+            def inner_text(self):
+                return f"{10 + self.idx} €\nPokemon TCG card {self.idx}/100\nEnvio disponível"
+
         class Page:
-            def evaluate(self, script, payload):
-                self.script = script
-                self.payload = payload
-                return []
+            def query_selector_all(self, selector):
+                self.selector = selector
+                return [Anchor(idx) for idx in range(14)]
 
         page = Page()
 
-        self.assertEqual(_extract_items_from_page(page, "pokemon tcg"), [])
-        self.assertEqual(page.payload["limit"], 5)
-        self.assertIn('/app/search', page.script)
-        self.assertIn('data-product-id', page.script)
+        items = _extract_items_from_page(page, "pokemon tcg")
 
-    def test_html_fallback_extracts_item_urls_with_prices(self):
-        html = """
-        <html><body>
-          <a href="/item/pokemon-charizard-123">Pokemon TCG Charizard 125/197 20 €</a>
-          <a href="https://es.wallapop.com/app/item/pokemon-booster-456">Pokemon booster sealed 6 eur</a>
-          <a href="/item/no-price">Pokemon card without price</a>
-        </body></html>
-        """
-
-        items = _extract_items_from_html(html, "pokemon tcg")
-
-        self.assertEqual(len(items), 2)
-        self.assertEqual(items[0]["url"], "https://es.wallapop.com/item/pokemon-charizard-123")
-        self.assertEqual(items[0]["price"], "20 €")
-        self.assertIn("Charizard", items[0]["title"])
+        self.assertEqual(len(items), 12)
+        self.assertEqual(items[0]["price"], "10 €")
+        self.assertEqual(items[0]["title"], "Pokemon TCG card 0/100")
+        self.assertEqual(page.selector, 'a[href*="/item/"]')
 
     def test_html_link_fallback_extracts_item_urls_without_card_text(self):
         html = """
