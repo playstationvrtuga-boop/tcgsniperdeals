@@ -728,8 +728,10 @@ class EbayApiClient:
         except requests.RequestException as error:
             raise EbaySoldError(f"Official eBay sold request failed: {error}") from error
 
-        if response.status_code in {403, 429}:
-            raise EbaySoldRateLimitError(f"Official eBay sold lookup refused with HTTP {response.status_code}.")
+        if response.status_code == 429:
+            raise EbaySoldRateLimitError("RATE_LIMIT: Official eBay sold lookup refused with HTTP 429.")
+        if response.status_code == 403:
+            raise EbaySoldError("PERMISSION_DENIED: Official eBay sold lookup failed with HTTP 403.")
         if response.status_code >= 400:
             raise EbaySoldError(f"Official eBay sold lookup failed with HTTP {response.status_code}.")
 

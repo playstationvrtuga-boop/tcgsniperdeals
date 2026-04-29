@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+import time
 import unittest
 
 import services.deal_detector as deal_detector
@@ -11,10 +12,12 @@ class BuyNowReferenceTests(unittest.TestCase):
         price_cache.clear()
         self.original_recent = deal_detector.fetch_recent_comparables
         self.original_buy_now = deal_detector.fetch_active_buy_now_comparables
+        self.original_pause_until = deal_detector._EBAY_PAUSED_UNTIL
 
     def tearDown(self):
         deal_detector.fetch_recent_comparables = self.original_recent
         deal_detector.fetch_active_buy_now_comparables = self.original_buy_now
+        deal_detector._EBAY_PAUSED_UNTIL = self.original_pause_until
         price_cache.clear()
 
     def listing(self, title="Charizard PFL 125/094", price="70,00 EUR"):
@@ -137,6 +140,37 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.assertIn("DEAL_REJECTED_NO_REFERENCE", result.reason)
         self.assertIn("SOLD_BLOCKED", result.reason)
         self.assertIn("SEARCH_FAILED", result.reason)
+
+    def test_pause_active_defers_listing_without_query_fallbacks(self):
+        calls = []
+
+        def should_not_query(*_args, **_kwargs):
+            calls.append("called")
+            return []
+
+        deal_detector.fetch_recent_comparables = should_not_query
+        deal_detector.fetch_active_buy_now_comparables = should_not_query
+        deal_detector._EBAY_PAUSED_UNTIL = time.time() + 300
+
+        result = deal_detector.evaluate_listing(self.listing())
+
+        self.assertEqual(result.status, "retry_later")
+        self.assertEqual(result.score, 0)
+        self.assertFalse(result.is_deal)
+        self.assertEqual(result.reason.split("; ")[0], "diagnostic_reason=EBAY_PAUSE_ACTIVE")
+        self.assertEqual(result.last_2_sales, [])
+        self.assertEqual(calls, [])
+
+    def test_global_pause_only_starts_for_explicit_rate_limit(self):
+        deal_detector._EBAY_PAUSED_UNTIL = 0.0
+
+        ignored = deal_detector._pause_ebay_calls(EbaySoldRateLimitError("Official eBay sold lookup refused with HTTP 403."))
+        self.assertFalse(ignored)
+        self.assertEqual(deal_detector.ebay_pause_remaining_seconds(), 0)
+
+        triggered = deal_detector._pause_ebay_calls(EbaySoldRateLimitError("RATE_LIMIT: official lookup refused with HTTP 429."))
+        self.assertTrue(triggered)
+        self.assertGreater(deal_detector.ebay_pause_remaining_seconds(), 0)
 
 
 if __name__ == "__main__":

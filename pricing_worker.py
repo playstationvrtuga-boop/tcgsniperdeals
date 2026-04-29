@@ -36,7 +36,12 @@ app = create_app()
 def _pending_listing_query():
     retry_before = utcnow() - timedelta(minutes=PRICING_RETRY_AFTER_MINUTES)
     retryable_old_results = (
-        Listing.pricing_status.in_(["needs_review", "insufficient_comparables"])
+        Listing.pricing_status.in_([
+            "needs_review",
+            "insufficient_comparables",
+            "retry_later",
+            "pricing_deferred",
+        ])
         & (
             (Listing.pricing_checked_at.is_(None))
             | (Listing.pricing_checked_at <= retry_before)
@@ -83,6 +88,19 @@ def fetch_next_pending_listing() -> Listing | None:
 
 def _mark_processed(listing: Listing, result) -> None:
     checked_at = utcnow()
+    if result.status in {"retry_later", "pricing_deferred"}:
+        listing.confidence_score = result.confidence_score
+        listing.listing_type = result.listing_type or listing.listing_type
+        listing.pricing_score = result.score
+        listing.score_level = _score_level(result.score)
+        listing.is_deal = False
+        listing.pricing_status = result.status
+        listing.pricing_error = result.reason
+        listing.pricing_reason = _pricing_reason(result)
+        listing.pricing_checked_at = checked_at
+        listing.pricing_analyzed_at = checked_at
+        return
+
     listing.reference_price = result.estimated_fair_value or result.reference_price
     listing.market_buy_now_min = result.market_buy_now_min
     listing.market_buy_now_avg = result.market_buy_now_avg

@@ -140,6 +140,10 @@ class DealResult:
     confidence_score: int = 0
 
 
+class EbayPricingDeferred(EbaySoldError):
+    """Temporary eBay pause state; retry the listing later without final pricing."""
+
+
 @dataclass
 class ParsedListingIdentity:
     confidence: str
@@ -630,19 +634,69 @@ def _ebay_pause_remaining() -> int:
     return max(0, int(_EBAY_PAUSED_UNTIL - time.time()))
 
 
-def _ebay_calls_paused(source: str, query: str) -> bool:
+def ebay_pause_remaining_seconds() -> int:
+    return _ebay_pause_remaining()
+
+
+def _extract_http_status(error: Exception) -> int | None:
+    match = re.search(r"\b(?:HTTP\s*)?(\d{3})\b", str(error), flags=re.IGNORECASE)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def _rate_limit_trigger_details(error: Exception) -> tuple[bool, str, int | None]:
+    status_code = _extract_http_status(error)
+    text = str(error).lower()
+    has_explicit_rate_limit = any(
+        marker in text
+        for marker in (
+            "rate_limit",
+            "rate limit",
+            "rate-limited",
+            "too many requests",
+            "quota exceeded",
+            "throttle",
+        )
+    )
+    if status_code == 429:
+        return True, "http_429", status_code
+    if has_explicit_rate_limit:
+        return True, "explicit_rate_limit", status_code
+    return False, "not_rate_limit", status_code
+
+
+def _raise_if_ebay_paused(source: str, query: str) -> None:
     remaining = _ebay_pause_remaining()
     if remaining <= 0:
-        return False
+        return
+    print(f"[EBAY_PAUSE_ACTIVE] remaining={remaining}s source={source} query=\"{query}\"", flush=True)
     print(f"[EBAY_CALL_SKIPPED] source={source} query=\"{query}\" pause_remaining={remaining}s", flush=True)
-    return True
+    raise EbayPricingDeferred(f"EBAY_PAUSE_ACTIVE remaining={remaining}s")
 
 
-def _pause_ebay_calls(error: Exception) -> None:
+def _pause_ebay_calls(error: Exception) -> bool:
     global _EBAY_PAUSED_UNTIL
+    should_pause, reason, status_code = _rate_limit_trigger_details(error)
+    if not should_pause:
+        print(
+            f"[EBAY_RATE_LIMIT_IGNORED] reason={reason} status_code={status_code or 'n/a'} "
+            f"error=\"{str(error)[:160]}\"",
+            flush=True,
+        )
+        return False
     pause_seconds = EBAY_RATE_LIMIT_PAUSE_SECONDS + random.randint(0, 60)
     _EBAY_PAUSED_UNTIL = max(_EBAY_PAUSED_UNTIL, time.time() + pause_seconds)
-    print(f"[EBAY_RATE_LIMIT] pause={pause_seconds}s reason=\"{str(error)[:160]}\"", flush=True)
+    print(
+        f"[EBAY_RATE_LIMIT_TRIGGER] reason={reason} status_code={status_code or 'n/a'} "
+        f"error=\"{str(error)[:160]}\"",
+        flush=True,
+    )
+    print(f"[EBAY_PAUSE_SET] seconds={pause_seconds}", flush=True)
+    return True
 
 
 def _delay_before_ebay_call() -> None:
@@ -657,8 +711,7 @@ def fetch_recent_comparables(product_name: str, listing_kind: str | None) -> lis
         print(f"[EBAY_CACHE_HIT] source=sold query=\"{query}\"", flush=True)
         return _deserialize_price_references(cached, product_name, 3)
     print(f"[EBAY_CACHE_MISS] source=sold query=\"{query}\"", flush=True)
-    if _ebay_calls_paused("sold", query):
-        return []
+    _raise_if_ebay_paused("sold", query)
 
     sales = []
     try:
@@ -669,9 +722,9 @@ def fetch_recent_comparables(product_name: str, listing_kind: str | None) -> lis
             _delay_before_ebay_call()
             sales = get_recent_sales(product_name, max_results=3, listing_kind=listing_kind)
     except EbaySoldRateLimitError as error:
-        _pause_ebay_calls(error)
-        price_cache.set(cache_key, [])
-        return []
+        if _pause_ebay_calls(error):
+            raise EbayPricingDeferred(f"EBAY_RATE_LIMIT_TRIGGERED: {error}") from error
+        raise
     price_cache.set(cache_key, _serialize_price_references(sales))
     return sales
 
@@ -730,8 +783,7 @@ def fetch_active_buy_now_comparables(product_name: str, listing_kind: str | None
         print(f"[EBAY_CACHE_HIT] source=buy_now query=\"{query}\"", flush=True)
         return _deserialize_price_references(cached, product_name, PRICING_BUY_NOW_MAX_RESULTS)
     print(f"[EBAY_CACHE_MISS] source=buy_now query=\"{query}\"", flush=True)
-    if _ebay_calls_paused("buy_now", query):
-        return []
+    _raise_if_ebay_paused("buy_now", query)
 
     listings = []
     try:
@@ -750,9 +802,9 @@ def fetch_active_buy_now_comparables(product_name: str, listing_kind: str | None
                 listing_kind=listing_kind,
             )
     except EbaySoldRateLimitError as error:
-        _pause_ebay_calls(error)
-        price_cache.set(cache_key, [])
-        return []
+        if _pause_ebay_calls(error):
+            raise EbayPricingDeferred(f"EBAY_RATE_LIMIT_TRIGGERED: {error}") from error
+        raise
     price_cache.set(cache_key, _serialize_price_references(listings))
     return listings
 
@@ -946,6 +998,35 @@ def _prepare_pricing_queries(raw_queries: list[str]) -> list[str]:
     return cleaned_queries
 
 
+def _pricing_deferred_result(
+    *,
+    listing_id,
+    listing_price: float | None,
+    listing_kind: str | None,
+    listing_type: str | None,
+    identity: ParsedListingIdentity,
+    pricing_query: str,
+    pricing_queries: list[str],
+    reason: str,
+) -> DealResult:
+    print(f"[PRICING_DEFERRED] listing_id={listing_id} reason=ebay_pause_active", flush=True)
+    return DealResult(
+        status="retry_later",
+        score=0,
+        is_deal=False,
+        listing_price=listing_price,
+        reason=f"diagnostic_reason=EBAY_PAUSE_ACTIVE; {reason}",
+        price_source="ebay_sold+buy_now",
+        listing_kind=listing_kind,
+        listing_type=listing_type,
+        confidence_score=0,
+        parser_confidence=identity.confidence,
+        parser_query=pricing_query,
+        parser_queries=pricing_queries,
+        parser_name=identity.extracted_name,
+    )
+
+
 def _fetch_best_recent_for_queries(
     queries: list[str],
     listing_kind: str | None,
@@ -959,6 +1040,9 @@ def _fetch_best_recent_for_queries(
         _log_pricing_attempt("sold", attempt, query)
         try:
             listings = fetch_recent_comparables(query, listing_kind=listing_kind)
+        except EbayPricingDeferred:
+            _log_pricing_results(0, success=False)
+            raise
         except EbaySoldError as error:
             last_error = error
             print(f"[pricing] source=sold query_error={error}", flush=True)
@@ -1002,6 +1086,9 @@ def _fetch_best_buy_now_for_queries(
         _log_pricing_attempt("buy_now", attempt, query)
         try:
             listings = fetch_active_buy_now_comparables(query, listing_kind=listing_kind)
+        except EbayPricingDeferred:
+            _log_pricing_results(0, success=False)
+            raise
         except EbaySoldError as error:
             last_error = error
             print(f"[pricing] source=buy_now query_error={error}", flush=True)
@@ -1073,6 +1160,20 @@ def evaluate_listing(listing) -> DealResult:
             parser_name=identity.extracted_name,
         )
 
+    pause_remaining = _ebay_pause_remaining()
+    if pause_remaining > 0:
+        print(f"[EBAY_PAUSE_ACTIVE] remaining={pause_remaining}s listing_id={listing_id}", flush=True)
+        return _pricing_deferred_result(
+            listing_id=listing_id,
+            listing_price=listing_price,
+            listing_kind=listing_kind,
+            listing_type=listing_type,
+            identity=identity,
+            pricing_query=pricing_query,
+            pricing_queries=pricing_queries,
+            reason=f"retry_later; pause_remaining={pause_remaining}s",
+        )
+
     pricing_queries = _prepare_pricing_queries(pricing_queries)
     pricing_query = pricing_queries[0] if pricing_queries else pricing_query
     signals = getattr(identity, "signals", None)
@@ -1088,6 +1189,17 @@ def evaluate_listing(listing) -> DealResult:
             original_title=title,
             listing_type=listing_type,
         )
+    except EbayPricingDeferred as error:
+        return _pricing_deferred_result(
+            listing_id=listing_id,
+            listing_price=listing_price,
+            listing_kind=listing_kind,
+            listing_type=listing_type,
+            identity=identity,
+            pricing_query=pricing_query,
+            pricing_queries=pricing_queries,
+            reason=str(error),
+        )
     except EbaySoldError as error:
         recent_sales_error = str(error)
         recent_sales_exception = error
@@ -1101,6 +1213,17 @@ def evaluate_listing(listing) -> DealResult:
             listing_kind=listing_kind,
             original_title=title,
             listing_type=listing_type,
+        )
+    except EbayPricingDeferred as error:
+        return _pricing_deferred_result(
+            listing_id=listing_id,
+            listing_price=listing_price,
+            listing_kind=listing_kind,
+            listing_type=listing_type,
+            identity=identity,
+            pricing_query=pricing_query,
+            pricing_queries=pricing_queries,
+            reason=str(error),
         )
     except EbaySoldError as error:
         buy_now_error = str(error)
@@ -1444,8 +1567,10 @@ def evaluate_listing(listing) -> DealResult:
 
 __all__ = [
     "DealResult",
+    "EbayPricingDeferred",
     "EbaySoldError",
     "EbaySoldRateLimitError",
+    "ebay_pause_remaining_seconds",
     "detect_listing_kind",
     "detect_listing_market_type",
     "evaluate_listing",
