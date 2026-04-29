@@ -45,6 +45,32 @@
   {% else %}
     {% set market_basis_label = 'Weak estimate' %}
   {% endif %}
+  {% set comparable_count = listing.comparable_results_count or 0 %}
+  {% set has_market_data = comparable_count > 0 or listing.last_2_sales or listing.market_buy_now_median is not none or listing.estimated_fair_value is not none or listing.reference_price is not none %}
+  {% set show_profit = has_market_data and profit_value is not none and profit_value > 0 %}
+  {% set show_discount = has_market_data and listing.discount_percent is not none %}
+  {% set has_language = listing.card_language_display != "Unknown" %}
+  {% set has_set = listing.set_display != "Unknown" %}
+  {% set has_market_type = market_type_label != "UNKNOWN" %}
+  {% set show_fair_value = has_market_data and (listing.estimated_fair_value is not none or listing.reference_price is not none) %}
+  {% set show_market_basis = has_market_data and listing.pricing_basis and market_basis_label != "Weak estimate" %}
+  {% set show_comparables = has_market_data and comparable_count > 0 and not listing.last_2_sales %}
+  {% set show_signal_grid = has_market_type or listing.pokemon_name_display or has_language or has_set or listing.localized_pokemon_display or show_fair_value or show_market_basis or listing.last_2_sales or show_comparables or listing.cardmarket_trending_score or (mode == "missed" and listing.gone_timestamp) %}
+  {% if listing.confidence_score is not none %}
+    {% if listing.confidence_score >= 70 %}
+      {% set confidence_label = "🟢 High confidence" %}
+    {% elif listing.confidence_score >= 45 %}
+      {% set confidence_label = "🟡 Medium confidence" %}
+    {% else %}
+      {% set confidence_label = "🔴 Low confidence" %}
+    {% endif %}
+  {% elif (listing.score_level or "")|upper in ["HIGH", "INSANE"] %}
+    {% set confidence_label = "🟢 High confidence" %}
+  {% elif (listing.score_level or "")|upper == "MEDIUM" %}
+    {% set confidence_label = "🟡 Medium confidence" %}
+  {% else %}
+    {% set confidence_label = "" %}
+  {% endif %}
   <div class="listing-image-wrap">
     {% if listing.image_url %}
       <img class="listing-image" src="{{ listing.image_url }}" alt="{{ listing.title }}" loading="lazy">
@@ -62,15 +88,22 @@
       <span class="badge badge-score badge-{{ listing.display_badge|lower|replace(' ', '-') }}">{{ listing.display_badge }}</span>
       {% endif %}
       <span class="badge deal-rating-badge deal-rating-{{ deal_tone }}">{{ deal_tone_label }}</span>
+      {% if not has_market_data %}
+      <span class="badge badge-no-market">No market data</span>
+      {% endif %}
+      {% if has_language %}
       <span class="badge badge-language">LANG: {{ listing.card_language_display }}</span>
-      <span class="badge badge-set">SET: {{ listing.set_code or "Unknown" }}</span>
+      {% endif %}
+      {% if has_set %}
+      <span class="badge badge-set">SET: {{ listing.set_code or listing.set_name }}</span>
+      {% endif %}
     </div>
 
     <div class="listing-overlay-bottom">
-      {% if listing.discount_percent is not none %}
+      {% if show_discount %}
       <span class="listing-edge-pill">-{{ "%.1f"|format(listing.discount_percent) }}%</span>
       {% endif %}
-      {% if profit_value is not none %}
+      {% if show_profit %}
       <span class="listing-profit-pill">+{{ "%.2f"|format(profit_value) }} EUR</span>
       {% endif %}
       {% if mode == "missed" and listing.gone_after_label %}
@@ -105,18 +138,29 @@
         <span>Price</span>
         <strong>{{ listing.price_display }}</strong>
       </div>
+      {% if show_profit %}
       <div class="listing-kpi listing-kpi-profit">
         <span>Profit</span>
-        <strong>{% if profit_value is not none %}+{{ "%.2f"|format(profit_value) }} EUR{% else %}Pending{% endif %}</strong>
+        <strong>+{{ "%.2f"|format(profit_value) }} EUR</strong>
       </div>
+      {% endif %}
+      {% if show_discount %}
       <div class="listing-kpi listing-kpi-edge">
         <span>Profit %</span>
-        <strong>{% if listing.discount_percent is not none %}{{ "%.1f"|format(listing.discount_percent) }}%{% else %}Pending{% endif %}</strong>
+        <strong>{{ "%.1f"|format(listing.discount_percent) }}%</strong>
       </div>
+      {% endif %}
+      {% if has_market_data and confidence_label %}
       <div class="listing-kpi listing-kpi-confidence">
         <span>Confidence</span>
-        <strong>{% if insufficient_raw %}Low{% elif listing.confidence_score is not none %}{{ listing.confidence_score }}/100{% else %}{{ listing.display_confidence }}{% endif %}</strong>
+        <strong>{{ confidence_label }}</strong>
       </div>
+      {% elif not has_market_data %}
+      <div class="listing-kpi listing-kpi-muted">
+        <span>Market</span>
+        <strong>No market data</strong>
+      </div>
+      {% endif %}
     </div>
 
     {% if listing.display_microcopy %}
@@ -131,31 +175,30 @@
     </div>
     {% endif %}
 
+    {% if show_signal_grid %}
     <div class="listing-signal-grid">
-      <div>
-        <span class="signal-label">Fair value</span>
-        <strong>{% if insufficient_raw %}Not enough RAW comparables{% elif listing.estimated_fair_value is not none %}{{ "%.2f"|format(listing.estimated_fair_value) }} EUR{% elif listing.reference_price is not none %}{{ "%.2f"|format(listing.reference_price) }} EUR{% else %}Pending{% endif %}</strong>
-      </div>
-      <div>
-        <span class="signal-label">Market basis</span>
-        <strong>{{ market_basis_label }}</strong>
-      </div>
+      {% if has_market_type %}
       <div>
         <span class="signal-label">Market Type</span>
         <strong>{{ market_type_label }}</strong>
       </div>
-      <div>
-        <span class="signal-label">Language</span>
-        <strong>{{ listing.card_language_display }}</strong>
-      </div>
-      <div>
-        <span class="signal-label">Set</span>
-        <strong>{{ listing.set_display }}</strong>
-      </div>
+      {% endif %}
       {% if listing.pokemon_name_display %}
       <div>
         <span class="signal-label">Pokemon</span>
         <strong>{{ listing.pokemon_name_display }}</strong>
+      </div>
+      {% endif %}
+      {% if has_language %}
+      <div>
+        <span class="signal-label">Language</span>
+        <strong>{{ listing.card_language_display }}</strong>
+      </div>
+      {% endif %}
+      {% if has_set %}
+      <div>
+        <span class="signal-label">Set</span>
+        <strong>{{ listing.set_display }}</strong>
       </div>
       {% endif %}
       {% if listing.localized_pokemon_display %}
@@ -164,34 +207,29 @@
         <strong>{{ listing.localized_pokemon_display }}</strong>
       </div>
       {% endif %}
+      {% if show_fair_value %}
       <div>
-        <span class="signal-label">Comparable Results</span>
-        <strong>{{ listing.comparable_results_count }}</strong>
+        <span class="signal-label">Fair value</span>
+        <strong>{% if listing.estimated_fair_value is not none %}{{ "%.2f"|format(listing.estimated_fair_value) }} EUR{% else %}{{ "%.2f"|format(listing.reference_price) }} EUR{% endif %}</strong>
       </div>
+      {% endif %}
+      {% if show_market_basis %}
       <div>
-        <span class="signal-label">Buy Now median</span>
-        <strong>{% if listing.market_buy_now_median is not none %}{{ "%.2f"|format(listing.market_buy_now_median) }} EUR{% else %}Pending{% endif %}</strong>
+        <span class="signal-label">Market basis</span>
+        <strong>{{ market_basis_label }}</strong>
       </div>
+      {% endif %}
+      {% if listing.last_2_sales %}
       <div>
         <span class="signal-label">Last 2 sales</span>
-        <strong>{% if listing.last_2_sales %}{% for price in listing.last_2_sales[:2] %}{{ "%.2f"|format(price) }}{% if not loop.last %} / {% endif %}{% endfor %} EUR{% else %}Not enough data{% endif %}</strong>
+        <strong>{% for price in listing.last_2_sales[:2] %}{{ "%.2f"|format(price) }}{% if not loop.last %} / {% endif %}{% endfor %} EUR</strong>
       </div>
+      {% elif show_comparables %}
       <div>
-        <span class="signal-label">Potential profit</span>
-        <strong>{% if profit_value is not none %}+{{ "%.2f"|format(profit_value) }} EUR{% else %}Pending{% endif %}</strong>
+        <span class="signal-label">Comparables</span>
+        <strong>{{ comparable_count }}</strong>
       </div>
-      <div>
-        <span class="signal-label">Platform</span>
-        <strong>{{ listing.platform }}</strong>
-      </div>
-      <div>
-        <span class="signal-label">Confidence</span>
-        <strong>{% if insufficient_raw %}Low{% elif listing.confidence_score is not none %}{{ listing.confidence_score }}/100{% else %}{{ listing.display_confidence }}{% endif %}</strong>
-      </div>
-      <div>
-        <span class="signal-label">Signal</span>
-        <strong>{% if mode == "missed" %}{{ listing.effective_status }}{% else %}{{ listing.display_signal }}{% endif %}</strong>
-      </div>
+      {% endif %}
       {% if listing.cardmarket_trending_score %}
       <div>
         <span class="signal-label">AI Market Intel</span>
@@ -201,16 +239,11 @@
       {% if mode == "missed" %}
       <div>
         <span class="signal-label">Gone detected</span>
-        <strong>{% if listing.gone_timestamp %}{{ listing.gone_timestamp|relative_time }}{% else %}Tracked{% endif %}</strong>
+        <strong>{{ listing.gone_timestamp|relative_time }}</strong>
       </div>
-      {% if listing.pricing_reason %}
-      <div>
-        <span class="signal-label">Reason</span>
-        <strong>{{ listing.pricing_reason }}</strong>
-      </div>
-      {% endif %}
       {% endif %}
     </div>
+    {% endif %}
 
     {% if mode == "missed" %}
     <p class="listing-urgency listing-urgency-missed">
@@ -229,7 +262,6 @@
       <button class="ghost-button favorite-toggle {% if listing.id in favorite_ids %}is-saved{% endif %}" data-listing-id="{{ listing.id }}">
         {% if listing.id in favorite_ids %}Saved{% else %}Save{% endif %}
       </button>
-      <a class="ghost-button" href="{{ url_for('main.listing_detail', listing_id=listing.id) }}">Details</a>
       {% endif %}
     </div>
   </div>

@@ -4014,6 +4014,10 @@ select { font: inherit; }
   color: #9d7cff;
 }
 
+.listing-kpi-muted strong {
+  color: #aebed0;
+}
+
 .listing-signal-grid {
   gap: 8px;
 }
@@ -4702,6 +4706,12 @@ body {
   background: rgba(0, 255, 166, 0.14);
   border-color: rgba(0, 255, 166, 0.34);
   color: #e8fff8;
+}
+
+.badge-no-market {
+  background: rgba(255, 181, 70, 0.14);
+  border-color: rgba(255, 181, 70, 0.34);
+  color: #ffe5b8;
 }
 
 .control-feature-strip {
