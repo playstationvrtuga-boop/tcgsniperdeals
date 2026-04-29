@@ -1,6 +1,7 @@
 import io
 import unittest
 from contextlib import redirect_stdout
+from unittest.mock import patch
 
 from services.wallapop_scraper import (
     WALLAPOP_BASE_URL,
@@ -13,6 +14,8 @@ from services.wallapop_scraper import (
     filter_wallapop_candidates,
     should_send_wallapop_to_telegram,
     wallapop_candidate_reason,
+    wallapop_max_items,
+    wallapop_max_queries_per_run,
 )
 from vip_app.app.api import normalize_platform
 
@@ -21,6 +24,11 @@ class WallapopScraperTests(unittest.TestCase):
     def test_uses_collectibles_search_for_primary_pokemon_query(self):
         self.assertEqual(WALLAPOP_QUERIES[:3], ["pokemon", "cartas pokemon", "pokemon tcg"])
         self.assertEqual(WALLAPOP_BASE_URL.format(query="pokemon"), "https://pt.wallapop.com/colecionismo?keywords=pokemon")
+
+    def test_memory_safe_defaults_limit_wallapop_work(self):
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(wallapop_max_items(), 1)
+            self.assertEqual(wallapop_max_queries_per_run(), 2)
 
     def test_source_wallapop_is_accepted(self):
         [item] = filter_wallapop_candidates(

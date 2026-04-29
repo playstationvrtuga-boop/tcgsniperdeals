@@ -36,6 +36,8 @@ WALLAPOP_RESULTS_TIMEOUT_MS = 9000
 WALLAPOP_AFTER_GOTO_WAIT_MS = 2000
 WALLAPOP_VISIBLE_CARD_SCAN_LIMIT = 12
 WALLAPOP_SEARCH_LINK_SCAN_LIMIT = 50
+WALLAPOP_MEMORY_LIMIT_MB = 400
+_PLAYWRIGHT_INSTALL_LOGGED = False
 
 POSITIVE_TCG_TERMS = {
     "pokemon",
@@ -105,7 +107,11 @@ def wallapop_enabled() -> bool:
 
 
 def wallapop_max_items() -> int:
-    return _safe_int(os.getenv("WALLAPOP_MAX_ITEMS_PER_RUN"), default=2, minimum=1)
+    return _safe_int(os.getenv("WALLAPOP_MAX_ITEMS_PER_RUN"), default=1, minimum=1)
+
+
+def wallapop_max_queries_per_run() -> int:
+    return _safe_int(os.getenv("WALLAPOP_MAX_QUERIES_PER_RUN"), default=2, minimum=1)
 
 
 def should_send_wallapop_to_telegram(listing: dict | None = None, send_enabled: bool | None = None) -> bool:
@@ -208,7 +214,36 @@ def normalize_wallapop_candidate(candidate: dict) -> dict:
 
 
 def _new_wallapop_stats() -> dict[str, int]:
-    return {"accepted": 0, "rejected": 0, "duplicates": 0, "timeouts": 0, "query_errors": 0}
+    return {"accepted": 0, "rejected": 0, "duplicates": 0, "timeouts": 0, "query_errors": 0, "memory_high": 0}
+
+
+def wallapop_rss_mb() -> int:
+    try:
+        import psutil
+
+        return int(psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024))
+    except Exception:
+        pass
+    try:
+        import resource
+
+        rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        if sys.platform == "darwin":
+            return int(rss / (1024 * 1024))
+        return int(rss / 1024)
+    except Exception:
+        return 0
+
+
+def _log_wallapop_memory(stage: str) -> int:
+    rss_mb = wallapop_rss_mb()
+    print(f"[WALLAPOP_MEMORY] rss_mb={rss_mb} {stage}", flush=True)
+    return rss_mb
+
+
+def wallapop_memory_over_limit(limit_mb: int = WALLAPOP_MEMORY_LIMIT_MB) -> bool:
+    rss_mb = wallapop_rss_mb()
+    return bool(rss_mb and rss_mb > limit_mb)
 
 
 def filter_wallapop_candidates(
@@ -257,7 +292,21 @@ def filter_wallapop_candidates(
 def _route_light_resources(route):
     resource_type = route.request.resource_type
     url = route.request.url.lower()
-    if resource_type in {"image", "media", "font"} or any(marker in url for marker in ("analytics", "doubleclick", "googletagmanager")):
+    blocked_markers = (
+        "analytics",
+        "doubleclick",
+        "googletagmanager",
+        "google-analytics",
+        "facebook",
+        "segment",
+        "hotjar",
+        "optimizely",
+        "adservice",
+        "adsystem",
+        "/ads",
+        "tracking",
+    )
+    if resource_type in {"image", "media", "font"} or any(marker in url for marker in blocked_markers):
         route.abort()
     else:
         route.continue_()
@@ -389,7 +438,7 @@ def _wallapop_link_id(url: str) -> str:
 
 
 def _obter_wallapop_links(
-    page,
+    context,
     queries: Iterable[str],
     seen_ids: set[str],
     max_items: int,
@@ -404,7 +453,9 @@ def _obter_wallapop_links(
             break
         search_url = WALLAPOP_BASE_URL.format(query=quote_plus(query))
         print(f"[WALLAPOP_CATEGORY_URL] url={search_url}", flush=True)
+        page = None
         try:
+            page = context.new_page()
             page.goto(search_url, timeout=WALLAPOP_GOTO_TIMEOUT_MS, wait_until="domcontentloaded")
             page.wait_for_timeout(delay_ms)
             results_ready = _wait_for_wallapop_results(page, query)
@@ -451,7 +502,6 @@ def _obter_wallapop_links(
                         break
                 if not results_ready and not fallback_urls:
                     stats["timeouts"] += 1
-            _clear_wallapop_page(page)
         except Exception as exc:
             brief = _brief_error(exc)
             if "timeout" in brief.lower():
@@ -460,9 +510,15 @@ def _obter_wallapop_links(
             else:
                 stats["query_errors"] += 1
                 print(f"[WALLAPOP_QUERY_SKIPPED] level=warning query={query} error={brief}", flush=True)
-            _clear_wallapop_page(page)
             continue
-    _clear_wallapop_page(page)
+        finally:
+            _clear_wallapop_page(page)
+            _close_wallapop_page(page, query)
+        if wallapop_memory_over_limit():
+            stats["memory_high"] = 1
+            rss_mb = _log_wallapop_memory("query_memory_limit")
+            print(f"[WALLAPOP_MEMORY_LIMIT] rss_mb={rss_mb} action=stop_queries", flush=True)
+            break
     return candidates
 
 
@@ -584,17 +640,22 @@ def _playwright_browser_missing(exc: Exception) -> bool:
 
 
 def _auto_install_playwright_browser() -> bool:
-    enabled = str(os.getenv("WALLAPOP_AUTO_INSTALL_PLAYWRIGHT", "true")).strip().lower() in {
+    global _PLAYWRIGHT_INSTALL_LOGGED
+    enabled = str(os.getenv("WALLAPOP_AUTO_INSTALL_PLAYWRIGHT", "false")).strip().lower() in {
         "1",
         "true",
         "yes",
         "on",
     }
     if not enabled:
-        print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=disabled", flush=True)
+        if not _PLAYWRIGHT_INSTALL_LOGGED:
+            print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=disabled", flush=True)
+            _PLAYWRIGHT_INSTALL_LOGGED = True
         return False
     try:
-        print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=starting command=playwright_install_chromium", flush=True)
+        if not _PLAYWRIGHT_INSTALL_LOGGED:
+            print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=starting command=playwright_install_chromium", flush=True)
+            _PLAYWRIGHT_INSTALL_LOGGED = True
         result = subprocess.run(
             [sys.executable, "-m", "playwright", "install", "chromium"],
             check=False,
@@ -625,11 +686,14 @@ def _launch_wallapop_browser(playwright, headless: bool):
             "--disable-gpu",
             "--disable-software-rasterizer",
             "--disable-extensions",
+            "--disable-default-apps",
             "--disable-background-networking",
             "--disable-background-timer-throttling",
             "--disable-renderer-backgrounding",
             "--disable-sync",
             "--disable-component-update",
+            "--disable-features=Translate,BackForwardCache,AcceptCHFrame,MediaRouter,OptimizationHints",
+            "--blink-settings=imagesEnabled=false",
             "--aggressive-cache-discard",
             "--disk-cache-size=1",
             "--media-cache-size=1",
@@ -660,9 +724,15 @@ def fetch_wallapop_listings(
     if delay_max_seconds < delay_min_seconds:
         delay_max_seconds = delay_min_seconds
     search_delay_ms = max(WALLAPOP_AFTER_GOTO_WAIT_MS, int(delay_min_seconds * 1000))
-    selected_queries = list(queries or WALLAPOP_QUERIES)
+    selected_queries = list(queries or WALLAPOP_QUERIES)[:wallapop_max_queries_per_run()]
     print(f"[WALLAPOP_RUN_START] max_items={max_items} queries={len(selected_queries)}", flush=True)
     stats = _new_wallapop_stats()
+    before_rss = _log_wallapop_memory("before_run")
+    if before_rss and before_rss > WALLAPOP_MEMORY_LIMIT_MB:
+        stats["memory_high"] = 1
+        print(f"[WALLAPOP_MEMORY_LIMIT] rss_mb={before_rss} action=skip_run", flush=True)
+        _log_wallapop_memory("after_cleanup")
+        return ([], stats) if return_stats else []
 
     try:
         from playwright.sync_api import sync_playwright
@@ -673,6 +743,8 @@ def fetch_wallapop_listings(
     accepted: list[dict] = []
     try:
         with sync_playwright() as p:
+            browser = None
+            context = None
             try:
                 browser = _launch_wallapop_browser(p, headless)
             except Exception as launch_exc:
@@ -680,28 +752,26 @@ def fetch_wallapop_listings(
                     browser = _launch_wallapop_browser(p, headless)
                 else:
                     raise
-            context = browser.new_context(
-                viewport={"width": 1280, "height": 900},
-                locale="en-US",
-                color_scheme="light",
-                reduced_motion="reduce",
-                service_workers="block",
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
-                ),
-            )
-            context.set_default_timeout(WALLAPOP_RESULTS_TIMEOUT_MS)
-            context.set_default_navigation_timeout(WALLAPOP_GOTO_TIMEOUT_MS)
-            context.route("**/*", _route_light_resources)
-            page_lista = context.new_page()
-            page_detalhe = context.new_page()
             try:
+                context = browser.new_context(
+                    viewport={"width": 1280, "height": 900},
+                    locale="en-US",
+                    color_scheme="light",
+                    reduced_motion="reduce",
+                    service_workers="block",
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
+                    ),
+                )
+                context.set_default_timeout(WALLAPOP_RESULTS_TIMEOUT_MS)
+                context.set_default_navigation_timeout(WALLAPOP_GOTO_TIMEOUT_MS)
+                context.route("**/*", _route_light_resources)
                 candidates = _obter_wallapop_links(
-                    page_lista,
+                    context,
                     selected_queries,
                     seen_ids=set(seen_ids or set()),
-                    max_items=max(max_items, WALLAPOP_VISIBLE_CARD_SCAN_LIMIT),
+                    max_items=max_items,
                     stats=stats,
                     delay_ms=search_delay_ms,
                 )
@@ -709,10 +779,20 @@ def fetch_wallapop_listings(
                 for candidate in candidates:
                     if len(accepted) >= max_items:
                         break
+                    if wallapop_memory_over_limit():
+                        stats["memory_high"] = 1
+                        rss_mb = _log_wallapop_memory("detail_memory_limit")
+                        print(f"[WALLAPOP_MEMORY_LIMIT] rss_mb={rss_mb} action=stop_details", flush=True)
+                        break
                     if candidate.get("title") and candidate.get("price"):
                         item = candidate
                     else:
-                        item = _extrair_wallapop(page_detalhe, candidate["url"])
+                        page_detalhe = None
+                        try:
+                            page_detalhe = context.new_page()
+                            item = _extrair_wallapop(page_detalhe, candidate["url"])
+                        finally:
+                            _close_wallapop_page(page_detalhe, "detail")
                     if not item:
                         stats["rejected"] += 1
                         continue
@@ -728,14 +808,25 @@ def fetch_wallapop_listings(
                     if len(accepted) >= max_items:
                         break
             finally:
-                _close_wallapop_page(page_lista, "list")
-                _close_wallapop_page(page_detalhe, "detail")
-                context.close()
-                browser.close()
+                if context is not None:
+                    try:
+                        context.close()
+                    except Exception as exc:
+                        print(f"[WALLAPOP_CONTEXT_CLOSE_SKIPPED] level=warning error={_brief_error(exc)}", flush=True)
+                if browser is not None:
+                    try:
+                        browser.close()
+                    except Exception as exc:
+                        print(f"[WALLAPOP_BROWSER_CLOSE_SKIPPED] level=warning error={_brief_error(exc)}", flush=True)
     except Exception as exc:
         print(f"[WALLAPOP_ERROR] reason=browser_failed error={_brief_error(exc)}", flush=True)
+        _log_wallapop_memory("after_cleanup")
         return (accepted[:max_items], stats) if return_stats else accepted[:max_items]
 
+    after_rss = _log_wallapop_memory("after_cleanup")
+    if after_rss and after_rss > WALLAPOP_MEMORY_LIMIT_MB:
+        stats["memory_high"] = 1
+        print(f"[WALLAPOP_MEMORY_LIMIT] rss_mb={after_rss} action=cycle_done", flush=True)
     print(
         f"[WALLAPOP_RUN_DONE accepted={len(accepted)} rejected={stats['rejected']} "
         f"duplicates={stats['duplicates']} timeouts={stats['timeouts']} query_errors={stats['query_errors']}]",

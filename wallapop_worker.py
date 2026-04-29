@@ -1,7 +1,12 @@
 import os
 import time
 
-from services.wallapop_scraper import fetch_wallapop_listings, wallapop_enabled, wallapop_max_items
+from services.wallapop_scraper import (
+    fetch_wallapop_listings,
+    wallapop_enabled,
+    wallapop_max_items,
+    wallapop_memory_over_limit,
+)
 from vip_app.app import create_app
 from vip_app.app.api import build_listing_from_payload
 from vip_app.app.extensions import db
@@ -125,6 +130,7 @@ def run_once(app=None) -> dict:
             "inserted": inserted,
             "duplicates": duplicates,
             "errors": errors,
+            "memory_high": int(scrape_stats.get("memory_high", 0)),
         }
         print(
             f"[WALLAPOP_WORKER_RUN_DONE] fetched={result['fetched']} inserted={inserted} "
@@ -137,13 +143,18 @@ def run_once(app=None) -> dict:
 
 def main():
     app = create_app()
-    interval = _env_int("WALLAPOP_WORKER_INTERVAL_SECONDS", 300, minimum=30)
+    legacy_interval = _env_int("WALLAPOP_WORKER_INTERVAL_SECONDS", 600, minimum=30)
+    interval = _env_int("WALLAPOP_CYCLE_SECONDS", legacy_interval, minimum=30)
     run_once_only = _env_bool("WALLAPOP_RUN_ONCE", False)
     while True:
-        run_once(app)
+        result = run_once(app)
         if run_once_only:
             break
-        time.sleep(interval)
+        if result.get("memory_high") or wallapop_memory_over_limit():
+            print("[WALLAPOP_MEMORY_LIMIT] action=sleep seconds=600", flush=True)
+            time.sleep(max(interval, 600))
+        else:
+            time.sleep(interval)
 
 
 if __name__ == "__main__":
