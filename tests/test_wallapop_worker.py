@@ -13,6 +13,9 @@ from vip_app.app.models import Listing
 from wallapop_worker import run_once
 
 
+EMPTY_SCRAPE_STATS = {"accepted": 0, "rejected": 0, "duplicates": 0, "timeouts": 0, "query_errors": 0}
+
+
 class WallapopWorkerTests(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -56,7 +59,7 @@ class WallapopWorkerTests(unittest.TestCase):
         }
 
         output = io.StringIO()
-        with patch("wallapop_worker.fetch_wallapop_listings", return_value=[item]) as fetch_mock:
+        with patch("wallapop_worker.fetch_wallapop_listings", return_value=([item], dict(EMPTY_SCRAPE_STATS))) as fetch_mock:
             with redirect_stdout(output):
                 print(f"[WALLAPOP_ACCEPTED] external_id={item['external_id']}")
                 result = run_once(self.app)
@@ -83,13 +86,25 @@ class WallapopWorkerTests(unittest.TestCase):
             "url": "https://es.wallapop.com/item/pikachu-1",
         }
 
-        with patch("wallapop_worker.fetch_wallapop_listings", return_value=[item]):
+        with patch("wallapop_worker.fetch_wallapop_listings", return_value=([item], dict(EMPTY_SCRAPE_STATS))):
             first = run_once(self.app)
             second = run_once(self.app)
 
         self.assertEqual(first["inserted"], 1)
         self.assertEqual(second["duplicates"], 1)
         self.assertEqual(Listing.query.filter_by(source="wallapop").count(), 1)
+
+    def test_run_once_includes_scraper_duplicates_in_summary(self):
+        scrape_stats = dict(EMPTY_SCRAPE_STATS)
+        scrape_stats.update({"rejected": 1, "duplicates": 1})
+
+        with patch("wallapop_worker.fetch_wallapop_listings", return_value=([], scrape_stats)):
+            result = run_once(self.app)
+
+        self.assertEqual(result["fetched"], 0)
+        self.assertEqual(result["inserted"], 0)
+        self.assertEqual(result["duplicates"], 1)
+        self.assertEqual(result["errors"], 0)
 
 
 if __name__ == "__main__":

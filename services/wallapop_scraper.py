@@ -35,6 +35,7 @@ WALLAPOP_QUERIES = [
 WALLAPOP_BASE_URL = "https://es.wallapop.com/app/search?keywords={query}"
 WALLAPOP_RESULTS_SELECTOR = 'a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"]'
 WALLAPOP_RESULTS_TIMEOUT_MS = 11000
+WALLAPOP_QUERY_COOLDOWN_MS = 1000
 
 POSITIVE_TCG_TERMS = {
     "pokemon",
@@ -203,7 +204,16 @@ def normalize_wallapop_candidate(candidate: dict) -> dict:
     }
 
 
-def filter_wallapop_candidates(candidates: Iterable[dict], seen_ids: set[str] | None = None, max_items: int = 2) -> list[dict]:
+def _new_wallapop_stats() -> dict[str, int]:
+    return {"accepted": 0, "rejected": 0, "duplicates": 0, "timeouts": 0, "query_errors": 0}
+
+
+def filter_wallapop_candidates(
+    candidates: Iterable[dict],
+    seen_ids: set[str] | None = None,
+    max_items: int = 2,
+    stats: dict[str, int] | None = None,
+) -> list[dict]:
     accepted = []
     seen = set(seen_ids or set())
     local_seen = set()
@@ -214,6 +224,8 @@ def filter_wallapop_candidates(candidates: Iterable[dict], seen_ids: set[str] | 
         reason_ok, reason = wallapop_candidate_reason(title, candidate.get("description", ""))
         print(f"[WALLAPOP_DETECTED] title={title[:90]} external_id={item['external_id']}", flush=True)
         if not reason_ok:
+            if stats is not None:
+                stats["rejected"] = stats.get("rejected", 0) + 1
             print(f"[WALLAPOP_REJECTED] reason={reason} title={title[:90]}", flush=True)
             continue
         dedupe_keys = {
@@ -222,11 +234,16 @@ def filter_wallapop_candidates(candidates: Iterable[dict], seen_ids: set[str] | 
             hashlib.sha1(f"{item['title']}|{item['price']}|{WALLAPOP_SOURCE}".encode("utf-8", errors="ignore")).hexdigest()[:16],
         }
         if (dedupe_keys & seen) or (dedupe_keys & local_seen):
+            if stats is not None:
+                stats["duplicates"] = stats.get("duplicates", 0) + 1
+                stats["rejected"] = stats.get("rejected", 0) + 1
             print(f"[WALLAPOP_REJECTED] reason=duplicate title={title[:90]}", flush=True)
             continue
         local_seen.update(dedupe_keys)
         print(f"[WALLAPOP_ACCEPTED] external_id={item['external_id']} title={title[:90]}", flush=True)
         accepted.append(item)
+        if stats is not None:
+            stats["accepted"] = stats.get("accepted", 0) + 1
         if len(accepted) >= max_items:
             break
     return accepted
@@ -289,6 +306,17 @@ def _wait_for_wallapop_results(page, query: str) -> bool:
             flush=True,
         )
         return False
+
+
+def _cooldown_wallapop_query(page, query: str) -> None:
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=3000)
+    except Exception:
+        pass
+    try:
+        page.wait_for_timeout(WALLAPOP_QUERY_COOLDOWN_MS)
+    except Exception as exc:
+        print(f"[WALLAPOP_QUERY_COOLDOWN_SKIPPED] level=warning query={query} error={_brief_error(exc)}", flush=True)
 
 
 def _read_wallapop_body_text(page, query: str) -> str:
@@ -356,7 +384,8 @@ def fetch_wallapop_listings(
     delay_max_seconds: float | None = None,
     queries: Iterable[str] | None = None,
     seen_ids: set[str] | None = None,
-) -> list[dict]:
+    return_stats: bool = False,
+):
     max_items = max_items if max_items is not None else wallapop_max_items()
     max_items = _safe_int(max_items, default=2, minimum=1)
     headless = headless if headless is not None else str(os.getenv("WALLAPOP_HEADLESS", "true")).strip().lower() not in {"0", "false", "no", "off"}
@@ -366,16 +395,16 @@ def fetch_wallapop_listings(
         delay_max_seconds = delay_min_seconds
     selected_queries = list(queries or WALLAPOP_QUERIES)
     print(f"[WALLAPOP_RUN_START] max_items={max_items} queries={len(selected_queries)}", flush=True)
+    stats = _new_wallapop_stats()
 
     try:
         from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
         from playwright.sync_api import sync_playwright
     except Exception as exc:
-        print(f"[WALLAPOP_ERROR] reason=playwright_unavailable error={exc}", flush=True)
-        return []
+        print(f"[WALLAPOP_ERROR] reason=playwright_unavailable error={_brief_error(exc)}", flush=True)
+        return ([], stats) if return_stats else []
 
     accepted: list[dict] = []
-    rejected_count = 0
     try:
         with sync_playwright() as p:
             try:
@@ -404,6 +433,7 @@ def fetch_wallapop_listings(
                         page.goto(url, wait_until="domcontentloaded", timeout=12000)
                         page.wait_for_timeout(int(random.uniform(delay_min_seconds, delay_max_seconds) * 1000))
                         if not _wait_for_wallapop_results(page, query):
+                            stats["timeouts"] += 1
                             continue
                         body_text = _read_wallapop_body_text(page, query)
                         if any(marker in body_text for marker in BLOCKED_TEXT_MARKERS):
@@ -412,30 +442,37 @@ def fetch_wallapop_listings(
                             print(f"[WALLAPOP_BLOCKED_OR_CAPTCHA] query={query}", flush=True)
                             break
                         extracted = _extract_items_from_page(page, query)
-                        before = len(accepted)
                         accepted.extend(
                             filter_wallapop_candidates(
                                 extracted,
                                 seen_ids=set(seen_ids or set()) | {item["external_id"] for item in accepted},
                                 max_items=max_items - len(accepted),
+                                stats=stats,
                             )
                         )
-                        rejected_count += max(0, len(extracted) - (len(accepted) - before))
                         if len(accepted) >= max_items:
                             break
                     except PlaywrightTimeoutError as exc:
+                        stats["timeouts"] += 1
                         print(f"[WALLAPOP_QUERY_TIMEOUT] level=warning query={query} error={_brief_error(exc)}", flush=True)
                         continue
                     except Exception as exc:
-                        print(f"[WALLAPOP_ERROR] reason=query_failed query={query} error={_brief_error(exc)}", flush=True)
-                        break
+                        stats["query_errors"] += 1
+                        print(f"[WALLAPOP_QUERY_SKIPPED] level=warning query={query} error={_brief_error(exc)}", flush=True)
+                        continue
+                    finally:
+                        _cooldown_wallapop_query(page, query)
             finally:
                 context.close()
                 browser.close()
     except Exception as exc:
         print(f"[WALLAPOP_ERROR] reason=browser_failed error={_brief_error(exc)}", flush=True)
-        return accepted[:max_items]
+        return (accepted[:max_items], stats) if return_stats else accepted[:max_items]
 
-    print(f"[WALLAPOP_RUN_DONE accepted={len(accepted)} rejected={rejected_count}]", flush=True)
+    print(
+        f"[WALLAPOP_RUN_DONE accepted={len(accepted)} rejected={stats['rejected']} "
+        f"duplicates={stats['duplicates']} timeouts={stats['timeouts']} query_errors={stats['query_errors']}]",
+        flush=True,
+    )
     time.sleep(0)
-    return accepted[:max_items]
+    return (accepted[:max_items], stats) if return_stats else accepted[:max_items]

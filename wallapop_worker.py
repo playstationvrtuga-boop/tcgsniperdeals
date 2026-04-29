@@ -72,16 +72,17 @@ def run_once(app=None) -> dict:
     with app.app_context():
         max_items = wallapop_max_items()
         seen_ids = existing_wallapop_ids()
-        fetched_items = fetch_wallapop_listings(
+        fetched_items, scrape_stats = fetch_wallapop_listings(
             max_items=max_items,
             headless=_env_bool("WALLAPOP_HEADLESS", True),
             delay_min_seconds=_env_float("WALLAPOP_DELAY_MIN_SECONDS", 2.0),
             delay_max_seconds=_env_float("WALLAPOP_DELAY_MAX_SECONDS", 5.0),
             seen_ids=seen_ids,
+            return_stats=True,
         )
 
         inserted = 0
-        duplicates = 0
+        db_duplicates = 0
         errors = 0
         for item in fetched_items:
             payload = _payload_from_wallapop_item(item)
@@ -96,7 +97,7 @@ def run_once(app=None) -> dict:
                     )
                     continue
                 if existing:
-                    duplicates += 1
+                    db_duplicates += 1
                     print(
                         f"[WALLAPOP_DB_DUPLICATE] listing_id={existing.id} external_id={payload.get('external_id')}",
                         flush=True,
@@ -117,6 +118,7 @@ def run_once(app=None) -> dict:
                 errors += 1
                 print(f"[WALLAPOP_DB_ERROR] external_id={payload.get('external_id')} error={exc}", flush=True)
 
+        duplicates = db_duplicates + int(scrape_stats.get("duplicates", 0))
         result = {
             "status": "ok",
             "fetched": len(fetched_items),
@@ -126,7 +128,8 @@ def run_once(app=None) -> dict:
         }
         print(
             f"[WALLAPOP_WORKER_RUN_DONE] fetched={result['fetched']} inserted={inserted} "
-            f"duplicates={duplicates} errors={errors}",
+            f"duplicates={duplicates} db_duplicates={db_duplicates} scrape_duplicates={scrape_stats.get('duplicates', 0)} "
+            f"errors={errors}",
             flush=True,
         )
         return result

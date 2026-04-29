@@ -51,6 +51,21 @@ class WallapopScraperTests(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertIn("mewtwo", items[0]["external_id"])
 
+    def test_duplicate_rejections_are_counted_in_stats(self):
+        url = "https://es.wallapop.com/item/pokemon-pikachu-999"
+        stats = {"accepted": 0, "rejected": 0, "duplicates": 0, "timeouts": 0, "query_errors": 0}
+
+        items = filter_wallapop_candidates(
+            [{"title": "Pokemon TCG Pikachu 25/25", "price": "12 â‚¬", "url": url}],
+            seen_ids={derive_wallapop_external_id(url)},
+            max_items=2,
+            stats=stats,
+        )
+
+        self.assertEqual(items, [])
+        self.assertEqual(stats["duplicates"], 1)
+        self.assertEqual(stats["rejected"], 1)
+
     def test_rejects_non_tcg_junk(self):
         items = filter_wallapop_candidates(
             [
