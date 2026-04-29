@@ -2,6 +2,7 @@ import unittest
 
 from services.wallapop_scraper import (
     _read_wallapop_body_text,
+    _wait_for_wallapop_results,
     derive_wallapop_external_id,
     filter_wallapop_candidates,
     should_send_wallapop_to_telegram,
@@ -71,6 +72,18 @@ class WallapopScraperTests(unittest.TestCase):
                 raise TimeoutError("body timed out")
 
         self.assertEqual(_read_wallapop_body_text(FailingPage(), "pokemon tcg"), "")
+
+    def test_results_wait_timeout_is_non_critical(self):
+        class FailingPage:
+            def wait_for_selector(self, _selector, timeout):
+                self.timeout = timeout
+                raise TimeoutError("Page.wait_for_selector: Timeout 11000ms exceeded\nlong details")
+
+        page = FailingPage()
+
+        self.assertFalse(_wait_for_wallapop_results(page, "pokemon tcg"))
+        self.assertGreaterEqual(page.timeout, 10000)
+        self.assertLessEqual(page.timeout, 12000)
 
 
 if __name__ == "__main__":

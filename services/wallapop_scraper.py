@@ -33,6 +33,8 @@ WALLAPOP_QUERIES = [
     "pokemon etb",
 ]
 WALLAPOP_BASE_URL = "https://es.wallapop.com/app/search?keywords={query}"
+WALLAPOP_RESULTS_SELECTOR = 'a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"]'
+WALLAPOP_RESULTS_TIMEOUT_MS = 11000
 
 POSITIVE_TCG_TERMS = {
     "pokemon",
@@ -271,18 +273,29 @@ def _extract_items_from_page(page, source_query: str) -> list[dict]:
     )
 
 
-def _wait_for_wallapop_results(page, query: str) -> None:
+def _brief_error(exc: Exception, limit: int = 180) -> str:
+    message = str(exc).splitlines()[0].strip()
+    return (message or exc.__class__.__name__)[:limit]
+
+
+def _wait_for_wallapop_results(page, query: str) -> bool:
     try:
-        page.wait_for_selector('a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"]', timeout=6000)
+        page.wait_for_selector(WALLAPOP_RESULTS_SELECTOR, timeout=WALLAPOP_RESULTS_TIMEOUT_MS)
+        return True
     except Exception as exc:
-        print(f"[WALLAPOP_RESULTS_WAIT_SKIPPED] query={query} error={exc}", flush=True)
+        print(
+            f"[WALLAPOP_RESULTS_WAIT_SKIPPED] level=warning query={query} "
+            f"timeout_ms={WALLAPOP_RESULTS_TIMEOUT_MS} reason=results_timeout error={_brief_error(exc)}",
+            flush=True,
+        )
+        return False
 
 
 def _read_wallapop_body_text(page, query: str) -> str:
     try:
         return str(page.evaluate("() => document.body ? document.body.innerText : ''") or "").lower()
     except Exception as exc:
-        print(f"[WALLAPOP_TEXT_SKIPPED] query={query} error={exc}", flush=True)
+        print(f"[WALLAPOP_TEXT_SKIPPED] level=warning query={query} error={_brief_error(exc)}", flush=True)
         return ""
 
 
@@ -315,7 +328,7 @@ def _auto_install_playwright_browser() -> bool:
             text=True,
             timeout=180,
         )
-        output_tail = (result.stdout or "")[-800:].replace("\n", " ")
+        output_tail = (result.stdout or "")[-300:].replace("\n", " ")
         if result.returncode == 0:
             print("[WALLAPOP_PLAYWRIGHT_INSTALL] status=ok", flush=True)
             return True
@@ -390,7 +403,8 @@ def fetch_wallapop_listings(
                     try:
                         page.goto(url, wait_until="domcontentloaded", timeout=12000)
                         page.wait_for_timeout(int(random.uniform(delay_min_seconds, delay_max_seconds) * 1000))
-                        _wait_for_wallapop_results(page, query)
+                        if not _wait_for_wallapop_results(page, query):
+                            continue
                         body_text = _read_wallapop_body_text(page, query)
                         if any(marker in body_text for marker in BLOCKED_TEXT_MARKERS):
                             if "too many requests" in body_text:
@@ -407,17 +421,19 @@ def fetch_wallapop_listings(
                             )
                         )
                         rejected_count += max(0, len(extracted) - (len(accepted) - before))
+                        if len(accepted) >= max_items:
+                            break
                     except PlaywrightTimeoutError as exc:
-                        print(f"[WALLAPOP_ERROR] reason=timeout query={query} error={exc}", flush=True)
-                        break
+                        print(f"[WALLAPOP_QUERY_TIMEOUT] level=warning query={query} error={_brief_error(exc)}", flush=True)
+                        continue
                     except Exception as exc:
-                        print(f"[WALLAPOP_ERROR] reason=query_failed query={query} error={exc}", flush=True)
+                        print(f"[WALLAPOP_ERROR] reason=query_failed query={query} error={_brief_error(exc)}", flush=True)
                         break
             finally:
                 context.close()
                 browser.close()
     except Exception as exc:
-        print(f"[WALLAPOP_ERROR] reason=browser_failed error={exc}", flush=True)
+        print(f"[WALLAPOP_ERROR] reason=browser_failed error={_brief_error(exc)}", flush=True)
         return accepted[:max_items]
 
     print(f"[WALLAPOP_RUN_DONE accepted={len(accepted)} rejected={rejected_count}]", flush=True)

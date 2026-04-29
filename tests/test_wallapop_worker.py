@@ -1,6 +1,8 @@
+import io
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -53,12 +55,19 @@ class WallapopWorkerTests(unittest.TestCase):
             "raw_payload": {"location": "Madrid"},
         }
 
+        output = io.StringIO()
         with patch("wallapop_worker.fetch_wallapop_listings", return_value=[item]) as fetch_mock:
-            result = run_once(self.app)
+            with redirect_stdout(output):
+                print(f"[WALLAPOP_ACCEPTED] external_id={item['external_id']}")
+                result = run_once(self.app)
 
         self.assertEqual(result["inserted"], 1)
         self.assertEqual(result["duplicates"], 0)
         fetch_mock.assert_called_once()
+        logs = output.getvalue()
+        self.assertIn("[WALLAPOP_ACCEPTED]", logs)
+        self.assertIn("[WALLAPOP_DB_INSERTED]", logs)
+        self.assertLess(logs.index("[WALLAPOP_ACCEPTED]"), logs.index("[WALLAPOP_DB_INSERTED]"))
         listing = Listing.query.filter_by(source="wallapop").one()
         self.assertEqual(listing.platform, "Wallapop")
         self.assertEqual(listing.external_id, "wallapop_charizard-1")
