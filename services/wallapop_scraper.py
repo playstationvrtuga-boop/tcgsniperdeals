@@ -1,0 +1,350 @@
+"""Lightweight Wallapop feed scraper for Pokemon TCG listings.
+
+The scraper intentionally extracts from search result pages only. It keeps the
+runtime small for Render workers and returns app-ready dictionaries that can go
+through the existing Vinted/eBay pipeline.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import random
+import re
+import time
+from datetime import datetime, timezone
+from typing import Iterable
+from urllib.parse import quote_plus, urljoin, urlsplit
+
+from core.normalizer import normalize_text
+from services.pokemon_title_parser import extract_card_signals
+
+
+WALLAPOP_SOURCE = "wallapop"
+WALLAPOP_PLATFORM = "Wallapop"
+WALLAPOP_QUERIES = [
+    "pokemon cartas",
+    "pokemon tcg",
+    "cartas pokemon",
+    "charizard pokemon",
+    "pokemon booster",
+    "pokemon etb",
+]
+WALLAPOP_BASE_URL = "https://es.wallapop.com/app/search?keywords={query}"
+
+POSITIVE_TCG_TERMS = {
+    "pokemon",
+    "tcg",
+    "carta",
+    "cartas",
+    "card",
+    "cards",
+    "booster",
+    "etb",
+    "elite trainer box",
+    "slab",
+    "graded",
+    "psa",
+    "bgs",
+    "cgc",
+    "sealed",
+    "blister",
+    "display",
+    "tin",
+}
+JUNK_TERMS = {
+    "camiseta",
+    "camisa",
+    "ropa",
+    "tshirt",
+    "sudadera",
+    "funko",
+    "peluche",
+    "plush",
+    "poster",
+    "lamina",
+    "decoracion",
+    "decoracao",
+    "nintendo switch",
+    "switch",
+    "consola",
+    "console",
+    "juego",
+    "videojuego",
+    "gameboy",
+    "ds",
+}
+BLOCKED_TEXT_MARKERS = {
+    "captcha",
+    "verify you are human",
+    "verifica que eres humano",
+    "access denied",
+    "too many requests",
+}
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _safe_int(value, default: int = 2, minimum: int = 1) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, parsed)
+
+
+def wallapop_enabled() -> bool:
+    return str(os.getenv("ENABLE_WALLAPOP", "false")).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def wallapop_max_items() -> int:
+    return _safe_int(os.getenv("WALLAPOP_MAX_ITEMS_PER_RUN"), default=2, minimum=1)
+
+
+def should_send_wallapop_to_telegram(listing: dict | None = None, send_enabled: bool | None = None) -> bool:
+    if send_enabled is None:
+        send_enabled = str(os.getenv("WALLAPOP_SEND_TELEGRAM", "false")).strip().lower() in {"1", "true", "yes", "on"}
+    if not listing:
+        return bool(send_enabled)
+    source = str(listing.get("source") or listing.get("platform") or "").strip().lower()
+    if source == WALLAPOP_SOURCE or source == WALLAPOP_PLATFORM.lower():
+        return bool(send_enabled)
+    return True
+
+
+def normalize_wallapop_url(url: str) -> str:
+    if not url:
+        return ""
+    cleaned = url.strip()
+    if cleaned.startswith("//"):
+        cleaned = "https:" + cleaned
+    if cleaned.startswith("/"):
+        cleaned = urljoin("https://es.wallapop.com", cleaned)
+    parsed = urlsplit(cleaned)
+    if "wallapop" not in parsed.netloc.lower():
+        return cleaned
+    return parsed._replace(query="", fragment="").geturl()
+
+
+def derive_wallapop_external_id(url: str, title: str = "", price: str = "") -> str:
+    normalized_url = normalize_wallapop_url(url)
+    match = re.search(r"/item/([^/?#]+)", normalized_url)
+    if match:
+        return f"wallapop_{match.group(1)}"
+    if normalized_url:
+        digest_source = normalized_url
+    else:
+        digest_source = f"{title}|{price}|{WALLAPOP_SOURCE}"
+    digest = hashlib.sha1(digest_source.encode("utf-8", errors="ignore")).hexdigest()[:16]
+    return f"wallapop_{digest}"
+
+
+def wallapop_candidate_reason(title: str, description: str = "") -> tuple[bool, str]:
+    text = normalize_text(f"{title or ''} {description or ''}")
+    if not text.strip():
+        return False, "empty_title"
+    for junk in JUNK_TERMS:
+        if junk in text:
+            return False, f"junk:{junk}"
+    if "pokemon" not in text and not extract_card_signals(text).get("pokemon_name"):
+        return False, "missing_pokemon"
+    if any(term in text for term in POSITIVE_TCG_TERMS):
+        return True, "tcg_terms"
+    signals = extract_card_signals(text)
+    if signals.get("full_number") or signals.get("card_number"):
+        return True, "card_signals"
+    return False, "weak_tcg_signal"
+
+
+def _clean_price(raw: str) -> str:
+    text = " ".join(str(raw or "").split())
+    match = re.search(r"(\d+(?:[,.]\d{1,2})?)\s*(?:eur|€)", text, flags=re.I)
+    if match:
+        return f"{match.group(1).replace('.', ',')} €"
+    return text[:60]
+
+
+def normalize_wallapop_candidate(candidate: dict) -> dict:
+    title = str(candidate.get("title") or candidate.get("titulo") or "").strip()
+    price = _clean_price(str(candidate.get("price") or candidate.get("preco") or ""))
+    url = normalize_wallapop_url(str(candidate.get("url") or candidate.get("link") or ""))
+    image_url = str(candidate.get("image_url") or candidate.get("imagem") or "").strip() or None
+    location = str(candidate.get("location") or "").strip() or None
+    external_id = str(candidate.get("external_id") or candidate.get("id") or "").strip()
+    if not external_id:
+        external_id = derive_wallapop_external_id(url, title, price)
+    raw_payload = {
+        "location": location,
+        "source_query": candidate.get("source_query"),
+    }
+    return {
+        "id": external_id,
+        "external_id": external_id,
+        "source": WALLAPOP_SOURCE,
+        "platform": WALLAPOP_PLATFORM,
+        "origem": "WALLAPOP",
+        "titulo": title,
+        "title": title,
+        "preco": price,
+        "price": price,
+        "link": url,
+        "url": url,
+        "imagem": image_url,
+        "image_url": image_url,
+        "location": location,
+        "detected_at": candidate.get("detected_at") or _now_iso(),
+        "raw_payload": {key: value for key, value in raw_payload.items() if value},
+    }
+
+
+def filter_wallapop_candidates(candidates: Iterable[dict], seen_ids: set[str] | None = None, max_items: int = 2) -> list[dict]:
+    accepted = []
+    seen = set(seen_ids or set())
+    local_seen = set()
+    max_items = _safe_int(max_items, default=2, minimum=1)
+    for candidate in candidates:
+        item = normalize_wallapop_candidate(candidate)
+        title = item["title"]
+        reason_ok, reason = wallapop_candidate_reason(title, candidate.get("description", ""))
+        print(f"[WALLAPOP_DETECTED] title={title[:90]} external_id={item['external_id']}", flush=True)
+        if not reason_ok:
+            print(f"[WALLAPOP_REJECTED] reason={reason} title={title[:90]}", flush=True)
+            continue
+        dedupe_keys = {
+            item["external_id"],
+            derive_wallapop_external_id(item["url"], item["title"], item["price"]),
+            hashlib.sha1(f"{item['title']}|{item['price']}|{WALLAPOP_SOURCE}".encode("utf-8", errors="ignore")).hexdigest()[:16],
+        }
+        if (dedupe_keys & seen) or (dedupe_keys & local_seen):
+            print(f"[WALLAPOP_REJECTED] reason=duplicate title={title[:90]}", flush=True)
+            continue
+        local_seen.update(dedupe_keys)
+        print(f"[WALLAPOP_ACCEPTED] external_id={item['external_id']} title={title[:90]}", flush=True)
+        accepted.append(item)
+        if len(accepted) >= max_items:
+            break
+    return accepted
+
+
+def _route_light_resources(route):
+    resource_type = route.request.resource_type
+    url = route.request.url.lower()
+    if resource_type in {"image", "media", "font"} or any(marker in url for marker in ("analytics", "doubleclick", "googletagmanager")):
+        route.abort()
+    else:
+        route.continue_()
+
+
+def _extract_items_from_page(page, source_query: str) -> list[dict]:
+    return page.evaluate(
+        """
+        (sourceQuery) => {
+          const anchors = [...document.querySelectorAll('a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"]')];
+          return anchors.slice(0, 20).map((anchor) => {
+            const root = anchor.closest('article, li, [data-testid], .ItemCard, .ItemCardList__item') || anchor;
+            const text = (root.innerText || anchor.innerText || '').trim();
+            const lines = text.split('\\n').map((line) => line.trim()).filter(Boolean);
+            const priceLine = lines.find((line) => /\\d+[,.]?\\d*\\s*(€|eur)/i.test(line)) || '';
+            const titleLine = lines.find((line) => line !== priceLine && line.length > 2) || anchor.getAttribute('title') || '';
+            const img = root.querySelector('img');
+            return {
+              title: titleLine,
+              price: priceLine,
+              url: anchor.href,
+              image_url: img ? (img.currentSrc || img.src || '') : '',
+              location: '',
+              source_query: sourceQuery
+            };
+          }).filter((item) => item.title && item.url);
+        }
+        """,
+        source_query,
+    )
+
+
+def fetch_wallapop_listings(
+    *,
+    max_items: int | None = None,
+    headless: bool | None = None,
+    delay_min_seconds: float | None = None,
+    delay_max_seconds: float | None = None,
+    queries: Iterable[str] | None = None,
+    seen_ids: set[str] | None = None,
+) -> list[dict]:
+    max_items = max_items if max_items is not None else wallapop_max_items()
+    max_items = _safe_int(max_items, default=2, minimum=1)
+    headless = headless if headless is not None else str(os.getenv("WALLAPOP_HEADLESS", "true")).strip().lower() not in {"0", "false", "no", "off"}
+    delay_min_seconds = float(delay_min_seconds if delay_min_seconds is not None else os.getenv("WALLAPOP_DELAY_MIN_SECONDS", "2"))
+    delay_max_seconds = float(delay_max_seconds if delay_max_seconds is not None else os.getenv("WALLAPOP_DELAY_MAX_SECONDS", "5"))
+    if delay_max_seconds < delay_min_seconds:
+        delay_max_seconds = delay_min_seconds
+    selected_queries = list(queries or WALLAPOP_QUERIES)
+    print(f"[WALLAPOP_RUN_START] max_items={max_items} queries={len(selected_queries)}", flush=True)
+
+    try:
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+        from playwright.sync_api import sync_playwright
+    except Exception as exc:
+        print(f"[WALLAPOP_ERROR] reason=playwright_unavailable error={exc}", flush=True)
+        return []
+
+    accepted: list[dict] = []
+    rejected_count = 0
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=headless,
+                args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-gpu"],
+            )
+            context = browser.new_context(
+                viewport={"width": 1280, "height": 720},
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
+                ),
+            )
+            page = context.new_page()
+            page.set_default_timeout(8000)
+            page.route("**/*", _route_light_resources)
+            try:
+                for query in selected_queries:
+                    if len(accepted) >= max_items:
+                        break
+                    url = WALLAPOP_BASE_URL.format(query=quote_plus(query))
+                    try:
+                        page.goto(url, wait_until="domcontentloaded", timeout=12000)
+                        page.wait_for_timeout(int(random.uniform(delay_min_seconds, delay_max_seconds) * 1000))
+                        body_text = (page.locator("body").inner_text(timeout=2500) or "").lower()
+                        if any(marker in body_text for marker in BLOCKED_TEXT_MARKERS):
+                            if "too many requests" in body_text:
+                                print(f"[WALLAPOP_RATE_LIMITED] query={query}", flush=True)
+                            print(f"[WALLAPOP_BLOCKED_OR_CAPTCHA] query={query}", flush=True)
+                            break
+                        extracted = _extract_items_from_page(page, query)
+                        before = len(accepted)
+                        accepted.extend(
+                            filter_wallapop_candidates(
+                                extracted,
+                                seen_ids=set(seen_ids or set()) | {item["external_id"] for item in accepted},
+                                max_items=max_items - len(accepted),
+                            )
+                        )
+                        rejected_count += max(0, len(extracted) - (len(accepted) - before))
+                    except PlaywrightTimeoutError as exc:
+                        print(f"[WALLAPOP_ERROR] reason=timeout query={query} error={exc}", flush=True)
+                        break
+                    except Exception as exc:
+                        print(f"[WALLAPOP_ERROR] reason=query_failed query={query} error={exc}", flush=True)
+                        break
+            finally:
+                context.close()
+                browser.close()
+    except Exception as exc:
+        print(f"[WALLAPOP_ERROR] reason=browser_failed error={exc}", flush=True)
+        return accepted[:max_items]
+
+    print(f"[WALLAPOP_RUN_DONE accepted={len(accepted)} rejected={rejected_count}]", flush=True)
+    time.sleep(0)
+    return accepted[:max_items]

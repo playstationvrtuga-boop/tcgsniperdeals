@@ -10,6 +10,12 @@ from config import (
     BOT_API_KEY,
     APP_API_TIMEOUT,
     FREE_REALTIME_SAMPLE_PERCENT,
+    ENABLE_WALLAPOP,
+    WALLAPOP_MAX_ITEMS_PER_RUN,
+    WALLAPOP_SEND_TELEGRAM,
+    WALLAPOP_HEADLESS,
+    WALLAPOP_DELAY_MIN_SECONDS,
+    WALLAPOP_DELAY_MAX_SECONDS,
 )
 from core.listing_logger import log_listing_event
 from core.normalizer import normalize_text
@@ -19,6 +25,7 @@ from services.ebay_affiliate import build_ebay_affiliate_url
 from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
 from services.free_promos import schedule_free_promos_every_hour
 from services.public_links import build_free_public_listing_url
+from services.wallapop_scraper import fetch_wallapop_listings, should_send_wallapop_to_telegram
 from urllib.parse import parse_qs, quote_plus, unquote_plus, urljoin, urlsplit
 import requests
 import os
@@ -598,6 +605,7 @@ def construir_payload_app(anuncio):
         "ebay": "eBay",
         "vinted": "Vinted",
         "olx": "OLX",
+        "wallapop": "Wallapop",
     }.get(plataforma_limpa, str(plataforma).strip() or "Unknown")
 
     return {
@@ -616,6 +624,7 @@ def construir_payload_app(anuncio):
         "detected_at": ensure_detected_at(anuncio),
         "available_status": "available",
         "seller_feedback": anuncio.get("seller_feedback"),
+        "raw_payload": anuncio.get("raw_payload"),
     }
 
 
@@ -1905,7 +1914,7 @@ def build_metricas_snapshot(hours=24):
     events = metric_events_since(hours)
     snapshot = {
         "captured_total": 0,
-        "captured_by_platform": {"vinted": 0, "ebay": 0, "olx": 0},
+        "captured_by_platform": {"vinted": 0, "ebay": 0, "olx": 0, "wallapop": 0},
         "captured_by_tcg": {"pokemon": 0, "one_piece": 0},
         "captured_by_score": {"LOW": 0, "MEDIUM": 0, "HIGH": 0},
         "captured_by_tcg_score": {
@@ -1930,7 +1939,7 @@ def build_metricas_snapshot(hours=24):
         },
         "free_unavailable_fast": 0,
         "unavailable_minutes": [],
-        "unavailable_by_platform": {"vinted": 0, "ebay": 0, "olx": 0},
+        "unavailable_by_platform": {"vinted": 0, "ebay": 0, "olx": 0, "wallapop": 0},
         "unavailable_by_tcg": {"pokemon": 0, "one_piece": 0},
     }
 
@@ -5588,6 +5597,83 @@ def procurar_anuncios(processar_ebay=True, diag=None):
 
         # OLX removed from active pipeline
 
+        # WALLAPOP: intentionally light and app-only until quality is validated.
+        if ENABLE_WALLAPOP:
+            try:
+                wallapop_items = fetch_wallapop_listings(
+                    max_items=WALLAPOP_MAX_ITEMS_PER_RUN,
+                    headless=WALLAPOP_HEADLESS,
+                    delay_min_seconds=WALLAPOP_DELAY_MIN_SECONDS,
+                    delay_max_seconds=WALLAPOP_DELAY_MAX_SECONDS,
+                    seen_ids=vistos,
+                )
+                for wallapop_item in wallapop_items:
+                    id_item = wallapop_item.get("id") or wallapop_item.get("external_id")
+                    titulo = wallapop_item.get("titulo") or wallapop_item.get("title")
+                    preco = wallapop_item.get("preco") or wallapop_item.get("price")
+                    if not id_item or id_item in vistos or not titulo:
+                        record_metric_event("skipped_duplicate", item_id=id_item, platform="wallapop")
+                        continue
+                    tcg_type = "pokemon"
+                    if not tcg_enabled(tcg_type):
+                        reason = disabled_tcg_reason(tcg_type)
+                        record_metric_event("skipped_filtered", item_id=id_item, platform="wallapop", tcg_type=tcg_type, reason=reason)
+                        print(f"[TCG_DISABLED_SKIP] id={id_item} platform=wallapop tcg_type={tcg_type} reason={reason}")
+                        continue
+                    if not titulo_valido_tcg(titulo, tcg_type, "wallapop"):
+                        record_metric_event("skipped_filtered", item_id=id_item, platform="wallapop", tcg_type=tcg_type, reason="titulo_invalido")
+                        print(f"[WALLAPOP_REJECTED] reason=titulo_invalido id={id_item} title={titulo[:90]}")
+                        continue
+
+                    assessment = assess_listing_for_tcg(tcg_type, titulo, preco, "wallapop")
+                    if not assessment.is_valid:
+                        record_metric_event(
+                            "skipped_filtered",
+                            item_id=id_item,
+                            platform="wallapop",
+                            tcg_type=tcg_type,
+                            score_label=assessment.confidence.upper(),
+                            reason=assessment.reject_reason or "assessment_invalid",
+                        )
+                        log_listing_event(source="wallapop", title=titulo, price=preco, assessment=assessment, priority=False, consulted_cardmarket=False, cardmarket_found=False)
+                        print(f"[WALLAPOP_REJECTED] reason={assessment.reject_reason or 'assessment_invalid'} id={id_item} title={titulo[:90]}")
+                        continue
+
+                    prioridade = is_priority(assessment) if tcg_type == "pokemon" else False
+                    detected_at = wallapop_item.get("detected_at") or detected_at_now_iso()
+                    log_listing_event(source="wallapop", title=titulo, price=preco, assessment=assessment, priority=prioridade, consulted_cardmarket=False, cardmarket_found=False)
+                    novos.append({
+                        "id": id_item,
+                        "source": "wallapop",
+                        "origem": "WALLAPOP",
+                        "tcg_type": tcg_type,
+                        "titulo": titulo,
+                        "preco": preco,
+                        "link": wallapop_item.get("link") or wallapop_item.get("url"),
+                        "prioritario": prioridade,
+                        "imagem": wallapop_item.get("imagem") or wallapop_item.get("image_url"),
+                        "ebay_sold": None,
+                        "score": assessment.score,
+                        "categoria": assessment.category,
+                        "confianca": assessment.confidence,
+                        "detected_at": detected_at,
+                        "source_published_at": None,
+                        "seller_feedback": wallapop_item.get("location"),
+                        "raw_payload": wallapop_item.get("raw_payload"),
+                    })
+                    record_metric_event(
+                        "captured",
+                        item_id=id_item,
+                        platform="wallapop",
+                        tcg_type=tcg_type,
+                        score_label=obter_score_label(novos[-1]),
+                    )
+            except Exception as e:
+                print(f"[WALLAPOP_ERROR] error=\"{e}\"")
+                traceback.print_exc()
+            gc.collect()
+            log_ram_usage("after_wallapop")
+
         # EBAY
         try:
             ebay_candidates = obter_ebay_links(page_lista, vistos=vistos, diag=diag) if processar_ebay else []
@@ -6044,7 +6130,11 @@ def main():
                 anuncio["app_sync"] = enviar_anuncio_app(anuncio)
                 mark_listing_app_synced(anuncio.get("id"), anuncio.get("app_sync"))
                 mark_seen_after_app_delivery(anuncio, anuncio.get("app_sync"))
-                free_result = enfileirar_anuncio_free(anuncio)
+                if anuncio.get("source") == "wallapop" and not should_send_wallapop_to_telegram(anuncio, WALLAPOP_SEND_TELEGRAM):
+                    free_result = {"status": "disabled_wallapop"}
+                    print(f"[WALLAPOP_TELEGRAM_SKIPPED] id={anuncio.get('id')} reason=disabled")
+                else:
+                    free_result = enfileirar_anuncio_free(anuncio)
                 diag_record_delivery(diag, anuncio, anuncio.get("app_sync"), free_result)
                 print(
                     f"[delivery_result] id={anuncio.get('id')} "

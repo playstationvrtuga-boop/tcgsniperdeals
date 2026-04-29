@@ -470,9 +470,11 @@ function createRadarController(radarRoot, enabled) {
       const ping = document.createElement("span");
       ping.className = "live-radar-ping";
 
-      const isVinted = String(platformKey || "").toLowerCase() === "vinted";
-      const isEbay = String(platformKey || "").toLowerCase() === "ebay";
-      const direction = isVinted ? -1 : isEbay ? 1 : Math.random() < 0.5 ? -1 : 1;
+      const normalizedPlatform = String(platformKey || "").toLowerCase();
+      const isVinted = normalizedPlatform === "vinted";
+      const isWallapop = normalizedPlatform === "wallapop";
+      const isEbay = normalizedPlatform === "ebay";
+      const direction = isVinted || isWallapop ? -1 : isEbay ? 1 : Math.random() < 0.5 ? -1 : 1;
       const distance = 92 + Math.random() * 26;
       const drift = -16 + Math.random() * 32;
 
@@ -569,6 +571,9 @@ function initLiveFeed() {
   const relativeTimeIntervalMs = Number(feedRoot.dataset.feedRelativeTimeIntervalMs || 15000);
   const languageFilter = feedRoot.dataset.feedLanguage || "";
   const setFilter = feedRoot.dataset.feedSet || "";
+  const regionFilter = feedRoot.dataset.feedRegion || "";
+  const platformFilter = feedRoot.dataset.feedPlatform || "";
+  const marketTypeFilter = feedRoot.dataset.feedMarketType || "";
   const radar = createRadarController(radarRoot, radarEnabled);
   const sourceFeedback = createSourceController(sourceRail, radarEnabled && targetFeedbackEnabled);
   const linkTimers = new Map();
@@ -611,7 +616,7 @@ function initLiveFeed() {
     const uniqueKeys = [...new Set((platformKeys || []).filter(Boolean))];
     const targets = new Set();
     uniqueKeys.forEach((platformKey) => {
-      if (platformKey === "vinted") targets.add(radarLinkLeft);
+      if (platformKey === "vinted" || platformKey === "wallapop") targets.add(radarLinkLeft);
       if (platformKey === "ebay") targets.add(radarLinkRight);
     });
     if (!targets.size) {
@@ -735,8 +740,11 @@ function initLiveFeed() {
         url.searchParams.set("latest_id", String(latestId));
       }
       url.searchParams.set("limit", String(deltaLimit));
+      if (regionFilter) url.searchParams.set("region", regionFilter);
+      if (platformFilter) url.searchParams.set("platform", platformFilter);
       if (languageFilter) url.searchParams.set("language", languageFilter);
       if (setFilter) url.searchParams.set("set", setFilter);
+      if (marketTypeFilter) url.searchParams.set("market_type", marketTypeFilter);
 
       const response = await fetch(url.toString(), {
         credentials: "same-origin",

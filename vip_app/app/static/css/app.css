@@ -1992,6 +1992,11 @@ select { font: inherit; }
   box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.14);
 }
 
+.listing-marketplace-wallapop .market-dot {
+  background: #13c1ac;
+  box-shadow: 0 0 0 4px rgba(19, 193, 172, 0.14);
+}
+
 .listing-marketplace-olx .market-dot {
   background: #00ffa6;
   box-shadow: 0 0 0 4px rgba(0, 255, 166, 0.14);
@@ -2064,6 +2069,7 @@ select { font: inherit; }
 
 .badge-platform-ebay { background: rgba(53, 224, 255, 0.14); color: #dcfbff; border-color: rgba(53, 224, 255, 0.18); }
 .badge-platform-vinted { background: rgba(124, 92, 255, 0.14); color: #efe8ff; border-color: rgba(124, 92, 255, 0.18); }
+.badge-platform-wallapop { background: rgba(19, 193, 172, 0.14); color: #ddfff9; border-color: rgba(19, 193, 172, 0.22); }
 .badge-off-market { background: rgba(255, 92, 122, 0.12); color: #ffe5ea; border-color: rgba(255, 92, 122, 0.18); }
 .badge-strong { background: rgba(53, 224, 255, 0.12); color: #dffcff; border-color: rgba(53, 224, 255, 0.18); }
 .badge-premium { background: rgba(124, 92, 255, 0.12); color: #f0eaff; border-color: rgba(124, 92, 255, 0.18); }

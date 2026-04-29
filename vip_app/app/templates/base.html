@@ -68,7 +68,8 @@
       </div>
       {% if current_user.is_authenticated and active_tab is defined %}
       <nav class="vip-tab-nav topbar-tab-nav" aria-label="VIP deal sections">
-        <a class="vip-tab nav-live {% if active_tab == 'live' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">Live Deals</a>
+        <a class="vip-tab nav-live {% if active_tab == 'eu' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">EU Deals</a>
+        <a class="vip-tab nav-live {% if active_tab == 'ebay' %}is-active{% endif %}" href="{{ url_for('main.ebay_deals') }}">eBay Deals</a>
         <a class="vip-tab nav-sniper {% if active_tab == 'smart' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">Sniper Deals</a>
         <a class="vip-tab nav-missed {% if active_tab == 'missed' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">Missed Deals</a>
         <a class="vip-tab nav-ai {% if active_tab == 'ai' %}is-active{% endif %}" href="{{ url_for('main.ai_market_intel') }}">AI Market Intel</a>
@@ -116,7 +117,8 @@
 
     {% if current_user.is_authenticated %}
     <nav class="bottom-nav" aria-label="Mobile">
-      <a class="bottom-nav-item {% if request.endpoint == 'main.feed' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">⚡ Live</a>
+      <a class="bottom-nav-item {% if request.endpoint == 'main.feed' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">EU</a>
+      <a class="bottom-nav-item {% if request.endpoint == 'main.ebay_deals' %}is-active{% endif %}" href="{{ url_for('main.ebay_deals') }}">eBay</a>
       <a class="bottom-nav-item {% if request.endpoint == 'main.smart_deals' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Sniper</a>
       <a class="bottom-nav-item {% if request.endpoint == 'main.missed_deals' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">💀 Missed</a>
       <a class="bottom-nav-item {% if request.endpoint == 'main.ai_market_intel' %}is-active{% endif %}" href="{{ url_for('main.ai_market_intel') }}">AI Intel</a>

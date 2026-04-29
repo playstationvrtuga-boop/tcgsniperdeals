@@ -2,7 +2,8 @@
 {% block title %}{{ board_title|default("Live Deals") }} - TCG Sniper Deals{% endblock %}
 {% block content %}
 <nav class="vip-tab-nav feed-local-tab-nav" aria-label="VIP deal sections">
-  <a class="vip-tab {% if active_tab == 'live' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">⚡ Live Deals</a>
+  <a class="vip-tab {% if active_tab == 'eu' %}is-active{% endif %}" href="{{ url_for('main.feed') }}">EU Deals</a>
+  <a class="vip-tab {% if active_tab == 'ebay' %}is-active{% endif %}" href="{{ url_for('main.ebay_deals') }}">eBay Deals</a>
   <a class="vip-tab {% if active_tab == 'smart' %}is-active{% endif %}" href="{{ url_for('main.smart_deals') }}">🔥 Sniper Deals</a>
   <a class="vip-tab {% if active_tab == 'missed' %}is-active{% endif %}" href="{{ url_for('main.missed_deals') }}">💀 Missed Deals</a>
   <a class="vip-tab {% if active_tab == 'ai' %}is-active{% endif %}" href="{{ url_for('main.ai_market_intel') }}">AI Market Intel</a>
@@ -33,6 +34,11 @@
           <span class="source-pill" data-source-label="vinted">
             <span class="source-pill-dot" aria-hidden="true"></span>
             <span>Vinted</span>
+            <span class="source-pill-crosshair" aria-hidden="true"></span>
+          </span>
+          <span class="source-pill" data-source-label="wallapop">
+            <span class="source-pill-dot" aria-hidden="true"></span>
+            <span>Wallapop</span>
             <span class="source-pill-crosshair" aria-hidden="true"></span>
           </span>
         </div>
@@ -84,7 +90,7 @@
       </span>
       <span class="live-status-text">Monitoring live opportunity flow</span>
       <span class="source-trail" aria-hidden="true">
-        <span class="source-trail-vinted">Vinted</span>
+        <span class="source-trail-vinted">Vinted + Wallapop</span>
         <span class="source-trail-arrow"></span>
         <span class="source-trail-ebay">eBay</span>
       </span>
@@ -129,11 +135,13 @@
     <a class="ghost-button" href="{{ url_for('main.favorites') }}">Saved opportunities</a>
   </div>
   <form class="filter-grid" method="get" data-language-filter-form>
+    <input type="hidden" name="region" value="{{ region_filter_value }}">
     <input type="search" name="q" placeholder="Search a card, set or opportunity..." value="{{ search }}">
     <select name="platform">
-      <option value="">All platforms</option>
+      <option value="">{{ platform_all_label|default("All platforms") }}</option>
       {% for item in platforms %}
-      <option value="{{ item }}" {% if selected_platform == item %}selected{% endif %}>{{ item }}</option>
+      {% set platform_key = item|lower|replace(' ', '-') %}
+      <option value="{{ platform_key }}" {% if selected_platform == platform_key %}selected{% endif %}>{{ item }}</option>
       {% endfor %}
     </select>
     <select name="badge">
@@ -154,6 +162,12 @@
       <option value="{{ value }}" {% if value in selected_sets %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
+    <select name="market_type" aria-label="Market Type">
+      <option value="">All types</option>
+      {% for value, label in market_type_options %}
+      <option value="{{ value }}" {% if value in selected_market_types %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
     <input type="hidden" name="language" value="{{ language_filter_value }}" data-language-filter-input>
     <fieldset class="language-filter" aria-label="Language">
       <legend>Language</legend>
@@ -171,7 +185,7 @@
   <div class="control-feature-strip" aria-label="Live feed strengths">
     <div><span aria-hidden="true"></span><strong>Real-time feed</strong><small>New deals land instantly</small></div>
     <div><span aria-hidden="true"></span><strong>Strongest signals</strong><small>Best opportunities rise first</small></div>
-    <div><span aria-hidden="true"></span><strong>Verified sources</strong><small>Vinted + eBay monitoring</small></div>
+    <div><span aria-hidden="true"></span><strong>Verified sources</strong><small>Vinted + Wallapop + eBay monitoring</small></div>
     <div><span aria-hidden="true"></span><strong>VIP Advantage</strong><small>First look. Faster flips.</small></div>
   </div>
 </section>
@@ -183,7 +197,7 @@
 
 <section
   class="listing-grid listing-grid-{{ page_mode|default('live') }}"
-  {% if page_mode == "live" %}
+  {% if page_mode in ["live", "eu", "ebay"] %}
   data-live-feed-root
   data-feed-updates-url="{{ url_for('main.feed_updates') }}"
   data-feed-poll-ms="{{ feed_poll_interval_ms }}"
@@ -195,8 +209,11 @@
   data-feed-relative-time-interval-ms="{{ relative_time_update_ms }}"
   data-feed-cursor-detected-at="{{ listings[0].detected_at_iso if listings else '' }}"
   data-feed-cursor-id="{{ feed_cursor_id|default(0) }}"
+  data-feed-region="{{ region_filter_value }}"
+  data-feed-platform="{{ selected_platform }}"
   data-feed-language="{{ language_filter_value }}"
   data-feed-set="{{ set_filter_value }}"
+  data-feed-market-type="{{ market_type_filter_value }}"
   {% endif %}
 >
   {% for listing in listings %}

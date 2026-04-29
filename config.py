@@ -60,6 +60,13 @@ APP_API_KEY = BOT_API_KEY or os.environ.get("APP_API_KEY") or LOCAL_ENV.get("APP
 APP_API_TIMEOUT = float(_get_setting("APP_API_TIMEOUT", "8"))
 APP_API_ENABLED = _get_flag("APP_API_ENABLED", default=bool(APP_API_URL and (BOT_API_KEY or TOKEN)))
 
+ENABLE_WALLAPOP = _get_flag("ENABLE_WALLAPOP", default=False)
+WALLAPOP_MAX_ITEMS_PER_RUN = int(_get_setting("WALLAPOP_MAX_ITEMS_PER_RUN", "2"))
+WALLAPOP_SEND_TELEGRAM = _get_flag("WALLAPOP_SEND_TELEGRAM", default=False)
+WALLAPOP_HEADLESS = _get_flag("WALLAPOP_HEADLESS", default=True)
+WALLAPOP_DELAY_MIN_SECONDS = float(_get_setting("WALLAPOP_DELAY_MIN_SECONDS", "2"))
+WALLAPOP_DELAY_MAX_SECONDS = float(_get_setting("WALLAPOP_DELAY_MAX_SECONDS", "5"))
+
 CARDMARKET_API_BASE = _get_setting("CARDMARKET_API_BASE", "https://apiv2.cardmarket.com/ws/v2.0/output.json")
 CARDMARKET_APP_TOKEN = _get_setting("CARDMARKET_APP_TOKEN", "")
 CARDMARKET_APP_SECRET = _get_setting("CARDMARKET_APP_SECRET", "")

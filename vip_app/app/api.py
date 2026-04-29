@@ -84,6 +84,7 @@ def normalize_platform(value):
         "ebay": "eBay",
         "vinted": "Vinted",
         "olx": "OLX",
+        "wallapop": "Wallapop",
     }
     return mapping.get(raw, str(value or "").strip() or "Unknown")
 

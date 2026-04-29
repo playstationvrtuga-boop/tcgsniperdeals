@@ -50,6 +50,25 @@ SET_FILTER_OPTIONS = [
     ("CEL", "CEL - Celebrations"),
 ]
 
+MARKET_TYPE_FILTER_OPTIONS = [
+    ("raw_card", "RAW"),
+    ("graded_card", "GRADED"),
+    ("sealed_product", "SEALED"),
+    ("lot_bundle", "LOT"),
+]
+
+REGION_PLATFORM_MAP = {
+    "eu": ["vinted", "wallapop"],
+    "ebay": ["ebay"],
+}
+
+PLATFORM_LABELS = {
+    "ebay": "eBay",
+    "vinted": "Vinted",
+    "wallapop": "Wallapop",
+    "olx": "OLX",
+}
+
 
 BILLING_PLANS = {
     "monthly": {
@@ -506,6 +525,31 @@ def parse_set_filter(raw_value: str) -> list[str]:
     return selected
 
 
+def parse_market_type_filter(raw_value: str) -> list[str]:
+    allowed = {value for value, _label in MARKET_TYPE_FILTER_OPTIONS}
+    selected = []
+    for item in (raw_value or "").split(","):
+        value = item.strip().lower()
+        if value in allowed and value not in selected:
+            selected.append(value)
+    return selected
+
+
+def parse_region_filter(raw_value: str) -> str:
+    value = (raw_value or "").strip().lower()
+    return value if value in REGION_PLATFORM_MAP else ""
+
+
+def normalize_platform_filter(raw_value: str) -> str:
+    value = (raw_value or "").strip().lower()
+    return value.replace(" ", "-").replace("_", "-")
+
+
+def platform_filter_label(platform_key: str) -> str:
+    normalized = normalize_platform_filter(platform_key).replace("-", "_")
+    return PLATFORM_LABELS.get(normalized, PLATFORM_LABELS.get(platform_key, platform_key))
+
+
 def _search_set_conditions(search: str):
     detected = detect_pokemon_set(search)
     conditions = []
@@ -516,13 +560,21 @@ def _search_set_conditions(search: str):
     return conditions
 
 
-def apply_listing_filters(query, search, platform, badge, languages=None, sets=None):
+def apply_listing_filters(query, search, platform, badge, languages=None, sets=None, region="", market_types=None):
     if search:
         search_conditions = [Listing.title.ilike(f"%{search}%")]
         search_conditions.extend(_search_set_conditions(search))
         query = query.filter(or_(*search_conditions))
+    region = parse_region_filter(region)
+    if region:
+        query = query.filter(db.func.lower(Listing.platform).in_(REGION_PLATFORM_MAP[region]))
     if platform:
-        query = query.filter(Listing.platform == platform)
+        platform_key = normalize_platform_filter(platform)
+        platform_values = {platform_key, platform_key.replace("-", " "), platform_key.replace("-", "_")}
+        label = platform_filter_label(platform_key)
+        if label:
+            platform_values.add(label.lower())
+        query = query.filter(db.func.lower(Listing.platform).in_([value.lower() for value in platform_values if value]))
     if badge:
         if badge == "Fresh":
             query = query.filter(Listing.is_deal.is_(False))
@@ -537,6 +589,9 @@ def apply_listing_filters(query, search, platform, badge, languages=None, sets=N
     if sets:
         normalized_sets = [set_code.upper() for set_code in sets]
         query = query.filter(db.func.upper(db.func.coalesce(Listing.set_code, "")).in_(normalized_sets))
+    if market_types:
+        normalized_market_types = [market_type.lower() for market_type in market_types]
+        query = query.filter(db.func.lower(db.func.coalesce(Listing.listing_type, "")).in_(normalized_market_types))
     return query
 
 
@@ -575,6 +630,7 @@ def render_deals_board(
     board_intro="New listings land here in real time. The radar stays active, the stream stays light, and the strongest signals rise first.",
     board_label="Market intelligence",
     stat_label="Live stream",
+    default_region="",
 ):
     feed_started = time.perf_counter()
     search = request.args.get("q", "").strip()
@@ -584,6 +640,10 @@ def render_deals_board(
     selected_languages = parse_language_filter(language_raw)
     set_raw = request.args.get("set", "").strip()
     selected_sets = parse_set_filter(set_raw)
+    region = parse_region_filter(request.args.get("region", default_region).strip())
+    market_type_raw = request.args.get("market_type", "").strip()
+    selected_market_types = parse_market_type_filter(market_type_raw)
+    platform_key = normalize_platform_filter(platform)
     query = apply_listing_filters(
         query.options(defer(Listing.raw_payload)),
         search,
@@ -591,10 +651,12 @@ def render_deals_board(
         badge,
         selected_languages,
         selected_sets,
+        region,
+        selected_market_types,
     )
 
     cache_hit = False
-    if cache_key and not search and not platform and not badge and not selected_languages and not selected_sets:
+    if cache_key and not search and not platform and not badge and not region and not selected_languages and not selected_sets and not selected_market_types:
         def build_snapshot():
             listings = query.order_by(*order_by).limit(30).all()
             return {
@@ -623,10 +685,21 @@ def render_deals_board(
     }
     feed_cursor_id = max((listing.id for listing in listings), default=0)
     platforms, badges = feed_options()
+    if region == "eu":
+        platforms = ["Vinted", "Wallapop"]
+        platform_all_label = "All EU"
+    elif region == "ebay":
+        platforms = ["eBay"]
+        platform_all_label = "All eBay"
+    else:
+        platform_all_label = "All platforms"
     current_app.logger.info(
-        "[FEED_FILTER] set=%s language=%s results=%s",
+        "[FEED_FILTER] region=%s platform=%s set=%s language=%s market_type=%s results=%s",
+        region or "all",
+        platform_key or "all",
         ",".join(selected_sets) if selected_sets else "all",
         ",".join(selected_languages) if selected_languages else "all",
+        ",".join(selected_market_types) if selected_market_types else "all",
         len(listings),
     )
 
@@ -653,9 +726,10 @@ def render_deals_board(
         favorite_ids=favorite_ids_for_current_user(),
         push_enabled=push_enabled(),
         platforms=platforms,
+        platform_all_label=platform_all_label,
         badges=badges,
         search=search,
-        selected_platform=platform,
+        selected_platform=platform_key,
         selected_badge=badge,
         selected_languages=selected_languages,
         language_filter_value=",".join(selected_languages),
@@ -663,12 +737,16 @@ def render_deals_board(
         selected_sets=selected_sets,
         set_filter_value=",".join(selected_sets),
         set_options=SET_FILTER_OPTIONS,
+        region_filter_value=region,
+        selected_market_types=selected_market_types,
+        market_type_filter_value=",".join(selected_market_types),
+        market_type_options=MARKET_TYPE_FILTER_OPTIONS,
         live_stats=live_stats,
         feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
         feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
         feed_cursor_id=feed_cursor_id,
-        enable_live_radar=current_app.config["ENABLE_LIVE_RADAR"] and page_mode == "live",
-        enable_target_feedback=current_app.config["ENABLE_TARGET_FEEDBACK"] and page_mode == "live",
+        enable_live_radar=current_app.config["ENABLE_LIVE_RADAR"] and page_mode in {"live", "eu", "ebay"},
+        enable_target_feedback=current_app.config["ENABLE_TARGET_FEEDBACK"] and page_mode in {"live", "eu", "ebay"},
         enable_card_entry_animations=current_app.config["ENABLE_CARD_ENTRY_ANIMATIONS"],
         enable_relative_time_updates=current_app.config["ENABLE_RELATIVE_TIME_UPDATES"],
         relative_time_update_ms=current_app.config["RELATIVE_TIME_UPDATE_MS"],
@@ -790,13 +868,35 @@ def download_android_apk():
 @main_bp.route("/feed")
 @main_bp.route("/deals")
 @main_bp.route("/live-deals")
+@main_bp.route("/eu-deals")
 @vip_required
 def feed():
     return render_deals_board(
         query=Listing.query,
         order_by=newest_listing_order(),
         cache_key=None,
-        page_mode="live",
+        page_mode="eu",
+        board_label="EU marketplaces",
+        board_title="EU Deals",
+        board_intro="Fresh Vinted and Wallapop listings in one focused stream.",
+        stat_label="EU stream",
+        default_region="eu",
+    )
+
+
+@main_bp.route("/ebay-deals")
+@vip_required
+def ebay_deals():
+    return render_deals_board(
+        query=Listing.query,
+        order_by=newest_listing_order(),
+        cache_key=None,
+        page_mode="ebay",
+        board_label="eBay marketplace",
+        board_title="eBay Deals",
+        board_intro="Fresh eBay listings kept separate from the European marketplace stream.",
+        stat_label="eBay stream",
+        default_region="ebay",
     )
 
 
@@ -897,6 +997,9 @@ def feed_updates():
     limit_raw = request.args.get("limit", "").strip()
     selected_languages = parse_language_filter(request.args.get("language", "").strip())
     selected_sets = parse_set_filter(request.args.get("set", "").strip())
+    selected_market_types = parse_market_type_filter(request.args.get("market_type", "").strip())
+    region = parse_region_filter(request.args.get("region", "").strip())
+    platform = normalize_platform_filter(request.args.get("platform", "").strip())
 
     try:
         limit = max(1, min(int(limit_raw or current_app.config.get("FEED_DELTA_MAX_ITEMS", 12)), 24))
@@ -918,7 +1021,7 @@ def feed_updates():
     started = time.perf_counter()
     detected_at_expr = Listing.detected_at
     query = Listing.query.options(defer(Listing.raw_payload))
-    query = apply_listing_filters(query, "", "", "", selected_languages, selected_sets)
+    query = apply_listing_filters(query, "", platform, "", selected_languages, selected_sets, region, selected_market_types)
     if cursor_detected_at is not None and cursor_id is not None:
         query = query.filter(
             or_(
@@ -965,9 +1068,12 @@ def feed_updates():
         len(rendered_items),
     )
     current_app.logger.info(
-        "[FEED_FILTER] set=%s language=%s results=%s",
+        "[FEED_FILTER] region=%s platform=%s set=%s language=%s market_type=%s results=%s",
+        region or "all",
+        platform or "all",
         ",".join(selected_sets) if selected_sets else "all",
         ",".join(selected_languages) if selected_languages else "all",
+        ",".join(selected_market_types) if selected_market_types else "all",
         len(rendered_items),
     )
     for item in rendered_items:
