@@ -33,9 +33,14 @@ WALLAPOP_QUERIES = [
     "pokemon etb",
 ]
 WALLAPOP_BASE_URL = "https://es.wallapop.com/app/search?keywords={query}"
-WALLAPOP_RESULTS_SELECTOR = 'a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"]'
+WALLAPOP_RESULTS_SELECTOR = (
+    'a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"], '
+    'a[href*="/app/search"], article, li, [data-testid], [data-item-id], [data-product-id], '
+    '[class*="ItemCard"], [class*="Card"]'
+)
 WALLAPOP_RESULTS_TIMEOUT_MS = 11000
 WALLAPOP_QUERY_COOLDOWN_MS = 1000
+WALLAPOP_VISIBLE_CARD_SCAN_LIMIT = 5
 
 POSITIVE_TCG_TERMS = {
     "pokemon",
@@ -222,6 +227,7 @@ def filter_wallapop_candidates(
         item = normalize_wallapop_candidate(candidate)
         title = item["title"]
         reason_ok, reason = wallapop_candidate_reason(title, candidate.get("description", ""))
+        print(f"[WALLAPOP_CANDIDATE] title={title[:90]} external_id={item['external_id']}", flush=True)
         print(f"[WALLAPOP_DETECTED] title={title[:90]} external_id={item['external_id']}", flush=True)
         if not reason_ok:
             if stats is not None:
@@ -237,6 +243,7 @@ def filter_wallapop_candidates(
             if stats is not None:
                 stats["duplicates"] = stats.get("duplicates", 0) + 1
                 stats["rejected"] = stats.get("rejected", 0) + 1
+            print(f"[WALLAPOP_DUPLICATE] external_id={item['external_id']} title={title[:90]}", flush=True)
             print(f"[WALLAPOP_REJECTED] reason=duplicate title={title[:90]}", flush=True)
             continue
         local_seen.update(dedupe_keys)
@@ -261,11 +268,12 @@ def _route_light_resources(route):
 def _extract_items_from_page(page, source_query: str) -> list[dict]:
     return page.evaluate(
         """
-        (sourceQuery) => {
-          const anchors = [...document.querySelectorAll('a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"]')];
-          return anchors.slice(0, 20).map((anchor) => {
-            const root = anchor.closest('article, li, [data-testid], .ItemCard, .ItemCardList__item') || anchor;
-            const text = (root.innerText || anchor.innerText || '').trim();
+        ({ sourceQuery, limit }) => {
+          const nodes = [...document.querySelectorAll('article, li, [data-testid], [data-item-id], [data-product-id], [class*="ItemCard"], [class*="Card"], a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"], a[href*="/app/search"]')];
+          return nodes.slice(0, 30).map((node) => {
+            const anchor = node.matches && node.matches('a[href]') ? node : node.querySelector('a[href]');
+            const root = node.closest('article, li, [data-testid], [data-item-id], [data-product-id], .ItemCard, .ItemCardList__item, [class*="ItemCard"], [class*="Card"]') || node;
+            const text = (root.innerText || (anchor && anchor.innerText) || '').trim();
             const lines = text.split('\\n').map((line) => line.trim()).filter(Boolean);
             const priceLine = lines.find((line) => /\\d+[,.]?\\d*\\s*(€|eur)/i.test(line)) || '';
             const titleLine = lines.find((line) => {
@@ -273,20 +281,20 @@ def _extract_items_from_page(page, source_query: str) -> list[dict]:
               if (/^\\d+\\s*\\/\\s*\\d+$/.test(line)) return false;
               if (/destacado/i.test(line)) return false;
               return true;
-            }) || anchor.getAttribute('title') || '';
+            }) || (anchor && anchor.getAttribute('title')) || root.getAttribute('title') || root.getAttribute('aria-label') || '';
             const img = root.querySelector('img');
             return {
               title: titleLine,
               price: priceLine,
-              url: anchor.href,
+              url: anchor ? anchor.href : (root.getAttribute('data-url') || root.getAttribute('href') || ''),
               image_url: img ? (img.currentSrc || img.src || '') : '',
               location: '',
               source_query: sourceQuery
             };
-          }).filter((item) => item.title && item.url);
+          }).filter((item) => item.title && item.price && item.url).slice(0, limit);
         }
         """,
-        source_query,
+        {"sourceQuery": source_query, "limit": WALLAPOP_VISIBLE_CARD_SCAN_LIMIT},
     )
 
 
