@@ -41,6 +41,22 @@ class RawVsGradedPricingTests(unittest.TestCase):
         self.assertEqual(deal_detector._extract_grading_company(title), "PSA")
         self.assertEqual(deal_detector._extract_grade(title), 10.0)
 
+    def test_detects_additional_real_market_types(self):
+        self.assertEqual(
+            deal_detector.detect_listing_market_type(
+                "Dragonite V 192/203 Evoluzioni Eteree Italiano Aigrading 9 mint"
+            ),
+            "graded_card",
+        )
+        self.assertEqual(deal_detector._extract_grade("Dragonite Aigrading 9 mint"), 9.0)
+        self.assertEqual(
+            deal_detector.detect_listing_market_type(
+                "Ditto 132/165 Cosmos Holo Prize Pack Stamped Series 6 Pokemon TCG 151 Mew"
+            ),
+            "raw_card",
+        )
+        self.assertEqual(deal_detector.detect_listing_market_type("pokémon cartes"), "lot_bundle")
+
     def test_raw_comparable_filter_rejects_graded_titles(self):
         for ebay_title in ("PSA 10 Mewtwo 56/165", "CGC 9 Mewtwo 56/165", "Mewtwo slab", "Mewtwo graded"):
             with self.subTest(ebay_title=ebay_title):

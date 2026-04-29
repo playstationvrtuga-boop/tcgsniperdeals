@@ -39,9 +39,9 @@ ETB_TERMS = ("etb", "elite trainer box")
 BOOSTER_BOX_TERMS = ("booster box", "display")
 GRADED_TERMS = (
     "psa", "bgs", "beckett", "cgc", "ace", "sgc", "tag", "aura", "rpa", "pca",
-    "graded", "grade", "graad", "graduada", "graduado", "slab",
+    "graded", "grading", "grade", "graad", "graduada", "graduado", "slab",
     "encapsulated", "gem mint", "mint 10", "cert", "certificate",
-    "certificado",
+    "certificado", "aigrading", "ai grading",
 )
 SEALED_TERMS = (
     "sealed", "sealed box", "booster", "booster box", "booster bundle",
@@ -50,10 +50,10 @@ SEALED_TERMS = (
 )
 ACCESSORY_TERMS = ("binder", "sleeves", "deck box", "toploader", "top loader", "album")
 POKEMON_CENTER_TERMS = ("pokemon center", "pc etb", "center etb")
-BOOSTER_PACK_TERMS = ("booster pack", "pack", "sobre")
+BOOSTER_PACK_TERMS = ("booster pack", "sobre")
 LOT_BUNDLE_TERMS = (
     "lot", "bundle", "cards", "collection", "binder", "bulk", "pack of cards",
-    "many cards", "lote", "conjunto", "colecao", "coleção", "cartas",
+    "many cards", "lote", "conjunto", "colecao", "coleção", "cartas", "cartes",
 )
 RAW_COMPARABLE_MINIMUM = 2
 GENERIC_TITLE_TERMS = {
@@ -245,6 +245,8 @@ def _extract_grading_company(value: str) -> str | None:
         "aura": "AURA",
         "rpa": "RPA",
         "pca": "PCA",
+        "aigrading": "AIGRADING",
+        "ai grading": "AIGRADING",
     }
     for alias, company in aliases.items():
         if f" {alias} " in text:
@@ -255,7 +257,7 @@ def _extract_grading_company(value: str) -> str | None:
 def _extract_grade(value: str) -> float | None:
     text = _compare_text(value).replace(",", ".")
     match = re.search(
-        r"\b(?:psa|bgs|beckett|cgc|ace|sgc|tag|aura|rpa|pca|grade|graded|graad|graduada|graduado)\s*"
+        r"\b(?:psa|bgs|beckett|cgc|ace|sgc|tag|aura|rpa|pca|aigrading|ai\s*grading|grade|graded|grading|graad|graduada|graduado)\s*"
         r"(10|[1-9](?:\.\d)?)\b",
         text,
     )
