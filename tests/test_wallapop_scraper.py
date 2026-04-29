@@ -4,6 +4,7 @@ from contextlib import redirect_stdout
 
 from services.wallapop_scraper import (
     _extract_items_from_html,
+    _extract_wallapop_link_urls_from_html,
     _extract_items_from_page,
     _read_wallapop_body_text,
     _wait_for_wallapop_results,
@@ -121,6 +122,23 @@ class WallapopScraperTests(unittest.TestCase):
         self.assertEqual(items[0]["url"], "https://es.wallapop.com/item/pokemon-charizard-123")
         self.assertEqual(items[0]["price"], "20 €")
         self.assertIn("Charizard", items[0]["title"])
+
+    def test_html_link_fallback_extracts_item_urls_without_card_text(self):
+        html = """
+        <a href="/item/pokemon-charizard-123"></a>
+        <a href="https://es.wallapop.com/app/item/pokemon-booster-456"></a>
+        <a href="/app/search?keywords=pokemon"></a>
+        """
+
+        urls = _extract_wallapop_link_urls_from_html(html)
+
+        self.assertEqual(
+            urls,
+            [
+                "https://es.wallapop.com/item/pokemon-charizard-123",
+                "https://es.wallapop.com/app/item/pokemon-booster-456",
+            ],
+        )
 
     def test_rejects_non_tcg_junk(self):
         items = filter_wallapop_candidates(
