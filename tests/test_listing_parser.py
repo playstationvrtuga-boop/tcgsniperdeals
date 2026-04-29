@@ -43,23 +43,29 @@ class ListingParserTests(unittest.TestCase):
                 self.assertEqual(identity.extracted_name, "pikachu")
                 self.assertTrue(identity.extracted_number)
 
-    def test_low_confidence_name_only_is_processed(self):
+    def test_low_confidence_name_only_stops_after_sold_zero(self):
+        buy_now_calls = []
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
-        deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
-            EbaySoldListing("Charizard Pokemon card", 100.0),
-            EbaySoldListing("Charizard Pokemon card 2", 110.0),
-            EbaySoldListing("Charizard Pokemon card 3", 120.0),
-        ]
+
+        def buy_now(*_args, **_kwargs):
+            buy_now_calls.append("buy_now")
+            return [
+                EbaySoldListing("Charizard Pokemon card", 100.0),
+                EbaySoldListing("Charizard Pokemon card 2", 110.0),
+                EbaySoldListing("Charizard Pokemon card 3", 120.0),
+            ]
+
+        deal_detector.fetch_active_buy_now_comparables = buy_now
 
         result = deal_detector.evaluate_listing(self.listing("Charizard", price="70,00 EUR"))
 
         self.assertNotEqual(result.reason, "listing_not_precisely_identified")
         self.assertEqual(result.parser_confidence, "LOW")
         self.assertEqual(result.parser_query, "pokemon charizard")
-        self.assertEqual(result.status, "priced")
-        self.assertEqual(result.pricing_basis, "buy_now")
-        self.assertEqual(result.estimated_fair_value, 110.0)
-        self.assertLess(result.confidence_score, 60)
+        self.assertEqual(result.status, "insufficient_comparables")
+        self.assertIsNone(result.pricing_basis)
+        self.assertEqual(result.buy_now_count, 0)
+        self.assertEqual(buy_now_calls, [])
 
     def test_pokemon_without_known_name_is_low_confidence(self):
         identity = deal_detector.parse_listing_identity("Carta pokemon brilhante francesa")

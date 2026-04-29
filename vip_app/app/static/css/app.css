@@ -4631,7 +4631,7 @@ body {
 }
 
 .filter-grid {
-  grid-template-columns: minmax(240px, 1.7fr) minmax(150px, 0.6fr) minmax(150px, 0.6fr) auto;
+  grid-template-columns: minmax(220px, 1.35fr) minmax(140px, 0.55fr) minmax(140px, 0.55fr) minmax(140px, 0.55fr) minmax(220px, 1fr) auto;
   padding: 0;
   border: 0;
   background: transparent;
@@ -4640,6 +4640,62 @@ body {
 .filter-grid input,
 .filter-grid select {
   border-radius: 10px;
+}
+
+.language-filter {
+  border: 1px solid rgba(120, 190, 255, 0.2);
+  border-radius: 8px;
+  padding: 0.72rem;
+  margin: 0;
+  background: rgba(7, 18, 32, 0.72);
+}
+
+.language-filter legend {
+  padding: 0 0.3rem;
+  color: rgba(220, 238, 255, 0.72);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.language-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.language-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0.34rem 0.62rem;
+  border: 1px solid rgba(108, 195, 255, 0.22);
+  border-radius: 7px;
+  color: rgba(234, 246, 255, 0.78);
+  background: rgba(13, 25, 42, 0.92);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.language-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.language-chip.is-selected {
+  color: #ecfbff;
+  border-color: rgba(42, 171, 238, 0.72);
+  background: linear-gradient(135deg, rgba(42, 171, 238, 0.3), rgba(0, 255, 166, 0.12));
+  box-shadow: 0 0 18px rgba(42, 171, 238, 0.16);
+}
+
+.badge-language {
+  background: rgba(42, 171, 238, 0.18);
+  border-color: rgba(42, 171, 238, 0.38);
+  color: #dff7ff;
 }
 
 .control-feature-strip {
@@ -4990,7 +5046,7 @@ body:has(.feed-command-center) .control-panel {
 }
 
 body:has(.feed-command-center) .filter-grid {
-  grid-template-columns: minmax(300px, 1.45fr) minmax(160px, 0.56fr) minmax(160px, 0.56fr) minmax(160px, 0.56fr) auto;
+  grid-template-columns: minmax(260px, 1.35fr) minmax(145px, 0.5fr) minmax(145px, 0.5fr) minmax(145px, 0.5fr) minmax(220px, 0.9fr) auto;
 }
 
 body:has(.feed-command-center) .filter-grid input {

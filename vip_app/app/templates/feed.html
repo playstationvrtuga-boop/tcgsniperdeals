@@ -128,7 +128,7 @@
     </div>
     <a class="ghost-button" href="{{ url_for('main.favorites') }}">Saved opportunities</a>
   </div>
-  <form class="filter-grid" method="get">
+  <form class="filter-grid" method="get" data-language-filter-form>
     <input type="search" name="q" placeholder="Search a card, set or opportunity..." value="{{ search }}">
     <select name="platform">
       <option value="">All platforms</option>
@@ -148,6 +148,18 @@
       <option value="25">Min profit: 25 EUR</option>
       <option value="50">Min profit: 50 EUR</option>
     </select>
+    <input type="hidden" name="language" value="{{ language_filter_value }}" data-language-filter-input>
+    <fieldset class="language-filter" aria-label="Language">
+      <legend>Language</legend>
+      <div class="language-filter-options">
+        {% for value, label in language_options %}
+        <label class="language-chip {% if value in selected_languages %}is-selected{% endif %}">
+          <input type="checkbox" value="{{ value }}" {% if value in selected_languages %}checked{% endif %} data-language-option>
+          <span>{{ label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </fieldset>
     <button class="primary-button" type="submit">Apply filters</button>
   </form>
   <div class="control-feature-strip" aria-label="Live feed strengths">
@@ -177,6 +189,7 @@
   data-feed-relative-time-interval-ms="{{ relative_time_update_ms }}"
   data-feed-cursor-detected-at="{{ listings[0].detected_at_iso if listings else '' }}"
   data-feed-cursor-id="{{ feed_cursor_id|default(0) }}"
+  data-feed-language="{{ language_filter_value }}"
   {% endif %}
 >
   {% for listing in listings %}

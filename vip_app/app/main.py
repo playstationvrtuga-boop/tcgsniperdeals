@@ -19,6 +19,17 @@ from .push import push_enabled
 
 main_bp = Blueprint("main", __name__)
 
+LANGUAGE_FILTER_OPTIONS = [
+    ("en", "EN"),
+    ("jp", "JP"),
+    ("fr", "FR"),
+    ("es", "ES"),
+    ("pt", "PT"),
+    ("de", "DE"),
+    ("it", "IT"),
+    ("unknown", "Unknown"),
+]
+
 
 BILLING_PLANS = {
     "monthly": {
@@ -455,7 +466,17 @@ def gone_status_values():
     ]
 
 
-def apply_listing_filters(query, search, platform, badge):
+def parse_language_filter(raw_value: str) -> list[str]:
+    allowed = {value for value, _label in LANGUAGE_FILTER_OPTIONS}
+    selected = []
+    for item in (raw_value or "").split(","):
+        value = item.strip().lower()
+        if value in allowed and value not in selected:
+            selected.append(value)
+    return selected
+
+
+def apply_listing_filters(query, search, platform, badge, languages=None):
     if search:
         query = query.filter(Listing.title.ilike(f"%{search}%"))
     if platform:
@@ -465,6 +486,12 @@ def apply_listing_filters(query, search, platform, badge):
             query = query.filter(Listing.is_deal.is_(False))
         else:
             query = query.filter(Listing.is_deal.is_(True), Listing.badge_label == badge)
+    if languages:
+        normalized_languages = [language.lower() for language in languages]
+        language_conditions = [db.func.lower(db.func.coalesce(Listing.card_language, "unknown")).in_(normalized_languages)]
+        if "unknown" in normalized_languages:
+            language_conditions.append(Listing.card_language.is_(None))
+        query = query.filter(or_(*language_conditions))
     return query
 
 
@@ -508,10 +535,12 @@ def render_deals_board(
     search = request.args.get("q", "").strip()
     platform = request.args.get("platform", "").strip()
     badge = request.args.get("badge", "").strip()
-    query = apply_listing_filters(query.options(defer(Listing.raw_payload)), search, platform, badge)
+    language_raw = request.args.get("language", "").strip()
+    selected_languages = parse_language_filter(language_raw)
+    query = apply_listing_filters(query.options(defer(Listing.raw_payload)), search, platform, badge, selected_languages)
 
     cache_hit = False
-    if cache_key and not search and not platform and not badge:
+    if cache_key and not search and not platform and not badge and not selected_languages:
         def build_snapshot():
             listings = query.order_by(*order_by).limit(30).all()
             return {
@@ -540,6 +569,11 @@ def render_deals_board(
     }
     feed_cursor_id = max((listing.id for listing in listings), default=0)
     platforms, badges = feed_options()
+    current_app.logger.info(
+        "[FEED_FILTER] language=%s results=%s",
+        ",".join(selected_languages) if selected_languages else "all",
+        len(listings),
+    )
 
     total_ms = (time.perf_counter() - feed_started) * 1000
     current_app.logger.debug(
@@ -568,6 +602,9 @@ def render_deals_board(
         search=search,
         selected_platform=platform,
         selected_badge=badge,
+        selected_languages=selected_languages,
+        language_filter_value=",".join(selected_languages),
+        language_options=LANGUAGE_FILTER_OPTIONS,
         live_stats=live_stats,
         feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
         feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
@@ -800,6 +837,7 @@ def feed_updates():
     cursor_detected_at_raw = request.args.get("latest_detected_at", "").strip()
     cursor_id_raw = request.args.get("latest_id", "").strip()
     limit_raw = request.args.get("limit", "").strip()
+    selected_languages = parse_language_filter(request.args.get("language", "").strip())
 
     try:
         limit = max(1, min(int(limit_raw or current_app.config.get("FEED_DELTA_MAX_ITEMS", 12)), 24))
@@ -821,6 +859,7 @@ def feed_updates():
     started = time.perf_counter()
     detected_at_expr = Listing.detected_at
     query = Listing.query.options(defer(Listing.raw_payload))
+    query = apply_listing_filters(query, "", "", "", selected_languages)
     if cursor_detected_at is not None and cursor_id is not None:
         query = query.filter(
             or_(
@@ -864,6 +903,11 @@ def feed_updates():
 
     current_app.logger.debug(
         "[LIVE_POLL] received count=%s",
+        len(rendered_items),
+    )
+    current_app.logger.info(
+        "[FEED_FILTER] language=%s results=%s",
+        ",".join(selected_languages) if selected_languages else "all",
         len(rendered_items),
     )
     for item in rendered_items:

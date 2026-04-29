@@ -4,11 +4,13 @@ import json
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 POKEMON_NAMES_PATH = PROJECT_ROOT / "data" / "pokemon_names.json"
+POKEMON_ALIASES_PATH = PROJECT_ROOT / "data" / "pokemon_name_aliases.json"
 
 BASE_POKEMON_NAMES = {
     "charizard", "pikachu", "mew", "mewtwo", "lugia", "ho-oh", "hooh",
@@ -28,6 +30,7 @@ BASE_POKEMON_NAMES = {
 NAME_ALIASES = {
     "dracaufeu": "charizard",
     "glurak": "charizard",
+    "lizardon": "charizard",
     "salameche": "charmander",
     "hooh": "ho-oh",
 }
@@ -79,6 +82,15 @@ LANGUAGE_HINTS = {
     "spanish": {"spanish", "espanol", "español", "espagnol", "es"},
 }
 GRADING_HINTS = {"psa", "beckett", "bgs", "cgc", "ace", "aura", "graded", "slab"}
+LANGUAGE_HINTS = {
+    "en": {"english", "anglais", "ingles", "eng"},
+    "jp": {"japanese", "jap", "japan", "japonais", "japones", "japonesas", "jp", "sv5k", "sv5a"},
+    "fr": {"french", "francais", "francaise", "langue francaise"},
+    "es": {"spanish", "espanol", "espagnol", "carta pokemon espanola"},
+    "pt": {"portuguese", "portugues", "carta pokemon portuguesa"},
+    "de": {"german", "deutsch", "pokemon karte"},
+    "it": {"italian", "italiano"},
+}
 SEALED_TERMS = {
     "booster", "etb", "elite trainer box", "display", "booster box", "tin",
     "collection box", "sealed", "coffret", "blister",
@@ -109,6 +121,9 @@ class CardSignals:
     rarity: str | None = None
     variant: str | None = None
     language: str | None = None
+    localized_name: str | None = None
+    alias_language: str | None = None
+    alias_confidence: str | None = None
     grading: str | None = None
     kind: str = "unknown_pokemon"
     confidence: str = "UNKNOWN"
@@ -128,6 +143,22 @@ class ParsedListingIdentity:
     fallback_query_used: bool = False
     is_pokemon_related: bool = False
     signals: CardSignals | None = None
+
+
+@dataclass
+class PokemonNameNormalization:
+    canonical_name: str | None
+    localized_name: str | None = None
+    language_hint: str | None = None
+    confidence: str = "none"
+
+    def as_dict(self) -> dict[str, str | None]:
+        return {
+            "canonical_name": self.canonical_name,
+            "localized_name": self.localized_name,
+            "language_hint": self.language_hint,
+            "confidence": self.confidence,
+        }
 
 
 def _strip_accents(value: str) -> str:
@@ -150,6 +181,51 @@ def normalize_title(title: str) -> str:
     return text
 
 
+@lru_cache(maxsize=1)
+def _load_alias_payload() -> dict[str, dict[str, list[str]]]:
+    payload: dict[str, dict[str, list[str]]] = {}
+    if POKEMON_ALIASES_PATH.exists():
+        try:
+            raw_payload = json.loads(POKEMON_ALIASES_PATH.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raw_payload = {}
+        if isinstance(raw_payload, dict):
+            for canonical, languages in raw_payload.items():
+                canonical_key = normalize_title(str(canonical))
+                if not canonical_key or not isinstance(languages, dict):
+                    continue
+                payload[canonical_key] = {}
+                for language, aliases in languages.items():
+                    if not isinstance(aliases, list):
+                        continue
+                    clean_aliases = [
+                        normalize_title(str(alias))
+                        for alias in aliases
+                        if str(alias).strip()
+                    ]
+                    if clean_aliases:
+                        payload[canonical_key][normalize_title(str(language))] = clean_aliases
+    for alias, canonical in NAME_ALIASES.items():
+        canonical_key = normalize_title(canonical)
+        payload.setdefault(canonical_key, {}).setdefault("alias", []).append(normalize_title(alias))
+    for canonical in BASE_POKEMON_NAMES:
+        canonical_key = normalize_title(canonical)
+        payload.setdefault(canonical_key, {}).setdefault("en", []).append(canonical_key)
+    return payload
+
+
+@lru_cache(maxsize=1)
+def _load_alias_index() -> dict[str, tuple[str, str | None]]:
+    index: dict[str, tuple[str, str | None]] = {}
+    for canonical, languages in _load_alias_payload().items():
+        index[canonical] = (canonical, "en")
+        for language, aliases in languages.items():
+            for alias in aliases:
+                if alias:
+                    index.setdefault(alias, (canonical, language if language != "alias" else None))
+    return index
+
+
 def _load_pokemon_names() -> set[str]:
     names = set(BASE_POKEMON_NAMES)
     if POKEMON_NAMES_PATH.exists():
@@ -160,24 +236,54 @@ def _load_pokemon_names() -> set[str]:
         except (OSError, ValueError):
             pass
     names.update(NAME_ALIASES)
+    names.update(_load_alias_index())
     return {name for name in names if name}
+
+
+def _find_alias_match(normalized: str) -> tuple[str, str, str | None] | None:
+    aliases = _load_alias_index()
+    tokens = normalized.split()
+
+    for token in tokens:
+        if token in aliases:
+            canonical, language = aliases[token]
+            return canonical, token, language
+
+    compact = normalized.replace(" ", "")
+    for alias, (canonical, language) in sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True):
+        if len(alias) >= 4 and alias.replace("-", "") in compact:
+            return canonical, alias, language
+    return None
+
+
+def normalize_pokemon_name(raw_title: str, detected_language: str | None = None) -> dict[str, str | None]:
+    normalized = normalize_title(raw_title)
+    match = _find_alias_match(normalized)
+    if not match:
+        return PokemonNameNormalization(
+            canonical_name=None,
+            localized_name=None,
+            language_hint=detected_language or None,
+            confidence="none",
+        ).as_dict()
+
+    canonical, localized, alias_language = match
+    if canonical == localized and detected_language and detected_language != "unknown":
+        alias_language = detected_language
+    confidence = "high" if canonical == localized or alias_language else "medium"
+    return PokemonNameNormalization(
+        canonical_name=canonical,
+        localized_name=localized,
+        language_hint=alias_language or detected_language or None,
+        confidence=confidence,
+    ).as_dict()
 
 
 def detect_pokemon_name(title: str) -> str | None:
     normalized = normalize_title(title)
-    names = _load_pokemon_names()
-    tokens = normalized.split()
-
-    for token in tokens:
-        if token in NAME_ALIASES:
-            return NAME_ALIASES[token]
-        if token in names:
-            return token
-
-    compact = normalized.replace(" ", "")
-    for name in sorted(names, key=len, reverse=True):
-        if len(name) >= 4 and name.replace("-", "") in compact:
-            return NAME_ALIASES.get(name, name)
+    match = _find_alias_match(normalized)
+    if match:
+        return match[0]
     return None
 
 
@@ -226,11 +332,30 @@ def _extract_variant(normalized: str) -> str | None:
     return None
 
 
-def _extract_language(normalized: str) -> str | None:
+def detect_card_language(title: str, description: str = "", marketplace: str | None = None) -> str:
+    normalized = normalize_title(f"{title or ''} {description or ''} {marketplace or ''}")
+    if not normalized:
+        return "unknown"
+
     for language, hints in LANGUAGE_HINTS.items():
         if any(re.search(rf"\b{re.escape(normalize_title(hint))}\b", normalized) for hint in hints):
             return language
-    return None
+
+    phrase_hints = {
+        "fr": ("carte pokemon", "langue francaise"),
+        "es": ("carta pokemon espanola", "carta pokemon spanish"),
+        "pt": ("carta pokemon portuguesa", "carta pokemon portugues"),
+        "de": ("pokemon karte",),
+    }
+    for language, phrases in phrase_hints.items():
+        if any(phrase in normalized for phrase in phrases):
+            return language
+    return "unknown"
+
+
+def _extract_language(normalized: str) -> str | None:
+    language = detect_card_language(normalized)
+    return None if language == "unknown" else language
 
 
 def _extract_set_name(normalized: str) -> str | None:
@@ -309,7 +434,9 @@ def extract_card_signals(title: str) -> CardSignals:
     card_number, set_total, full_number = _extract_numbers(normalized)
     rarity_value = _extract_first_known(normalized, {rarity.lower() for rarity in RARITIES})
     rarity = rarity_value.upper() if rarity_value else None
-    pokemon_name = detect_pokemon_name(normalized)
+    language = _extract_language(normalized)
+    name_info = normalize_pokemon_name(normalized, language)
+    pokemon_name = name_info.get("canonical_name")
     keyword_name = None
     if pokemon_name or card_number or full_number or _contains_pokemon_keyword(normalized):
         keyword_name = _extract_keyword_name(normalized, pokemon_name)
@@ -326,7 +453,10 @@ def extract_card_signals(title: str) -> CardSignals:
         set_name=_extract_set_name(normalized),
         rarity=rarity,
         variant=_extract_variant(normalized),
-        language=_extract_language(normalized),
+        language=language,
+        localized_name=name_info.get("localized_name"),
+        alias_language=name_info.get("language_hint"),
+        alias_confidence=name_info.get("confidence"),
         grading=_extract_first_known(normalized, GRADING_HINTS),
     )
     signals.kind = classify_listing_kind(signals)
@@ -394,6 +524,7 @@ def is_valid_query(query: str) -> bool:
 def generate_generic_alias_queries(signals: CardSignals) -> list[str]:
     queries: list[str] = []
     name = signals.pokemon_name or signals.keyword_name
+    localized_name = signals.localized_name if signals.localized_name != signals.pokemon_name else None
     number = signals.card_number
     full_number = signals.full_number
     code = signals.set_code
@@ -459,6 +590,12 @@ def generate_generic_alias_queries(signals: CardSignals) -> list[str]:
     if name:
         _append_unique(queries, f"pokemon {name} card")
         _append_unique(queries, f"pokemon {name}")
+    if localized_name:
+        if full_number:
+            _append_unique(queries, f"{localized_name} {full_number}")
+        elif number:
+            _append_unique(queries, f"{localized_name} {number}")
+        _append_unique(queries, f"pokemon {localized_name}")
     if code:
         _append_unique(queries, f"pokemon {code}")
     is_pokemon_candidate = bool(

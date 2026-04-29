@@ -153,6 +153,7 @@ class DealResult:
     estimated_fair_value: float | None = None
     pricing_basis: str | None = None
     confidence_score: int = 0
+    card_language: str | None = None
 
 
 class EbayPricingDeferred(EbaySoldError):
@@ -455,6 +456,10 @@ def parse_listing_identity(title: str) -> ParsedListingIdentity:
     return title_parser.parse_listing_identity(title)
 
 
+def detect_card_language(title: str, description: str = "", marketplace: str | None = None) -> str:
+    return title_parser.detect_card_language(title, description=description, marketplace=marketplace)
+
+
 def _log_parser(identity: ParsedListingIdentity) -> None:
     signals = getattr(identity, "signals", None)
     if signals is not None:
@@ -463,6 +468,8 @@ def _log_parser(identity: ParsedListingIdentity) -> None:
         print(f"[parser] kind={signals.kind}", flush=True)
         print(f"[parser] confidence={signals.confidence}", flush=True)
         print(f"[parser] pokemon_name={signals.pokemon_name or ''}", flush=True)
+        print(f"[parser] localized_name={signals.localized_name or ''}", flush=True)
+        print(f"[parser] language={signals.language or ''}", flush=True)
         print(f"[parser] card_number={signals.card_number or ''}", flush=True)
         print(f"[parser] full_number={signals.full_number or ''}", flush=True)
         print(f"[parser] set_code={signals.set_code or ''}", flush=True)
@@ -471,6 +478,11 @@ def _log_parser(identity: ParsedListingIdentity) -> None:
         print(f"[parser] decision={signals.decision}", flush=True)
         print(f"[parser] fallback_mode={str(identity.fallback_query_used).lower()}", flush=True)
         print(f"[parser] skip_reason={signals.skip_reason or ''}", flush=True)
+        if signals.localized_name and signals.pokemon_name and signals.localized_name != signals.pokemon_name:
+            print(
+                f"[POKEMON_ALIAS] localized={signals.localized_name} canonical={signals.pokemon_name}",
+                flush=True,
+            )
         return
 
     print(
@@ -978,11 +990,8 @@ def _pricing_basis_and_confidence(
 
 
 def _detect_language_hint(value: str) -> str | None:
-    normalized = f" {_normalize_title(value)} "
-    for language, terms in LANGUAGE_TERMS.items():
-        if any(term.strip() in normalized for term in terms):
-            return language
-    return None
+    language = title_parser.detect_card_language(value)
+    return None if language == "unknown" else language
 
 
 def _language_confidence_penalty(expected_language: str | None, listings: list[EbaySoldListing]) -> int:
@@ -1082,6 +1091,7 @@ def _pricing_deferred_result(
     reason: str,
 ) -> DealResult:
     print(f"[PRICING_DEFERRED reason=rate_limit] listing_id={listing_id}", flush=True)
+    signals = getattr(identity, "signals", None)
     return DealResult(
         status="retry_later",
         score=0,
@@ -1092,6 +1102,7 @@ def _pricing_deferred_result(
         listing_kind=listing_kind,
         listing_type=listing_type,
         confidence_score=0,
+        card_language=getattr(signals, "language", None),
         parser_confidence=identity.confidence,
         parser_query=pricing_query,
         parser_queries=pricing_queries,
@@ -1204,6 +1215,10 @@ def evaluate_listing(listing) -> DealResult:
     price_display = _clean_text(getattr(listing, "price_display", "") or "")
     description = _listing_description(listing)
     identity = parse_listing_identity(title)
+    signals = getattr(identity, "signals", None)
+    card_language = detect_card_language(title, description=description, marketplace=getattr(listing, "platform", None))
+    if card_language == "unknown" and signals is not None and signals.language:
+        card_language = signals.language
     listing_kind = identity.listing_kind
     listing_type = classify_listing_type(title, listing_kind, description=description)
     parser_queries = list(getattr(getattr(identity, "signals", None), "queries", None) or [])
@@ -1215,12 +1230,14 @@ def evaluate_listing(listing) -> DealResult:
 
     print(f"[PRICING_TYPE] listing_id={listing_id} type={listing_type} title={title[:160]}", flush=True)
     _log_parser(identity)
+    print(f"[LANG_DETECT] listing_id={listing_id} language={card_language}", flush=True)
     if identity.confidence == "UNKNOWN":
         return DealResult(
             status="skipped",
             reason="not_pokemon_related",
             listing_kind=listing_kind,
             listing_type=listing_type,
+            card_language=card_language,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1234,6 +1251,7 @@ def evaluate_listing(listing) -> DealResult:
             reason="invalid_listing_price",
             listing_kind=listing_kind,
             listing_type=listing_type,
+            card_language=card_language,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1256,7 +1274,6 @@ def evaluate_listing(listing) -> DealResult:
 
     pricing_queries = _prepare_pricing_queries(pricing_queries)[:MAX_PRICING_QUERY_CANDIDATES]
     pricing_query = pricing_queries[0] if pricing_queries else pricing_query
-    signals = getattr(identity, "signals", None)
     expected_language = getattr(signals, "language", None)
 
     comparable_sales: list[EbaySoldListing] = []
@@ -1438,6 +1455,7 @@ def evaluate_listing(listing) -> DealResult:
             estimated_fair_value=estimated_fair_value,
             pricing_basis=pricing_basis,
             confidence_score=confidence_score,
+            card_language=card_language,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1476,6 +1494,7 @@ def evaluate_listing(listing) -> DealResult:
             estimated_fair_value=estimated_fair_value,
             pricing_basis=pricing_basis,
             confidence_score=confidence_score,
+            card_language=card_language,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1547,6 +1566,7 @@ def evaluate_listing(listing) -> DealResult:
             estimated_fair_value=estimated_fair_value,
             pricing_basis=pricing_basis,
             confidence_score=confidence_score,
+            card_language=card_language,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1587,6 +1607,7 @@ def evaluate_listing(listing) -> DealResult:
             estimated_fair_value=estimated_fair_value,
             pricing_basis=pricing_basis,
             confidence_score=confidence_score,
+            card_language=card_language,
             parser_confidence=identity.confidence,
             parser_query=pricing_query,
             parser_queries=pricing_queries,
@@ -1659,6 +1680,7 @@ def evaluate_listing(listing) -> DealResult:
         estimated_fair_value=estimated_fair_value,
         pricing_basis=pricing_basis,
         confidence_score=confidence_score,
+        card_language=card_language,
         reason=result_reason,
         parser_confidence=identity.confidence,
         parser_query=pricing_query,
@@ -1675,6 +1697,7 @@ __all__ = [
     "ebay_pause_remaining_seconds",
     "detect_listing_kind",
     "detect_listing_market_type",
+    "detect_card_language",
     "evaluate_listing",
     "classify_listing_type",
     "is_comparable_ebay_result",

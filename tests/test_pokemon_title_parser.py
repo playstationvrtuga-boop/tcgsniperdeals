@@ -3,10 +3,12 @@ import unittest
 from services.pokemon_title_parser import (
     clean_pricing_query,
     classify_listing_kind,
+    detect_card_language,
     detect_pokemon_name,
     extract_card_signals,
     generate_generic_alias_queries,
     is_valid_query,
+    normalize_pokemon_name,
     normalize_title,
 )
 
@@ -30,7 +32,17 @@ class PokemonTitleParserTests(unittest.TestCase):
 
     def test_detect_pokemon_name_uses_base_and_aliases(self):
         self.assertEqual(detect_pokemon_name("Dracaufeu 125 Pokemon"), "charizard")
+        self.assertEqual(detect_pokemon_name("Glurak 4/102"), "charizard")
+        self.assertEqual(detect_pokemon_name("Lizardon No.006"), "charizard")
         self.assertEqual(detect_pokemon_name("Gengar VMAX 271"), "gengar")
+
+    def test_normalize_pokemon_name_returns_alias_metadata(self):
+        info = normalize_pokemon_name("Dracaufeu 4/102", "fr")
+
+        self.assertEqual(info["canonical_name"], "charizard")
+        self.assertEqual(info["localized_name"], "dracaufeu")
+        self.assertEqual(info["language_hint"], "fr")
+        self.assertEqual(info["confidence"], "high")
 
     def test_charizard_x_is_treated_as_ex_variant(self):
         signals = extract_card_signals("🔥 Charizard x 125 PFL rare Pokémon card")
@@ -60,9 +72,29 @@ class PokemonTitleParserTests(unittest.TestCase):
         self.assertEqual(signals.full_number, "085/063")
         self.assertEqual(signals.rarity, "SR")
         self.assertEqual(signals.set_name, "mega symphonia")
-        self.assertEqual(signals.language, "japanese")
+        self.assertEqual(signals.language, "jp")
         self.assertEqual(signals.confidence, "MEDIUM")
         self.assertEqual(signals.decision, "process")
+
+    def test_language_detection_examples(self):
+        self.assertEqual(detect_card_language("Pikachu japonais"), "jp")
+        self.assertEqual(detect_card_language("Mewtwo francais"), "fr")
+        self.assertEqual(detect_card_language("Carte Pokemon anglais"), "en")
+        self.assertEqual(detect_card_language("Pokemon Karte Glurak"), "de")
+        self.assertEqual(detect_card_language("Pokemon card english"), "en")
+
+        mewtwo = normalize_pokemon_name("Mewtwo francais", detect_card_language("Mewtwo francais"))
+        self.assertEqual(mewtwo["canonical_name"], "mewtwo")
+        self.assertEqual(mewtwo["language_hint"], "fr")
+
+    def test_localized_alias_queries_use_canonical_name_first(self):
+        signals = extract_card_signals("Dracaufeu 4/102")
+
+        self.assertEqual(signals.pokemon_name, "charizard")
+        self.assertEqual(signals.localized_name, "dracaufeu")
+        self.assertEqual(signals.alias_language, "fr")
+        self.assertEqual(signals.queries[0], "charizard 4/102")
+        self.assertIn("pokemon charizard 4", signals.queries)
 
     def test_lot_bundle_is_low_and_processed(self):
         signals = extract_card_signals("Sobre de 30 Cartas Pokémon Originais - Variadas")

@@ -6,6 +6,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
+from services.pokemon_title_parser import detect_card_language
 from services.ebay_api_client import ebay_api_client
 from .extensions import db
 from .feed_cache import invalidate
@@ -202,6 +203,12 @@ def build_listing_from_payload(payload):
     raw_payload = dict(payload)
     for timestamp_key in ("posted_at", "created_at", "source_published_at"):
         raw_payload.pop(timestamp_key, None)
+    card_language = detect_card_language(
+        title,
+        description=str(payload.get("description") or payload.get("body") or ""),
+        marketplace=platform,
+    )
+    current_app.logger.info("[LANG_DETECT] listing_id=new language=%s", card_language)
 
     listing = Listing(
         source=source,
@@ -233,6 +240,7 @@ def build_listing_from_payload(payload):
         pricing_basis=None,
         confidence_score=None,
         listing_type=None,
+        card_language=card_language,
         discount_percent=None,
         gross_margin=None,
         pricing_score=None,

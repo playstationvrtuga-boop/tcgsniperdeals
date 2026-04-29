@@ -108,6 +108,7 @@ class Listing(TimestampMixin, db.Model):
     pricing_basis = db.Column(db.String(40))
     confidence_score = db.Column(db.Integer)
     listing_type = db.Column(db.String(40))
+    card_language = db.Column(db.String(20), default="unknown", index=True)
     cardmarket_trending_score = db.Column(db.Integer)
     cardmarket_trend_rank = db.Column(db.Integer)
     cardmarket_trend_category = db.Column(db.String(40))
@@ -282,6 +283,37 @@ class Listing(TimestampMixin, db.Model):
             "lot_bundle": "LOT",
         }
         return labels.get(value, "UNKNOWN")
+
+    @property
+    def card_language_display(self):
+        value = (self.card_language or "unknown").strip().lower()
+        return value.upper() if value != "unknown" else "Unknown"
+
+    @property
+    def pokemon_name_display(self):
+        try:
+            from services.pokemon_title_parser import normalize_pokemon_name
+
+            info = normalize_pokemon_name(self.title or "", self.card_language)
+        except Exception:
+            return None
+        canonical = info.get("canonical_name")
+        return canonical.title() if canonical else None
+
+    @property
+    def localized_pokemon_display(self):
+        try:
+            from services.pokemon_title_parser import normalize_pokemon_name
+
+            info = normalize_pokemon_name(self.title or "", self.card_language)
+        except Exception:
+            return None
+        canonical = info.get("canonical_name")
+        localized = info.get("localized_name")
+        language = info.get("language_hint") or self.card_language
+        if not canonical or not localized or localized == canonical:
+            return None
+        return f"{localized.title()} ({(language or 'unknown').upper()})"
 
     @property
     def effective_status(self):

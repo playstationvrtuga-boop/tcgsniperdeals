@@ -16,6 +16,54 @@ function isStandaloneWebApp() {
   return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
 }
 
+function initLanguageFilter() {
+  const form = document.querySelector("[data-language-filter-form]");
+  if (!form) return;
+
+  const storageKey = "preferred_languages";
+  const hiddenInput = form.querySelector("[data-language-filter-input]");
+  const options = [...form.querySelectorAll("[data-language-option]")];
+  const params = new URLSearchParams(window.location.search);
+  const hasLanguageParam = params.has("language");
+
+  function selectedValues() {
+    return options.filter((option) => option.checked).map((option) => option.value).filter(Boolean);
+  }
+
+  function syncState() {
+    const values = selectedValues();
+    if (hiddenInput) hiddenInput.value = values.join(",");
+    options.forEach((option) => {
+      option.closest(".language-chip")?.classList.toggle("is-selected", option.checked);
+    });
+    try {
+      if (values.length) {
+        localStorage.setItem(storageKey, values.join(","));
+      } else {
+        localStorage.removeItem(storageKey);
+      }
+    } catch (error) {}
+  }
+
+  if (!hasLanguageParam) {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const savedValues = saved.split(",").map((value) => value.trim()).filter(Boolean);
+        if (savedValues.length) {
+          params.set("language", savedValues.join(","));
+          window.location.replace(`${window.location.pathname}?${params.toString()}`);
+          return;
+        }
+      }
+    } catch (error) {}
+  }
+
+  options.forEach((option) => option.addEventListener("change", syncState));
+  form.addEventListener("submit", syncState);
+  syncState();
+}
+
 async function initNativeShell() {
   const nativeShell = isNativeShell();
   const installedWebApp = isStandaloneWebApp();
@@ -519,6 +567,7 @@ function initLiveFeed() {
   const cardAnimationsEnabled = feedRoot.dataset.feedCardAnimations === "1";
   const relativeTimeEnabled = feedRoot.dataset.feedRelativeTimeUpdates === "1";
   const relativeTimeIntervalMs = Number(feedRoot.dataset.feedRelativeTimeIntervalMs || 15000);
+  const languageFilter = feedRoot.dataset.feedLanguage || "";
   const radar = createRadarController(radarRoot, radarEnabled);
   const sourceFeedback = createSourceController(sourceRail, radarEnabled && targetFeedbackEnabled);
   const linkTimers = new Map();
@@ -685,6 +734,7 @@ function initLiveFeed() {
         url.searchParams.set("latest_id", String(latestId));
       }
       url.searchParams.set("limit", String(deltaLimit));
+      if (languageFilter) url.searchParams.set("language", languageFilter);
 
       const response = await fetch(url.toString(), {
         credentials: "same-origin",
@@ -800,5 +850,6 @@ initNativeShell().finally(() => {
   syncPushButtons();
   initSplash();
   initBilling();
+  initLanguageFilter();
   initLiveFeed();
 });

@@ -62,6 +62,7 @@
       <span class="badge badge-score badge-{{ listing.display_badge|lower|replace(' ', '-') }}">{{ listing.display_badge }}</span>
       {% endif %}
       <span class="badge deal-rating-badge deal-rating-{{ deal_tone }}">{{ deal_tone_label }}</span>
+      <span class="badge badge-language">LANG: {{ listing.card_language_display }}</span>
     </div>
 
     <div class="listing-overlay-bottom">
@@ -142,6 +143,22 @@
         <span class="signal-label">Market Type</span>
         <strong>{{ market_type_label }}</strong>
       </div>
+      <div>
+        <span class="signal-label">Language</span>
+        <strong>{{ listing.card_language_display }}</strong>
+      </div>
+      {% if listing.pokemon_name_display %}
+      <div>
+        <span class="signal-label">Pokemon</span>
+        <strong>{{ listing.pokemon_name_display }}</strong>
+      </div>
+      {% endif %}
+      {% if listing.localized_pokemon_display %}
+      <div>
+        <span class="signal-label">Detected as</span>
+        <strong>{{ listing.localized_pokemon_display }}</strong>
+      </div>
+      {% endif %}
       <div>
         <span class="signal-label">Comparable Results</span>
         <strong>{{ listing.comparable_results_count }}</strong>

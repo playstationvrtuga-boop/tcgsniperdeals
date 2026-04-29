@@ -25,6 +25,7 @@ from services.ai_market_intel import apply_ai_market_intel_to_listing
 from services.deal_detector import (
     EbaySoldError,
     EbaySoldRateLimitError,
+    detect_card_language,
     ebay_pause_remaining_seconds,
     evaluate_listing,
 )
@@ -95,6 +96,10 @@ def fetch_next_pending_listing() -> Listing | None:
 
 def _mark_processed(listing: Listing, result) -> None:
     checked_at = utcnow()
+    listing.card_language = result.card_language or listing.card_language or detect_card_language(
+        listing.title or "",
+        marketplace=listing.platform,
+    )
     if result.status in {"retry_later", "pricing_deferred"}:
         listing.confidence_score = result.confidence_score
         listing.listing_type = result.listing_type or listing.listing_type

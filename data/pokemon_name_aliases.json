@@ -1,0 +1,124 @@
+{
+  "charizard": {
+    "en": ["charizard"],
+    "fr": ["dracaufeu"],
+    "de": ["glurak"],
+    "jp": ["lizardon"]
+  },
+  "pikachu": {
+    "en": ["pikachu"],
+    "jp": ["pikachu"]
+  },
+  "mewtwo": {
+    "en": ["mewtwo"],
+    "jp": ["myutsu", "mewtwo"]
+  },
+  "mew": {
+    "en": ["mew"],
+    "jp": ["myu", "mew"]
+  },
+  "dragonite": {
+    "en": ["dragonite"],
+    "fr": ["dracolosse"],
+    "de": ["dragoran"],
+    "jp": ["kairyu"]
+  },
+  "gengar": {
+    "en": ["gengar"],
+    "fr": ["ectoplasma"],
+    "de": ["gengar"],
+    "jp": ["gangar"]
+  },
+  "rayquaza": {
+    "en": ["rayquaza"],
+    "jp": ["rekkuza"]
+  },
+  "lugia": {
+    "en": ["lugia"],
+    "jp": ["lugia"]
+  },
+  "umbreon": {
+    "en": ["umbreon"],
+    "fr": ["noctali"],
+    "de": ["nachtara"],
+    "jp": ["blacky"]
+  },
+  "espeon": {
+    "en": ["espeon"],
+    "fr": ["mentali"],
+    "de": ["psiana"],
+    "jp": ["eifie"]
+  },
+  "eevee": {
+    "en": ["eevee"],
+    "fr": ["evoli"],
+    "de": ["evoli"],
+    "jp": ["eievui"]
+  },
+  "blastoise": {
+    "en": ["blastoise"],
+    "fr": ["tortank"],
+    "de": ["turtok"],
+    "jp": ["kamex"]
+  },
+  "venusaur": {
+    "en": ["venusaur"],
+    "fr": ["florizarre"],
+    "de": ["bisaflor"],
+    "jp": ["fushigibana"]
+  },
+  "gyarados": {
+    "en": ["gyarados"],
+    "fr": ["leviator"],
+    "de": ["garados"],
+    "jp": ["gyarados"]
+  },
+  "lucario": {
+    "en": ["lucario"],
+    "jp": ["lucario"]
+  },
+  "greninja": {
+    "en": ["greninja"],
+    "fr": ["amphinobi"],
+    "de": ["quajutsu"],
+    "jp": ["gekkouga"]
+  },
+  "snorlax": {
+    "en": ["snorlax"],
+    "fr": ["ronflex"],
+    "de": ["relaxo"],
+    "jp": ["kabigon"]
+  },
+  "arceus": {
+    "en": ["arceus"],
+    "jp": ["arceus"]
+  },
+  "giratina": {
+    "en": ["giratina"],
+    "jp": ["giratina"]
+  },
+  "charmander": {
+    "en": ["charmander"],
+    "fr": ["salameche"],
+    "de": ["glumanda"],
+    "jp": ["hitokage"]
+  },
+  "charmeleon": {
+    "en": ["charmeleon"],
+    "fr": ["reptincel"],
+    "de": ["glutexo"],
+    "jp": ["lizardo"]
+  },
+  "squirtle": {
+    "en": ["squirtle"],
+    "fr": ["carapuce"],
+    "de": ["schiggy"],
+    "jp": ["zenigame"]
+  },
+  "bulbasaur": {
+    "en": ["bulbasaur"],
+    "fr": ["bulbizarre"],
+    "de": ["bisasam"],
+    "jp": ["fushigidane"]
+  }
+}
