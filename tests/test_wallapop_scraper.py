@@ -3,6 +3,7 @@ import unittest
 from contextlib import redirect_stdout
 
 from services.wallapop_scraper import (
+    _extract_items_from_html,
     _extract_items_from_page,
     _read_wallapop_body_text,
     _wait_for_wallapop_results,
@@ -105,6 +106,22 @@ class WallapopScraperTests(unittest.TestCase):
         self.assertIn('/app/search', page.script)
         self.assertIn('data-product-id', page.script)
 
+    def test_html_fallback_extracts_item_urls_with_prices(self):
+        html = """
+        <html><body>
+          <a href="/item/pokemon-charizard-123">Pokemon TCG Charizard 125/197 20 €</a>
+          <a href="https://es.wallapop.com/app/item/pokemon-booster-456">Pokemon booster sealed 6 eur</a>
+          <a href="/item/no-price">Pokemon card without price</a>
+        </body></html>
+        """
+
+        items = _extract_items_from_html(html, "pokemon tcg")
+
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0]["url"], "https://es.wallapop.com/item/pokemon-charizard-123")
+        self.assertEqual(items[0]["price"], "20 €")
+        self.assertIn("Charizard", items[0]["title"])
+
     def test_rejects_non_tcg_junk(self):
         items = filter_wallapop_candidates(
             [
@@ -131,13 +148,13 @@ class WallapopScraperTests(unittest.TestCase):
         class FailingPage:
             def wait_for_selector(self, _selector, timeout):
                 self.timeout = timeout
-                raise TimeoutError("Page.wait_for_selector: Timeout 11000ms exceeded\nlong details")
+                raise TimeoutError("Page.wait_for_selector: Timeout 9000ms exceeded\nlong details")
 
         page = FailingPage()
 
         self.assertFalse(_wait_for_wallapop_results(page, "pokemon tcg"))
-        self.assertGreaterEqual(page.timeout, 10000)
-        self.assertLessEqual(page.timeout, 12000)
+        self.assertGreaterEqual(page.timeout, 8000)
+        self.assertLessEqual(page.timeout, 10000)
 
 
 if __name__ == "__main__":

@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import hashlib
 import os
-import random
 import re
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
+from html import unescape
 from typing import Iterable
 from urllib.parse import quote_plus, urljoin, urlsplit
 
@@ -38,8 +38,9 @@ WALLAPOP_RESULTS_SELECTOR = (
     'a[href*="/app/search"], article, li, [data-testid], [data-item-id], [data-product-id], '
     '[class*="ItemCard"], [class*="Card"]'
 )
-WALLAPOP_RESULTS_TIMEOUT_MS = 11000
-WALLAPOP_QUERY_COOLDOWN_MS = 1000
+WALLAPOP_GOTO_TIMEOUT_MS = 20000
+WALLAPOP_RESULTS_TIMEOUT_MS = 9000
+WALLAPOP_AFTER_GOTO_WAIT_MS = 2000
 WALLAPOP_VISIBLE_CARD_SCAN_LIMIT = 5
 
 POSITIVE_TCG_TERMS = {
@@ -298,6 +299,67 @@ def _extract_items_from_page(page, source_query: str) -> list[dict]:
     )
 
 
+def _strip_html(text: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", text or "")
+    return " ".join(unescape(text).split())
+
+
+def _extract_items_from_html(html_text: str, source_query: str) -> list[dict]:
+    items = []
+    seen_urls = set()
+    anchor_pattern = re.compile(
+        r"<a\b(?=[^>]*href=[\"'](?P<href>[^\"']*(?:/item/|/app/item/)[^\"']*)[\"'])[^>]*>(?P<body>.*?)</a>",
+        flags=re.I | re.S,
+    )
+    price_pattern = re.compile(r"\d+(?:[,.]\d{1,2})?\s*(?:€|eur)", flags=re.I)
+    for match in anchor_pattern.finditer(html_text or ""):
+        url = normalize_wallapop_url(unescape(match.group("href")))
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        text = _strip_html(match.group("body"))
+        price_match = price_pattern.search(text)
+        price = price_match.group(0) if price_match else ""
+        if not price:
+            continue
+        title = text
+        if price:
+            title = " ".join(text.replace(price, " ").split())
+        title = title[:140].strip()
+        if not title:
+            title = urlsplit(url).path.rsplit("/", 1)[-1].replace("-", " ")[:140].strip()
+        items.append(
+            {
+                "title": title,
+                "price": price,
+                "url": url,
+                "image_url": "",
+                "location": "",
+                "source_query": source_query,
+            }
+        )
+        if len(items) >= WALLAPOP_VISIBLE_CARD_SCAN_LIMIT:
+            break
+    return items
+
+
+def _extract_items_from_page_html(page, query: str) -> list[dict]:
+    try:
+        return _extract_items_from_html(page.content(), query)
+    except Exception as exc:
+        print(f"[WALLAPOP_HTML_FALLBACK_SKIPPED] level=warning query={query} error={_brief_error(exc)}", flush=True)
+        return []
+
+
+def _close_wallapop_page(page, query: str) -> None:
+    if page is None:
+        return
+    try:
+        page.close()
+    except Exception as exc:
+        print(f"[WALLAPOP_PAGE_CLOSE_SKIPPED] level=warning query={query} error={_brief_error(exc)}", flush=True)
+
+
 def _brief_error(exc: Exception, limit: int = 180) -> str:
     message = str(exc).splitlines()[0].strip()
     return (message or exc.__class__.__name__)[:limit]
@@ -314,17 +376,6 @@ def _wait_for_wallapop_results(page, query: str) -> bool:
             flush=True,
         )
         return False
-
-
-def _cooldown_wallapop_query(page, query: str) -> None:
-    try:
-        page.wait_for_load_state("domcontentloaded", timeout=3000)
-    except Exception:
-        pass
-    try:
-        page.wait_for_timeout(WALLAPOP_QUERY_COOLDOWN_MS)
-    except Exception as exc:
-        print(f"[WALLAPOP_QUERY_COOLDOWN_SKIPPED] level=warning query={query} error={_brief_error(exc)}", flush=True)
 
 
 def _read_wallapop_body_text(page, query: str) -> str:
@@ -429,27 +480,34 @@ def fetch_wallapop_listings(
                     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36"
                 ),
             )
-            page = context.new_page()
-            page.set_default_timeout(8000)
-            page.route("**/*", _route_light_resources)
+            context.route("**/*", _route_light_resources)
             try:
                 for query in selected_queries:
                     if len(accepted) >= max_items:
                         break
+                    page = None
                     url = WALLAPOP_BASE_URL.format(query=quote_plus(query))
                     try:
-                        page.goto(url, wait_until="domcontentloaded", timeout=12000)
-                        page.wait_for_timeout(int(random.uniform(delay_min_seconds, delay_max_seconds) * 1000))
-                        if not _wait_for_wallapop_results(page, query):
-                            stats["timeouts"] += 1
-                            continue
+                        page = context.new_page()
+                        page.set_default_timeout(10000)
+                        page.goto(url, wait_until="domcontentloaded", timeout=WALLAPOP_GOTO_TIMEOUT_MS)
+                        page.wait_for_timeout(WALLAPOP_AFTER_GOTO_WAIT_MS)
+                        results_ready = _wait_for_wallapop_results(page, query)
                         body_text = _read_wallapop_body_text(page, query)
                         if any(marker in body_text for marker in BLOCKED_TEXT_MARKERS):
                             if "too many requests" in body_text:
                                 print(f"[WALLAPOP_RATE_LIMITED] query={query}", flush=True)
                             print(f"[WALLAPOP_BLOCKED_OR_CAPTCHA] query={query}", flush=True)
                             break
-                        extracted = _extract_items_from_page(page, query)
+                        extracted = _extract_items_from_page(page, query) if results_ready else []
+                        if not extracted:
+                            fallback_items = _extract_items_from_page_html(page, query)
+                            if fallback_items:
+                                print(f"[WALLAPOP_HTML_FALLBACK] query={query} candidates={len(fallback_items)}", flush=True)
+                            extracted = fallback_items
+                        if not results_ready and not extracted:
+                            stats["timeouts"] += 1
+                            continue
                         accepted.extend(
                             filter_wallapop_candidates(
                                 extracted,
@@ -469,7 +527,7 @@ def fetch_wallapop_listings(
                         print(f"[WALLAPOP_QUERY_SKIPPED] level=warning query={query} error={_brief_error(exc)}", flush=True)
                         continue
                     finally:
-                        _cooldown_wallapop_query(page, query)
+                        _close_wallapop_page(page, query)
             finally:
                 context.close()
                 browser.close()
