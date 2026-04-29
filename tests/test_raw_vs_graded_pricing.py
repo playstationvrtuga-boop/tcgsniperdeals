@@ -41,6 +41,12 @@ class RawVsGradedPricingTests(unittest.TestCase):
         self.assertEqual(deal_detector._extract_grading_company(title), "PSA")
         self.assertEqual(deal_detector._extract_grade(title), 10.0)
 
+    def test_detects_french_graded_gradee_ten(self):
+        title = "Chinchidou 082/071 Ultra rare Pokemon - Gradée 10"
+
+        self.assertEqual(deal_detector.detect_listing_market_type(title), "graded_card")
+        self.assertEqual(deal_detector._extract_grade(title), 10.0)
+
     def test_detects_additional_real_market_types(self):
         self.assertEqual(
             deal_detector.detect_listing_market_type(

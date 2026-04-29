@@ -22,7 +22,12 @@ from config import (
 )
 from services.alert_formatter import format_vip_alert, make_partial_product_name
 from services.ai_market_intel import apply_ai_market_intel_to_listing
-from services.deal_detector import EbaySoldError, EbaySoldRateLimitError, evaluate_listing
+from services.deal_detector import (
+    EbaySoldError,
+    EbaySoldRateLimitError,
+    ebay_pause_remaining_seconds,
+    evaluate_listing,
+)
 from services.ebay_api_client import ebay_api_client
 from vip_app.app import create_app
 from vip_app.app.extensions import db
@@ -31,6 +36,7 @@ from vip_app.app.push import send_deal_push
 
 
 app = create_app()
+EBAY_PAUSE_WORKER_BACKOFF_MAX_SECONDS = 60
 
 
 def _pending_listing_query():
@@ -371,6 +377,22 @@ def process_listing(listing: Listing) -> str:
         db.session.commit()
         print(f"[pricing_worker] unexpected error on listing {listing.id}: {error}")
         return "worker_error"
+
+
+def _sleep_for_active_ebay_pause(*, once: bool = False) -> bool:
+    remaining = ebay_pause_remaining_seconds()
+    if remaining <= 0:
+        return False
+    sleep_seconds = min(max(1, remaining + 1), EBAY_PAUSE_WORKER_BACKOFF_MAX_SECONDS)
+    print(
+        f"[pricing_worker] ebay_pause_backoff remaining={remaining}s sleep={sleep_seconds}s",
+        flush=True,
+    )
+    if not once:
+        time.sleep(sleep_seconds)
+    return True
+
+
 def run_worker(*, once: bool = False, limit: int | None = None) -> None:
     processed = 0
     idle_cycles = 0
@@ -412,6 +434,11 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
         if "127.0.0.1" not in str(APP_API_URL) and "localhost" not in str(APP_API_URL) and str(database_uri).startswith("sqlite"):
             print("[pricing_worker] warning: bot is configured for online API, but this worker is reading local SQLite")
         while True:
+            if _sleep_for_active_ebay_pause(once=once):
+                if once:
+                    break
+                continue
+
             listing = fetch_next_pending_listing()
             if listing is not None:
                 idle_cycles = 0

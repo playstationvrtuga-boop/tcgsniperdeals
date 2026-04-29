@@ -39,7 +39,8 @@ ETB_TERMS = ("etb", "elite trainer box")
 BOOSTER_BOX_TERMS = ("booster box", "display")
 GRADED_TERMS = (
     "psa", "bgs", "beckett", "cgc", "ace", "sgc", "tag", "aura", "rpa", "pca",
-    "graded", "grading", "grade", "graad", "graduada", "graduado", "slab",
+    "graded", "grading", "grade", "gradee", "gradees", "graad",
+    "graduada", "graduado", "slab",
     "encapsulated", "gem mint", "mint 10", "cert", "certificate",
     "certificado", "aigrading", "ai grading",
 )
@@ -229,7 +230,7 @@ def _has_graded_signal(value: str) -> bool:
         return True
     return bool(
         re.search(
-            r"\b(?:gem\s+mint|mint|grade|graded|graad|graduada|graduado)\s*"
+            r"\b(?:gem\s+mint|mint|grade|gradee|gradees|graded|graad|graduada|graduado)\s*"
             r"(10|9\.5|9|8\.5|8)\b",
             text,
         )
@@ -261,7 +262,7 @@ def _extract_grading_company(value: str) -> str | None:
 def _extract_grade(value: str) -> float | None:
     text = _compare_text(value).replace(",", ".")
     match = re.search(
-        r"\b(?:psa|bgs|beckett|cgc|ace|sgc|tag|aura|rpa|pca|aigrading|ai\s*grading|grade|graded|grading|graad|graduada|graduado)\s*"
+        r"\b(?:psa|bgs|beckett|cgc|ace|sgc|tag|aura|rpa|pca|aigrading|ai\s*grading|grade|gradee|gradees|graded|grading|graad|graduada|graduado)\s*"
         r"(10|[1-9](?:\.\d)?)\b",
         text,
     )
