@@ -3,6 +3,8 @@ import unittest
 from contextlib import redirect_stdout
 
 from services.wallapop_scraper import (
+    WALLAPOP_BASE_URL,
+    WALLAPOP_QUERIES,
     _extract_items_from_html,
     _extract_wallapop_link_urls_from_html,
     _extract_items_from_page,
@@ -11,11 +13,16 @@ from services.wallapop_scraper import (
     derive_wallapop_external_id,
     filter_wallapop_candidates,
     should_send_wallapop_to_telegram,
+    wallapop_candidate_reason,
 )
 from vip_app.app.api import normalize_platform
 
 
 class WallapopScraperTests(unittest.TestCase):
+    def test_uses_collectibles_search_for_primary_pokemon_query(self):
+        self.assertEqual(WALLAPOP_QUERIES[:3], ["pokemon", "cartas pokemon", "pokemon tcg"])
+        self.assertEqual(WALLAPOP_BASE_URL.format(query="pokemon"), "https://pt.wallapop.com/colecionismo?keywords=pokemon")
+
     def test_source_wallapop_is_accepted(self):
         [item] = filter_wallapop_candidates(
             [
@@ -150,6 +157,12 @@ class WallapopScraperTests(unittest.TestCase):
         )
 
         self.assertEqual(items, [])
+
+    def test_candidate_reason_accepts_card_signal_objects(self):
+        ok, reason = wallapop_candidate_reason("Charizard 4/102")
+
+        self.assertTrue(ok)
+        self.assertIn(reason, {"card_signals", "tcg_terms"})
 
     def test_wallapop_telegram_disabled_by_default_flag(self):
         self.assertFalse(should_send_wallapop_to_telegram({"source": "wallapop"}, send_enabled=False))

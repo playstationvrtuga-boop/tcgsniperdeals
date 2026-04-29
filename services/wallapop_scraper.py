@@ -25,14 +25,11 @@ from services.pokemon_title_parser import extract_card_signals
 WALLAPOP_SOURCE = "wallapop"
 WALLAPOP_PLATFORM = "Wallapop"
 WALLAPOP_QUERIES = [
-    "pokemon cartas",
-    "pokemon tcg",
+    "pokemon",
     "cartas pokemon",
-    "charizard pokemon",
-    "pokemon booster",
-    "pokemon etb",
+    "pokemon tcg",
 ]
-WALLAPOP_BASE_URL = "https://es.wallapop.com/app/search?keywords={query}"
+WALLAPOP_BASE_URL = "https://pt.wallapop.com/colecionismo?keywords={query}"
 WALLAPOP_RESULTS_SELECTOR = (
     'a[href*="/item/"], a[href*="/app/item"], a[href*="/product/"], '
     'a[href*="/app/search"], article, li, [data-testid], [data-item-id], [data-product-id], '
@@ -160,12 +157,15 @@ def wallapop_candidate_reason(title: str, description: str = "") -> tuple[bool, 
     for junk in JUNK_TERMS:
         if junk in text:
             return False, f"junk:{junk}"
-    if "pokemon" not in text and not extract_card_signals(text).get("pokemon_name"):
+    signals = extract_card_signals(text)
+    pokemon_name = signals.get("pokemon_name") if isinstance(signals, dict) else getattr(signals, "pokemon_name", None)
+    if "pokemon" not in text and not pokemon_name:
         return False, "missing_pokemon"
     if any(term in text for term in POSITIVE_TCG_TERMS):
         return True, "tcg_terms"
-    signals = extract_card_signals(text)
-    if signals.get("full_number") or signals.get("card_number"):
+    full_number = signals.get("full_number") if isinstance(signals, dict) else getattr(signals, "full_number", None)
+    card_number = signals.get("card_number") if isinstance(signals, dict) else getattr(signals, "card_number", None)
+    if full_number or card_number:
         return True, "card_signals"
     return False, "weak_tcg_signal"
 
@@ -406,17 +406,21 @@ def _obter_wallapop_links(
         if len(links) >= max_items:
             break
         search_url = WALLAPOP_BASE_URL.format(query=quote_plus(query))
+        print(f"[WALLAPOP_CATEGORY_URL] url={search_url}", flush=True)
         try:
             page.goto(search_url, timeout=WALLAPOP_GOTO_TIMEOUT_MS, wait_until="domcontentloaded")
             page.wait_for_timeout(delay_ms)
             results_ready = _wait_for_wallapop_results(page, query)
             elements = page.query_selector_all('a[href*="/item/"], a[href*="/app/item/"], a[href*="/product/"]') if results_ready else []
+            print(f"[WALLAPOP_CANDIDATES] count={len(elements)} query={query}", flush=True)
             if not elements:
                 fallback_urls = _extract_wallapop_link_urls_from_page_html(page, query)
                 if fallback_urls:
                     print(f"[WALLAPOP_HTML_FALLBACK] query={query} links={len(fallback_urls)}", flush=True)
+                    print(f"[WALLAPOP_CANDIDATES] count={len(fallback_urls)} query={query} source=html", flush=True)
                 for url in fallback_urls:
                     item_id = _wallapop_link_id(url)
+                    print(f"[WALLAPOP_CANDIDATE] title=html_fallback price= url={url}", flush=True)
                     if item_id in seen_ids:
                         stats["duplicates"] += 1
                         stats["rejected"] += 1
@@ -442,6 +446,8 @@ def _obter_wallapop_links(
                         continue
                     item_id = _wallapop_link_id(href)
                     card_text = _texto_card_wallapop_link(element)[:90]
+                    price = _wallapop_price_from_text(card_text)
+                    print(f"[WALLAPOP_CANDIDATE] title={card_text} price={price} url={href}", flush=True)
                     if item_id in seen_ids:
                         stats["duplicates"] += 1
                         stats["rejected"] += 1
