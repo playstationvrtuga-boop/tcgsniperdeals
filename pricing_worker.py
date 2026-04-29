@@ -326,6 +326,7 @@ def process_listing(listing: Listing) -> str:
         if result.is_deal and listing.deal_alert_sent_at is None:
             vip_alert = format_vip_alert(
                 {
+                    "id": listing.id,
                     "title": listing.title,
                     "platform": listing.platform,
                     "listing_price": result.listing_price,
@@ -336,6 +337,7 @@ def process_listing(listing: Listing) -> str:
                     "score": result.score,
                     "detected_at": listing.detected_at or utcnow(),
                     "direct_link": listing.external_url,
+                    "affiliate_source": "vip",
                     "image_url": listing.image_url,
                 }
             )

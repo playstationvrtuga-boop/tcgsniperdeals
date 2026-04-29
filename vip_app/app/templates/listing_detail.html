@@ -141,7 +141,7 @@
     </section>
 
     <div class="listing-actions detail-actions">
-      <a class="primary-button" href="{{ listing.external_url }}" target="_blank" rel="noopener">Open listing</a>
+      <a class="primary-button" href="{{ listing.external_url|ebay_affiliate_url('app', listing.id) }}" target="_blank" rel="noopener">Open listing</a>
       <button class="ghost-button favorite-toggle {% if favorite %}is-saved{% endif %}" data-listing-id="{{ listing.id }}">
         {% if favorite %}Saved{% else %}Save{% endif %}
       </button>

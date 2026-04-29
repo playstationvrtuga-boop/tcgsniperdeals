@@ -216,6 +216,13 @@ def create_app(minimal=False, skip_db=False, skip_blueprints=False):
     app.add_template_filter(relative_time, "relative_time")
     app.add_template_filter(urgency_hint, "urgency_hint")
 
+    from services.ebay_affiliate import build_ebay_affiliate_url
+
+    def ebay_affiliate_url(value, source="website", listing_id=None):
+        return build_ebay_affiliate_url(value, source, listing_id=listing_id)
+
+    app.add_template_filter(ebay_affiliate_url, "ebay_affiliate_url")
+
     @app.context_processor
     def inject_public_links():
         return {

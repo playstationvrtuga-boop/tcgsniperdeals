@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from services.ebay_affiliate import build_ebay_affiliate_url
+
 
 def _coerce_float(value) -> float | None:
     try:
@@ -124,7 +126,11 @@ def format_vip_alert(deal: dict) -> dict:
         "score": score,
         "relative_detection_time": relative_label,
         "detected_label": f"detected {relative_label}",
-        "direct_link": deal.get("direct_link") or deal.get("url") or "",
+        "direct_link": build_ebay_affiliate_url(
+            deal.get("direct_link") or deal.get("url") or "",
+            deal.get("affiliate_source") or "vip",
+            listing_id=deal.get("id") or deal.get("listing_id"),
+        ),
         "image_url": deal.get("image_url"),
         "cta_primary": "Open Listing",
         "cta_secondary": "View Details",

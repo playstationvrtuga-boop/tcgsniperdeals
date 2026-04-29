@@ -4,6 +4,8 @@ import random
 import re
 from datetime import datetime, timezone
 
+from services.ebay_affiliate import build_ebay_affiliate_url
+
 
 CONDITION_PATTERNS = [
     r"\bnear mint\b",
@@ -247,6 +249,11 @@ def format_telegram_listing_message(listing: dict, *, now: datetime | None = Non
     price = _format_listing_price_for_telegram(_get_value(listing, "price", "preco", "listing_price_text", "price_display"))
     seller_rating = _clean_text(str(_get_value(listing, "seller_rating", default="")))
     url = _clean_text(str(_get_value(listing, "url", "share_link", "public_link", "direct_link", "link", default="")))
+    url = build_ebay_affiliate_url(
+        url,
+        _get_value(listing, "affiliate_source", default="telegram_free"),
+        listing_id=_get_value(listing, "id", "listing_id", default=None),
+    )
     timing_line = format_listing_age(listing, now=now)
     age_meta = listing_age_details(listing, now=now)
 
@@ -379,7 +386,11 @@ def format_vip_alert(deal: dict) -> dict:
         "score": score,
         "relative_detection_time": relative_label,
         "detected_label": f"detected {relative_label}",
-        "direct_link": deal.get("direct_link") or deal.get("url") or "",
+        "direct_link": build_ebay_affiliate_url(
+            deal.get("direct_link") or deal.get("url") or "",
+            deal.get("affiliate_source") or "vip",
+            listing_id=deal.get("id") or deal.get("listing_id"),
+        ),
         "image_url": deal.get("image_url"),
         "cta_primary": "Open Listing",
         "cta_secondary": "View Details",
@@ -402,6 +413,11 @@ def format_free_alert_text(deal: dict) -> str:
         or deal.get("direct_link")
         or deal.get("url")
         or ""
+    )
+    direct_link = build_ebay_affiliate_url(
+        direct_link,
+        deal.get("affiliate_source") or "telegram_free",
+        listing_id=deal.get("id") or deal.get("listing_id"),
     )
     tcg_label = _clean_text(deal.get("tcg_label") or deal.get("tcg_type") or "Pokemon TCG")
 

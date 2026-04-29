@@ -5,6 +5,7 @@ import json
 import requests
 
 from config import FREE_CHAT_ID, TOKEN, VIP_CHAT_ID
+from services.ebay_affiliate import build_ebay_affiliate_url
 
 
 def format_alert(listing, result) -> str:
@@ -27,7 +28,11 @@ def format_alert(listing, result) -> str:
     margin = f"{result.gross_margin:.2f}" if result.gross_margin is not None else "n/a"
     confidence_score = getattr(result, "confidence_score", 0) or 0
     pricing_basis = getattr(result, "pricing_basis", None) or result.price_source or "unknown"
-    url = getattr(listing, "external_url", "")
+    url = build_ebay_affiliate_url(
+        getattr(listing, "external_url", ""),
+        "vip",
+        listing_id=getattr(listing, "id", None),
+    )
 
     return (
         "DEAL DETECTED\n\n"
@@ -98,6 +103,8 @@ def send_alert(message: str) -> bool:
 
 
 def send_free_alert(message: str, *, button_text: str | None = None, button_url: str | None = None) -> bool:
+    if button_url:
+        button_url = build_ebay_affiliate_url(button_url, "telegram_free")
     return send_message(
         message,
         FREE_CHAT_ID,

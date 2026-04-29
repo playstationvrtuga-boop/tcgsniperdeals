@@ -15,6 +15,7 @@ from core.listing_logger import log_listing_event
 from core.normalizer import normalize_text
 from core.scoring import ListingAssessment, assess_listing, is_priority
 from services.alert_formatter import format_telegram_listing_message, make_partial_product_name
+from services.ebay_affiliate import build_ebay_affiliate_url
 from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
 from services.free_promos import schedule_free_promos_every_hour
 from services.public_links import build_free_public_listing_url
@@ -4835,12 +4836,19 @@ def build_message(anuncio, canal="vip"):
         return anuncio["free_message_text"]
 
     if canal == "free":
+        free_url = build_ebay_affiliate_url(
+            anuncio.get("share_link") or anuncio.get("link") or "",
+            "telegram_free",
+            listing_id=anuncio.get("id"),
+        )
         payload = {
+            "id": anuncio.get("id"),
             "title": anuncio.get("titulo"),
             "source": anuncio.get("source") or anuncio.get("origem"),
             "price": formatar_preco_com_eur(anuncio.get("preco") or ""),
             "seller_rating": free_seller_rating_text(anuncio.get("seller_feedback"), anuncio.get("source")),
-            "url": anuncio.get("share_link") or anuncio.get("link") or "",
+            "url": free_url,
+            "affiliate_source": "telegram_free",
             "detected_at": anuncio.get("detected_at"),
             "created_at": anuncio.get("created_at"),
         }
@@ -4891,8 +4899,14 @@ def build_message(anuncio, canal="vip"):
     if linha_ebay_sold:
         mensagem += f"\n{linha_ebay_sold}"
 
+    link = build_ebay_affiliate_url(
+        anuncio.get("share_link") or anuncio.get("link") or "",
+        "vip" if canal == "vip" else "telegram_free",
+        listing_id=anuncio.get("id"),
+    )
+
     mensagem += (
-        f"\n\n{(anuncio.get('share_link') or anuncio.get('link') or '')}\n\n"
+        f"\n\n{link}\n\n"
         f"-----------------------\n"
         f"Pokemon Sniper Deals\n"
         f"-----------------------"

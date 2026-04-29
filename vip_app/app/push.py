@@ -90,6 +90,7 @@ def send_new_listing_push(listing):
 def send_deal_push(listing, result):
     payload_data = format_vip_alert(
         {
+            "id": listing.id,
             "title": listing.title,
             "platform": listing.platform,
             "listing_price": result.listing_price,
@@ -100,6 +101,7 @@ def send_deal_push(listing, result):
             "score": result.score,
             "detected_at": listing.detected_at,
             "direct_link": listing.external_url,
+            "affiliate_source": "app",
             "image_url": listing.image_url,
             "confidence": getattr(listing, "confidence_label", None),
         }

@@ -60,7 +60,7 @@
 
     <div class="listing-actions detail-actions">
       {% if source_url %}
-      <a class="primary-button" href="{{ source_url }}" target="_blank" rel="noopener">Open original source</a>
+      <a class="primary-button" href="{{ source_url|ebay_affiliate_url('website', listing.id) }}" target="_blank" rel="noopener">Open original source</a>
       {% endif %}
       <a class="ghost-button" href="{{ public_url }}" target="_blank" rel="noopener">Open share page</a>
     </div>

@@ -203,7 +203,7 @@
       <a class="primary-button" href="{{ url_for('auth.login', next=url_for('main.feed')) }}">Unlock VIP</a>
       <a class="ghost-button" href="{{ url_for('main.download_app') }}">Download app</a>
       {% else %}
-      <a class="primary-button" href="{{ listing.external_url }}" target="_blank" rel="noopener">Open listing</a>
+      <a class="primary-button" href="{{ listing.external_url|ebay_affiliate_url('app', listing.id) }}" target="_blank" rel="noopener">Open listing</a>
       <button class="ghost-button favorite-toggle {% if listing.id in favorite_ids %}is-saved{% endif %}" data-listing-id="{{ listing.id }}">
         {% if listing.id in favorite_ids %}Saved{% else %}Save{% endif %}
       </button>
