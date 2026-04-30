@@ -105,7 +105,7 @@ class RawVsGradedPricingTests(unittest.TestCase):
         result = deal_detector.evaluate_listing(self.listing(title))
 
         self.assertEqual(result.listing_type, "raw_card")
-        self.assertEqual(result.status, "insufficient_comparables")
+        self.assertEqual(result.status, "needs_review")
         self.assertIsNone(result.reference_price)
         self.assertIsNone(result.estimated_fair_value)
         self.assertEqual(result.comparable_count, 0)
@@ -201,7 +201,7 @@ class RawVsGradedPricingTests(unittest.TestCase):
         )
 
         self.assertEqual(result.listing_type, "raw_card")
-        self.assertEqual(result.status, "insufficient_comparables")
+        self.assertEqual(result.status, "needs_review")
         self.assertIsNone(result.pricing_basis)
         self.assertEqual(result.buy_now_count, 0)
         self.assertEqual(calls, ["bad graded query"])

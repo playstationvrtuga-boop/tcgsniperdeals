@@ -954,6 +954,7 @@ def smart_deals():
         or_(Listing.estimated_fair_value.isnot(None), Listing.reference_price.isnot(None)),
         confidence_value >= 70,
         enough_comparables,
+        Listing.pricing_reason.ilike("%identity=strong%"),
         or_(
             Listing.pricing_reason.is_(None),
             ~Listing.pricing_reason.ilike("%PRICE_COMPARE_INSUFFICIENT_RAW_COMPARABLES%"),

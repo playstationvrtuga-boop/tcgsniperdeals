@@ -44,8 +44,12 @@ class ListingParserTests(unittest.TestCase):
                 self.assertTrue(identity.extracted_number)
 
     def test_low_confidence_name_only_stops_after_sold_zero(self):
+        sold_calls = []
         buy_now_calls = []
-        deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
+
+        def sold(*_args, **_kwargs):
+            sold_calls.append("sold")
+            return []
 
         def buy_now(*_args, **_kwargs):
             buy_now_calls.append("buy_now")
@@ -55,6 +59,7 @@ class ListingParserTests(unittest.TestCase):
                 EbaySoldListing("Charizard Pokemon card 3", 120.0),
             ]
 
+        deal_detector.fetch_recent_comparables = sold
         deal_detector.fetch_active_buy_now_comparables = buy_now
 
         result = deal_detector.evaluate_listing(self.listing("Charizard", price="70,00 EUR"))
@@ -62,10 +67,32 @@ class ListingParserTests(unittest.TestCase):
         self.assertNotEqual(result.reason, "listing_not_precisely_identified")
         self.assertEqual(result.parser_confidence, "LOW")
         self.assertEqual(result.parser_query, "pokemon charizard")
-        self.assertEqual(result.status, "insufficient_comparables")
+        self.assertEqual(result.status, "needs_review")
         self.assertIsNone(result.pricing_basis)
+        self.assertLess(result.confidence_score, 60)
         self.assertEqual(result.buy_now_count, 0)
+        self.assertEqual(sold_calls, [])
         self.assertEqual(buy_now_calls, [])
+
+    def test_generic_lot_never_becomes_sniper_deal(self):
+        sold_calls = []
+
+        def sold(*_args, **_kwargs):
+            sold_calls.append("sold")
+            return [EbaySoldListing("Pokemon card lot bundle", 100.0)]
+
+        deal_detector.fetch_recent_comparables = sold
+        deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
+            EbaySoldListing("Pokemon card bundle", 120.0),
+        ]
+
+        result = deal_detector.evaluate_listing(self.listing("Pokemon lot bundle mystery cards", price="10,00 EUR"))
+
+        self.assertEqual(result.status, "needs_review")
+        self.assertFalse(result.is_deal)
+        self.assertEqual(result.score, 0)
+        self.assertIn("PRICING_SKIPPED_SNIPER_FALSE_POSITIVE_RISK", result.reason)
+        self.assertEqual(sold_calls, [])
 
     def test_pokemon_without_known_name_is_low_confidence(self):
         identity = deal_detector.parse_listing_identity("Carta pokemon brilhante francesa")

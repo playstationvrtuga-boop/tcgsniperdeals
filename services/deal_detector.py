@@ -61,6 +61,11 @@ LOT_BUNDLE_TERMS = (
     "lot", "bundle", "cards", "collection", "binder", "bulk", "pack of cards",
     "many cards", "lote", "conjunto", "colecao", "coleção", "cartas", "cartes",
 )
+FALSE_POSITIVE_RISK_TERMS = (
+    "lot", "bundle", "bulk", "mystery", "random", "assorted", "mixed", "mix",
+    "lote", "conjunto", "colecao", "colecao", "cartas", "cartes",
+    "pack aleatorio", "pack aleatorio", "aleatorio", "partenaire",
+)
 RAW_COMPARABLE_MINIMUM = 2
 GENERIC_TITLE_TERMS = {
     "pokemon", "pok", "mon", "tcg", "card", "cards", "carta", "cartas",
@@ -80,6 +85,7 @@ GENERIC_BUY_NOW_QUERIES = {
     "pokemon card",
     "pokemon lot",
 }
+FALLBACK_QUERY_MAX_TERMS = 6
 
 KNOWN_POKEMON_NAMES = {
     "absol", "aerodactyl", "alakazam", "arcanine", "articuno", "blastoise",
@@ -189,6 +195,21 @@ def _meaningful_tokens(value: str) -> list[str]:
         token for token in _normalize_title(value).split()
         if len(token) > 1 and token not in GENERIC_TITLE_TERMS
     ]
+
+
+def _main_title_words_query(title: str) -> str | None:
+    tokens: list[str] = []
+    for token in _meaningful_tokens(title):
+        if token not in tokens:
+            tokens.append(token)
+        if len(tokens) >= FALLBACK_QUERY_MAX_TERMS:
+            break
+    if not tokens:
+        return None
+    query = " ".join(tokens)
+    if _is_pokemon_related(title) and not query.startswith("pokemon "):
+        query = f"pokemon {query}"
+    return query
 
 
 def _extract_pokemon_name(title: str) -> str | None:
@@ -797,6 +818,134 @@ def _has_buy_now_identity_anchor(signals) -> bool:
     )
 
 
+def _signal_name(signals, identity: ParsedListingIdentity, title: str) -> str | None:
+    return (
+        getattr(signals, "pokemon_name", None)
+        or getattr(signals, "keyword_name", None)
+        or identity.extracted_name
+        or _extract_pokemon_name(title)
+    )
+
+
+def _has_set_anchor(signals, identity: ParsedListingIdentity, title: str) -> bool:
+    return bool(
+        getattr(signals, "set_code", None)
+        or getattr(signals, "set_name", None)
+        or identity.extracted_set
+        or _extract_set_hint(title)
+    )
+
+
+def _has_number_anchor(signals, identity: ParsedListingIdentity, title: str) -> bool:
+    return bool(
+        getattr(signals, "full_number", None)
+        or getattr(signals, "card_number", None)
+        or identity.extracted_number
+        or _extract_card_number(title)
+    )
+
+
+def _is_strong_pricing_identity(
+    title: str,
+    listing_type: str | None,
+    identity: ParsedListingIdentity,
+    signals,
+) -> bool:
+    name = _signal_name(signals, identity, title)
+    has_number = _has_number_anchor(signals, identity, title)
+    has_set = _has_set_anchor(signals, identity, title)
+    if listing_type == "raw_card":
+        return bool(name and (getattr(signals, "full_number", None) or (has_number and has_set)))
+    if listing_type == "graded_card":
+        return bool(name and _extract_grade(title) is not None and has_number and _has_graded_signal(title))
+    if listing_type == "sealed_product":
+        return bool(_sealed_subtype(title) and has_set)
+    return False
+
+
+def _has_false_positive_risk(title: str, listing_type: str | None, strong_identity: bool) -> bool:
+    if listing_type == "lot_bundle":
+        return True
+    normalized = _normalize_title(title)
+    if any(term in normalized for term in FALSE_POSITIVE_RISK_TERMS):
+        return not strong_identity
+    if _has_lot_bundle_signal(title):
+        return not strong_identity
+    return False
+
+
+def _strong_identity_query_variants(
+    title: str,
+    identity: ParsedListingIdentity,
+    signals,
+    listing_type: str | None,
+) -> list[str]:
+    name = _signal_name(signals, identity, title)
+    number = (
+        getattr(signals, "card_number", None)
+        or identity.extracted_number
+        or _extract_card_number(title)
+    )
+    set_code = getattr(signals, "set_code", None) or identity.extracted_set
+    if set_code and " " in str(set_code):
+        set_code = None
+
+    variants: list[str] = []
+    if name and number and set_code:
+        variants.extend([
+            f"{name} {number} {set_code}",
+            f"{name} {set_code} {number}",
+            f"{name} pokemon {number}",
+        ])
+        if listing_type == "graded_card":
+            variants.append(f"{name} graded {number}")
+    return variants
+
+
+def _should_use_title_keyword_fallback(
+    identity: ParsedListingIdentity,
+    signals,
+    listing_type: str | None,
+) -> bool:
+    if identity.fallback_query_used or _confidence_rank(identity.confidence) < _confidence_rank("MEDIUM"):
+        return True
+    if listing_type in {"raw_card", "graded_card"}:
+        return not _has_buy_now_identity_anchor(signals)
+    return False
+
+
+def _pricing_queries_with_title_fallback(
+    title: str,
+    pricing_queries: list[str],
+    *,
+    identity: ParsedListingIdentity,
+    signals,
+    listing_type: str | None,
+    strong_identity: bool,
+) -> list[str]:
+    if strong_identity:
+        strong_queries = _strong_identity_query_variants(title, identity, signals, listing_type)
+        if strong_queries:
+            print(
+                f"[pricing] STRONG_ID_QUERY_VARIANTS queries={strong_queries}",
+                flush=True,
+            )
+            return strong_queries + [query for query in pricing_queries if query not in strong_queries]
+    fallback_query = _main_title_words_query(title)
+    if not fallback_query:
+        return pricing_queries
+    if _should_use_title_keyword_fallback(identity, signals, listing_type):
+        print(
+            f"[pricing] TITLE_KEYWORD_FALLBACK query=\"{fallback_query}\" "
+            f"confidence={identity.confidence}",
+            flush=True,
+        )
+        return [fallback_query] + [query for query in pricing_queries if query != fallback_query]
+    if fallback_query not in pricing_queries:
+        return pricing_queries + [fallback_query]
+    return pricing_queries
+
+
 def _is_generic_buy_now_query(query: str) -> bool:
     cleaned = title_parser.clean_pricing_query(query or "").lower()
     if cleaned in GENERIC_BUY_NOW_QUERIES:
@@ -1233,6 +1382,8 @@ def evaluate_listing(listing) -> DealResult:
     set_name = set_info.get("set_name") or getattr(signals, "set_name", None)
     listing_kind = identity.listing_kind
     listing_type = classify_listing_type(title, listing_kind, description=description)
+    strong_identity = _is_strong_pricing_identity(title, listing_type, identity, signals)
+    false_positive_risk = _has_false_positive_risk(title, listing_type, strong_identity)
     parser_queries = list(getattr(getattr(identity, "signals", None), "queries", None) or [])
     pricing_query = identity.query or title
     pricing_queries = parser_queries or [pricing_query]
@@ -1241,6 +1392,24 @@ def evaluate_listing(listing) -> DealResult:
         return DealResult(status="skipped", reason="missing_title")
 
     print(f"[PRICING_TYPE] listing_id={listing_id} type={listing_type} title={title[:160]}", flush=True)
+    if strong_identity:
+        print(
+            f"[PRICING_STRONG_ID] listing_id={listing_id} type={listing_type} "
+            f"confidence={identity.confidence}",
+            flush=True,
+        )
+    else:
+        print(
+            f"[PRICING_WEAK_ID_NEEDS_REVIEW] listing_id={listing_id} type={listing_type} "
+            f"confidence={identity.confidence}",
+            flush=True,
+        )
+        if false_positive_risk:
+            print(
+                f"[PRICING_SKIPPED_SNIPER_FALSE_POSITIVE_RISK] listing_id={listing_id} "
+                f"type={listing_type}",
+                flush=True,
+            )
     _log_parser(identity)
     print(f"[LANG_DETECT] listing_id={listing_id} language={card_language}", flush=True)
     print(
@@ -1279,6 +1448,29 @@ def evaluate_listing(listing) -> DealResult:
             parser_name=identity.extracted_name,
         )
 
+    if not strong_identity:
+        weak_reason = "PRICING_WEAK_ID_NEEDS_REVIEW"
+        if false_positive_risk:
+            weak_reason = f"{weak_reason}; PRICING_SKIPPED_SNIPER_FALSE_POSITIVE_RISK"
+        return DealResult(
+            status="needs_review",
+            listing_price=listing_price,
+            reason=weak_reason,
+            price_source="identity_check",
+            listing_kind=listing_kind,
+            listing_type=listing_type,
+            score=0,
+            is_deal=False,
+            confidence_score=25 if false_positive_risk else 40,
+            card_language=card_language,
+            set_code=set_code,
+            set_name=set_name,
+            parser_confidence=identity.confidence,
+            parser_query=pricing_query,
+            parser_queries=pricing_queries,
+            parser_name=identity.extracted_name,
+        )
+
     pause_remaining = _ebay_pause_remaining()
     if pause_remaining > 0:
         print(f"[EBAY_PAUSE_ACTIVE] remaining={pause_remaining}s listing_id={listing_id}", flush=True)
@@ -1293,6 +1485,14 @@ def evaluate_listing(listing) -> DealResult:
             reason=f"retry_later; pause_remaining={pause_remaining}s",
         )
 
+    pricing_queries = _pricing_queries_with_title_fallback(
+        title,
+        pricing_queries,
+        identity=identity,
+        signals=signals,
+        listing_type=listing_type,
+        strong_identity=strong_identity,
+    )
     pricing_queries = _prepare_pricing_queries(pricing_queries)[:MAX_PRICING_QUERY_CANDIDATES]
     pricing_query = pricing_queries[0] if pricing_queries else pricing_query
     expected_language = getattr(signals, "language", None)
@@ -1411,6 +1611,22 @@ def evaluate_listing(listing) -> DealResult:
             f"reason=grade_near_match penalty={grading_penalty}",
             flush=True,
         )
+    sold_average_opportunity = bool(
+        pricing_basis == "sold"
+        and sold_avg_price is not None
+        and listing_price < sold_avg_price
+    )
+    if (
+        sold_average_opportunity
+        and _confidence_rank(identity.confidence) >= _confidence_rank("MEDIUM")
+        and confidence_score < 70
+    ):
+        confidence_score = 70
+        print(
+            "[pricing] PRICING_MEDIUM_CONFIDENCE_OPPORTUNITY "
+            f"reason=listing_below_recent_sold_avg sold_avg={sold_avg_price}",
+            flush=True,
+        )
     comparable_result_count = _accepted_comparable_count(len(sold_prices), len(buy_now_prices_all))
     print(
         f"[PRICING_CONFIDENCE] listing_id={listing_id} confidence={confidence_score} "
@@ -1453,9 +1669,11 @@ def evaluate_listing(listing) -> DealResult:
         if listing_type == "raw_card":
             reason_parts.append("PRICE_COMPARE_INSUFFICIENT_RAW_COMPARABLES")
             print("[pricing] PRICE_COMPARE_INSUFFICIENT_RAW_COMPARABLES", flush=True)
+        reason_parts.append("PRICING_LOW_CONFIDENCE_NO_REFERENCE")
+        no_reference_confidence = confidence_score or 25
 
         return DealResult(
-            status="insufficient_comparables" if listing_type == "raw_card" else "needs_review",
+            status="needs_review",
             listing_price=listing_price,
             reason="; ".join(reason_parts),
             price_source="ebay_sold+buy_now",
@@ -1475,7 +1693,7 @@ def evaluate_listing(listing) -> DealResult:
             buy_now_reference_price=buy_now_reference_price,
             estimated_fair_value=estimated_fair_value,
             pricing_basis=pricing_basis,
-            confidence_score=confidence_score,
+            confidence_score=no_reference_confidence,
             card_language=card_language,
             set_code=set_code,
             set_name=set_name,
@@ -1646,8 +1864,9 @@ def evaluate_listing(listing) -> DealResult:
         score = max(0, score - 3)
     elif identity.confidence == "LOW":
         score = max(0, score - 8)
-    is_deal = (
-        listing_price < reference_price
+    strict_threshold_opportunity = (
+        strong_identity
+        and listing_price < reference_price
         and discount_percent >= PRICING_DEAL_MIN_DISCOUNT
         and gross_margin >= PRICING_DEAL_MIN_MARGIN
         and score >= PRICING_DEAL_MIN_SCORE
@@ -1655,7 +1874,19 @@ def evaluate_listing(listing) -> DealResult:
         and comparable_result_count >= 2
         and confidence_score >= 70
     )
-    result_reason = "DEAL_ACCEPTED" if is_deal else "DEAL_REJECTED_THRESHOLDS"
+    simple_recent_sale_opportunity = (
+        strong_identity
+        and sold_average_opportunity
+        and listing_type in {"raw_card", "graded_card", "sealed_product"}
+        and comparable_result_count >= 1
+        and confidence_score >= 60
+        and gross_margin > 0
+    )
+    is_deal = strict_threshold_opportunity or simple_recent_sale_opportunity
+    result_reason = "PRICING_STRONG_ID; "
+    result_reason += "DEAL_ACCEPTED" if is_deal else "DEAL_REJECTED_THRESHOLDS"
+    if simple_recent_sale_opportunity:
+        result_reason = f"{result_reason}; SIMPLE_SOLD_AVG_OPPORTUNITY"
     if buy_now_reference_price is not None:
         result_reason = f"{result_reason}; BUY_NOW_REFERENCE_FOUND"
     if sold_prices:

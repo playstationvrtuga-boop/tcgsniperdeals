@@ -17,6 +17,7 @@ from config import (
     EBAY_MARKETPLACE_ID,
     PRICING_ENABLE_EBAY_HTML_FALLBACK,
     PRICING_RETRY_AFTER_MINUTES,
+    PRICING_WORKER_ENABLED,
     PRICING_WORKER_MAX_SLEEP,
     PRICING_WORKER_MIN_SLEEP,
 )
@@ -199,6 +200,53 @@ def _runtime_flag(name: str, fallback: bool = False) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _is_local_app_url(value: str | None) -> bool:
+    text = str(value or "").lower()
+    return any(marker in text for marker in ("localhost", "127.0.0.1", "::1"))
+
+
+def _database_kind(database_uri: str | None) -> str:
+    text = str(database_uri or "").lower()
+    if text.startswith("sqlite:"):
+        return "sqlite"
+    if text.startswith(("postgres:", "postgresql:")) or "postgresql+" in text:
+        return "postgres"
+    return "unknown"
+
+
+def _target_kind(app_api_url: str | None) -> str:
+    return "local" if _is_local_app_url(app_api_url) else "online"
+
+
+def _log_runtime_and_should_continue(
+    *,
+    app_api_url: str,
+    database_uri: str | None,
+    pricing_enabled: bool,
+) -> bool:
+    target = _target_kind(app_api_url)
+    database = _database_kind(database_uri)
+    print(
+        "[PRICING_WORKER_RUNTIME] "
+        f"target={target} "
+        f"database={database} "
+        f"app_api_url={app_api_url} "
+        f"pricing_enabled={str(pricing_enabled).lower()}",
+        flush=True,
+    )
+    if not pricing_enabled:
+        print("[pricing_worker] stopped reason=pricing_worker_disabled", flush=True)
+        return False
+    if target == "online" and database == "sqlite":
+        print(
+            "[pricing_worker] stopped reason=runtime_mismatch "
+            "detail=APP_API_URL points online but worker database is local sqlite",
+            flush=True,
+        )
+        return False
+    return True
+
+
 def _pricing_reason(result) -> str:
     sold_refs = result.comparable_count or 0
     buy_now_refs = getattr(result, "buy_now_count", 0) or 0
@@ -208,6 +256,13 @@ def _pricing_reason(result) -> str:
         f"buy_now_refs={buy_now_refs}",
         f"comparable_results={sold_refs + buy_now_refs}",
     ]
+    reason_text = str(result.reason or "")
+    if "PRICING_STRONG_ID" in reason_text:
+        parts.append("identity=strong")
+    elif "PRICING_WEAK_ID_NEEDS_REVIEW" in reason_text:
+        parts.append("identity=weak")
+    if "PRICING_SKIPPED_SNIPER_FALSE_POSITIVE_RISK" in reason_text:
+        parts.append("false_positive_risk=true")
     if getattr(result, "parser_confidence", None):
         parts.append(f"confidence={result.parser_confidence}")
     if getattr(result, "parser_query", None):
@@ -398,6 +453,15 @@ def process_listing(listing: Listing) -> str:
         return "worker_error"
 
 
+def _listing_has_pricing_data(listing: Listing) -> bool:
+    return bool(
+        listing.estimated_fair_value
+        or listing.reference_price
+        or listing.sold_avg_price
+        or listing.market_buy_now_median
+    )
+
+
 def _sleep_for_active_ebay_pause(*, once: bool = False) -> bool:
     remaining = ebay_pause_remaining_seconds()
     if remaining <= 0:
@@ -414,10 +478,14 @@ def _sleep_for_active_ebay_pause(*, once: bool = False) -> bool:
 
 def run_worker(*, once: bool = False, limit: int | None = None) -> None:
     processed = 0
+    data_found = 0
+    opportunities = 0
+    updated_in_db = 0
     idle_cycles = 0
 
     with app.app_context():
         database_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
+        pricing_enabled = _runtime_flag("PRICING_WORKER_ENABLED", PRICING_WORKER_ENABLED)
         ebay_enabled = _runtime_flag("EBAY_ENABLE_OFFICIAL_API", EBAY_ENABLE_OFFICIAL_API)
         ebay_client_id = _runtime_setting("EBAY_CLIENT_ID", EBAY_CLIENT_ID)
         ebay_client_secret = _runtime_setting("EBAY_CLIENT_SECRET", EBAY_CLIENT_SECRET)
@@ -426,6 +494,12 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
             "PRICING_ENABLE_EBAY_HTML_FALLBACK",
             PRICING_ENABLE_EBAY_HTML_FALLBACK,
         )
+        if not _log_runtime_and_should_continue(
+            app_api_url=str(APP_API_URL),
+            database_uri=database_uri,
+            pricing_enabled=pricing_enabled,
+        ):
+            return
         print(f"[pricing_worker] database={_mask_database_uri(database_uri)}", flush=True)
         print(f"[pricing_worker] bot_app_api_url={APP_API_URL}", flush=True)
         print(
@@ -461,9 +535,32 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
             listing = fetch_next_pending_listing()
             if listing is not None:
                 idle_cycles = 0
+                previous_checked_at = listing.pricing_checked_at
+                previous_analyzed_at = listing.pricing_analyzed_at
                 status = process_listing(listing)
                 processed += 1
+                try:
+                    db.session.refresh(listing)
+                except Exception:
+                    pass
+                if (
+                    listing.pricing_checked_at != previous_checked_at
+                    or listing.pricing_analyzed_at != previous_analyzed_at
+                ):
+                    updated_in_db += 1
+                if _listing_has_pricing_data(listing):
+                    data_found += 1
+                if listing.is_deal:
+                    opportunities += 1
                 print(f"[pricing_worker] listing_id={listing.id} status={status}")
+                print(
+                    "[pricing_worker] analysis_summary "
+                    f"listings_analyzed={processed} "
+                    f"with_data={data_found} "
+                    f"opportunities={opportunities} "
+                    f"updated_in_db={updated_in_db}",
+                    flush=True,
+                )
             else:
                 print("[pricing_worker] idle - no pending listings")
                 idle_cycles += 1

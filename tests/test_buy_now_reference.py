@@ -105,12 +105,13 @@ class BuyNowReferenceTests(unittest.TestCase):
 
         result = deal_detector.evaluate_listing(self.listing("Pokemon Dragonite", "20,00 EUR"))
 
-        self.assertEqual(result.status, "insufficient_comparables")
+        self.assertEqual(result.status, "needs_review")
         self.assertEqual(result.parser_confidence, "LOW")
+        self.assertLess(result.confidence_score, 60)
         self.assertEqual(result.buy_now_count, 0)
-        self.assertEqual(sold_calls, ["sold"])
+        self.assertEqual(sold_calls, [])
         self.assertEqual(buy_now_calls, [])
-        self.assertIn("BUY_NOW_SKIPPED", result.reason)
+        self.assertIn("PRICING_WEAK_ID_NEEDS_REVIEW", result.reason)
 
     def test_generic_buy_now_query_is_blocked_even_with_medium_confidence(self):
         identity = SimpleNamespace(confidence="MEDIUM")
@@ -178,10 +179,23 @@ class BuyNowReferenceTests(unittest.TestCase):
 
         result = deal_detector.evaluate_listing(self.listing())
 
-        self.assertEqual(result.status, "insufficient_comparables")
+        self.assertEqual(result.status, "needs_review")
         self.assertIn("DEAL_REJECTED_NO_REFERENCE", result.reason)
         self.assertIn("SOLD_BLOCKED", result.reason)
         self.assertIn("SEARCH_FAILED", result.reason)
+
+    def test_recent_sold_average_marks_medium_confidence_opportunity(self):
+        deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: [
+            EbaySoldListing("Dragonite Expedition 56/165 sold one", 55.0),
+        ]
+        deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: []
+
+        result = deal_detector.evaluate_listing(self.listing("Dragonite 56/165", "45,00 EUR"))
+
+        self.assertEqual(result.status, "deal")
+        self.assertTrue(result.is_deal)
+        self.assertEqual(result.price_source, "sold")
+        self.assertIn("SIMPLE_SOLD_AVG_OPPORTUNITY", result.reason)
 
     def test_pause_active_defers_listing_without_query_fallbacks(self):
         calls = []

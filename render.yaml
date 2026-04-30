@@ -140,6 +140,8 @@ services:
         sync: false
       - key: PRICING_WORKER_MAX_SLEEP
         sync: false
+      - key: PRICING_WORKER_ENABLED
+        value: "true"
       - key: EBAY_CLIENT_ID
         sync: false
       - key: EBAY_CLIENT_SECRET
@@ -154,6 +156,10 @@ services:
         value: "12"
       - key: PRICING_ENABLE_EBAY_HTML_FALLBACK
         value: "false"
+      - key: EBAY_ENABLE_MARKETPLACE_INSIGHTS
+        sync: false
+      - key: EBAY_MARKETPLACE_INSIGHTS_SEARCH_URL
+        sync: false
       - key: EBAY_EPN_ENABLED
         value: "true"
       - key: EBAY_EPN_APP_CAMPAIGN_ID
