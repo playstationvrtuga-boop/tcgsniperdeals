@@ -300,6 +300,38 @@ def serialize_listing(listing):
     }
 
 
+def refresh_existing_ebay_listing(existing, payload):
+    if (existing.source or "").strip().lower() != "ebay":
+        return False
+
+    detected_at = parse_datetime(payload.get("detected_at"), fallback=existing.detected_at)
+    title = str(pick_first(payload, "title", default=existing.title or "")).strip()
+    price_display = str(pick_first(payload, "price_display", "price", default=existing.price_display or "")).strip()
+    external_url = str(pick_first(payload, "external_url", "url", default=existing.external_url or "")).strip()
+    image_url = str(payload.get("image_url") or "").strip()
+
+    existing.source = "ebay"
+    existing.platform = "ebay"
+    existing.detected_at = detected_at
+    existing.status = normalize_available_status(pick_first(payload, "available_status", "status", default="available"))
+    existing.available_status = existing.status
+    if title:
+        existing.title = title
+    if price_display:
+        existing.price_display = price_display
+    if external_url:
+        existing.external_url = external_url
+        existing.normalized_url = normalize_listing_url(external_url) or external_url
+    if image_url:
+        existing.image_url = image_url
+
+    raw_payload = dict(payload)
+    for timestamp_key in ("posted_at", "created_at", "source_published_at"):
+        raw_payload.pop(timestamp_key, None)
+    existing.raw_payload = json.dumps(raw_payload, ensure_ascii=False)
+    return True
+
+
 @api_bp.route("/listings", methods=["GET"])
 def list_listings():
     if not check_debug_access():
@@ -343,6 +375,15 @@ def create_listing():
             return api_response("validation_error", 400, message=f"Missing fields: {', '.join(missing_fields)}")
 
         if existing:
+            if refresh_existing_ebay_listing(existing, payload):
+                db.session.commit()
+                invalidate("feed:")
+                current_app.logger.info(
+                    "[APP_FEED_VISIBLE] id=%s app_listing_id=%s source=%s status=duplicate refreshed=true",
+                    existing.external_id,
+                    existing.id,
+                    existing.source,
+                )
             return api_response("duplicate", 200, id=existing.id, url=existing.external_url)
 
         db.session.add(listing)
