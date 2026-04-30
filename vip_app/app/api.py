@@ -350,7 +350,7 @@ def list_listings():
     except (TypeError, ValueError):
         limit = 20
 
-    listings = query.order_by(Listing.id.desc()).limit(limit).all()
+    listings = query.order_by(Listing.detected_at.desc(), Listing.id.desc()).limit(limit).all()
     return jsonify(
         {
             "status": "ok",

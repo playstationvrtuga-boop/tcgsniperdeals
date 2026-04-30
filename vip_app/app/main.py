@@ -1299,10 +1299,11 @@ def health():
     return jsonify(
         {
             "status": "ok",
-            "app_version": "2026-04-30-ebay-duplicate-refresh",
+            "app_version": "2026-04-30-ebay-detected-order",
             "git_commit": os.getenv("RENDER_GIT_COMMIT", os.getenv("GIT_COMMIT", "unknown")),
             "ebay_platform_normalization": True,
             "ebay_duplicate_refresh": True,
+            "ebay_api_listings_detected_order": True,
         }
     ), 200, {"Cache-Control": "no-store, max-age=0"}
 
