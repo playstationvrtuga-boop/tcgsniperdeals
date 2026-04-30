@@ -109,7 +109,7 @@ def wallapop_enabled() -> bool:
 
 
 def wallapop_max_items() -> int:
-    return _safe_int(os.getenv("WALLAPOP_MAX_ITEMS_PER_RUN"), default=1, minimum=1)
+    return _safe_int(os.getenv("WALLAPOP_MAX_ITEMS_PER_RUN"), default=6, minimum=1)
 
 
 def wallapop_max_queries_per_run() -> int:
@@ -257,7 +257,7 @@ def filter_wallapop_candidates(
     accepted = []
     seen = set(seen_ids or set())
     local_seen = set()
-    max_items = _safe_int(max_items, default=2, minimum=1)
+    max_items = _safe_int(max_items, default=6, minimum=1)
     for candidate in candidates:
         item = normalize_wallapop_candidate(candidate)
         title = item["title"]
@@ -732,7 +732,7 @@ def fetch_wallapop_listings(
     return_stats: bool = False,
 ):
     max_items = max_items if max_items is not None else wallapop_max_items()
-    max_items = _safe_int(max_items, default=2, minimum=1)
+    max_items = _safe_int(max_items, default=6, minimum=1)
     headless = headless if headless is not None else str(os.getenv("WALLAPOP_HEADLESS", "true")).strip().lower() not in {"0", "false", "no", "off"}
     delay_min_seconds = float(delay_min_seconds if delay_min_seconds is not None else os.getenv("WALLAPOP_DELAY_MIN_SECONDS", "2"))
     delay_max_seconds = float(delay_max_seconds if delay_max_seconds is not None else os.getenv("WALLAPOP_DELAY_MAX_SECONDS", "5"))
