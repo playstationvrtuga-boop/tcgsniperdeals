@@ -7,6 +7,20 @@ import requests
 
 MAX_RESPONSE_BYTES = 250_000
 DEFAULT_TIMEOUT_SECONDS = 8
+UNKNOWN_CHECK_FAILED_STATUS = "unknown_check_failed"
+
+VINTED_ACTIVE_ACTION_MARKERS = [
+    "buy now",
+    "make an offer",
+    "make offer",
+    "ask seller",
+    "acheter",
+    "faire une offre",
+    "demander au vendeur",
+    "comprar agora",
+    "hacer una oferta",
+    "chiedi al venditore",
+]
 
 GONE_TEXT_MARKERS = {
     "vinted": [
@@ -83,7 +97,7 @@ def check_listing_availability(
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
 ) -> AvailabilityResult:
     if not url:
-        return AvailabilityResult(status="unknown", is_gone=False, reason="missing_url")
+        return AvailabilityResult(status=UNKNOWN_CHECK_FAILED_STATUS, is_gone=False, reason="missing_url")
 
     client = session or requests.Session()
     headers = {
@@ -98,30 +112,77 @@ def check_listing_availability(
     try:
         response = client.get(url, headers=headers, timeout=timeout, stream=True, allow_redirects=True)
     except requests.Timeout:
-        return AvailabilityResult(status="unknown", is_gone=False, reason="timeout")
+        return AvailabilityResult(status=UNKNOWN_CHECK_FAILED_STATUS, is_gone=False, reason="timeout")
     except requests.RequestException as exc:
-        return AvailabilityResult(status="unknown", is_gone=False, reason=f"request_error:{type(exc).__name__}")
+        return AvailabilityResult(
+            status=UNKNOWN_CHECK_FAILED_STATUS,
+            is_gone=False,
+            reason=f"request_error:{type(exc).__name__}",
+        )
 
     status_code = response.status_code
     if status_code in {404, 410}:
         return AvailabilityResult(status="removed", is_gone=True, reason=f"http_{status_code}", http_status=status_code)
     if status_code in {401, 403, 429}:
-        return AvailabilityResult(status="unknown", is_gone=False, reason=f"http_{status_code}", http_status=status_code)
+        return AvailabilityResult(
+            status=UNKNOWN_CHECK_FAILED_STATUS,
+            is_gone=False,
+            reason=f"http_{status_code}",
+            http_status=status_code,
+        )
     if status_code >= 500:
-        return AvailabilityResult(status="unknown", is_gone=False, reason=f"http_{status_code}", http_status=status_code)
+        return AvailabilityResult(
+            status=UNKNOWN_CHECK_FAILED_STATUS,
+            is_gone=False,
+            reason=f"http_{status_code}",
+            http_status=status_code,
+        )
 
-    body = _read_limited_response(response)
+    try:
+        body = _read_limited_response(response)
+    except requests.RequestException as exc:
+        return AvailabilityResult(
+            status=UNKNOWN_CHECK_FAILED_STATUS,
+            is_gone=False,
+            reason=f"read_error:{type(exc).__name__}",
+            http_status=status_code,
+        )
+
     platform_key = _platform_key(platform, url)
-    markers = GONE_TEXT_MARKERS.get(platform_key, [])
-    markers += GONE_TEXT_MARKERS["vinted"] if platform_key == "generic" else []
-    markers += GONE_TEXT_MARKERS["ebay"] if platform_key == "generic" else []
+    if platform_key == "vinted":
+        for active_marker in VINTED_ACTIVE_ACTION_MARKERS:
+            if active_marker in body:
+                return AvailabilityResult(
+                    status="available",
+                    is_gone=False,
+                    reason=f"vinted_active_action:{active_marker}",
+                    http_status=status_code,
+                )
+
+    markers = list(GONE_TEXT_MARKERS.get(platform_key, []))
+    if platform_key == "generic":
+        markers += GONE_TEXT_MARKERS["vinted"]
+        markers += GONE_TEXT_MARKERS["ebay"]
 
     for marker in markers:
         if marker in body:
             status = "sold" if "sold" in marker or "vend" in marker or "item sold" in body else "unavailable"
             return AvailabilityResult(status=status, is_gone=True, reason=f"text_marker:{marker}", http_status=status_code)
 
+    if platform_key == "vinted" and status_code == 200:
+        return AvailabilityResult(
+            status=UNKNOWN_CHECK_FAILED_STATUS,
+            is_gone=False,
+            reason="vinted_no_active_or_gone_marker",
+            http_status=status_code,
+        )
+
     if status_code == 200:
         return AvailabilityResult(status="available", is_gone=False, reason="http_200_no_gone_marker", http_status=status_code)
 
-    return AvailabilityResult(status="unknown", is_gone=False, reason=f"http_{status_code}", http_status=status_code)
+    return AvailabilityResult(
+        status=UNKNOWN_CHECK_FAILED_STATUS,
+        is_gone=False,
+        reason=f"http_{status_code}",
+        http_status=status_code,
+    )

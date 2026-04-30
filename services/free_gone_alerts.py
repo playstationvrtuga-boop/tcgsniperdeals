@@ -21,7 +21,7 @@ from config import (
 )
 from services.app_links import app_live_deals_url
 from services.alert_formatter import format_free_gone_alert_text
-from services.listing_availability import check_listing_availability
+from services.listing_availability import UNKNOWN_CHECK_FAILED_STATUS, check_listing_availability
 from services.telegram_alerts import send_free_alert
 from vip_app.app.extensions import db
 from vip_app.app.models import FreeGoneAlertState, Listing
@@ -45,6 +45,7 @@ GONE_AVAILABLE_STATUSES = [
     "vendida",
     "vendido",
 ]
+GONE_PENDING_CONFIRMATION_STATUS = "gone_pending_confirmation"
 
 
 @dataclass(frozen=True)
@@ -240,6 +241,45 @@ def _age_clause(cutoff: datetime):
     return or_(Listing.updated_at >= cutoff, Listing.detected_at >= cutoff)
 
 
+def _current_listing_status(listing: Listing) -> str:
+    status = (listing.status or "").strip().lower()
+    available_status = (listing.available_status or "").strip().lower()
+    if available_status == GONE_PENDING_CONFIRMATION_STATUS:
+        return available_status
+    return status or available_status
+
+
+def _mark_available(listing: Listing, current: datetime) -> None:
+    listing.status = "available"
+    listing.available_status = "available"
+    listing.status_updated_at = current
+    listing.gone_detected_at = None
+    listing.sold_after_seconds = None
+
+
+def _mark_unknown_check_failed(listing: Listing, current: datetime) -> None:
+    listing.status = UNKNOWN_CHECK_FAILED_STATUS
+    listing.available_status = UNKNOWN_CHECK_FAILED_STATUS
+    listing.status_updated_at = current
+
+
+def _mark_pending_gone_confirmation(listing: Listing, current: datetime) -> None:
+    listing.status = "available"
+    listing.available_status = GONE_PENDING_CONFIRMATION_STATUS
+    listing.status_updated_at = current
+
+
+def _mark_confirmed_gone(listing: Listing, status: str, current: datetime) -> None:
+    listing.status = status
+    listing.available_status = status
+    listing.status_updated_at = current
+    listing.gone_detected_at = listing.gone_detected_at or current
+    if listing.detected_at and listing.sold_after_seconds is None:
+        detected_at = _localize(listing.detected_at)
+        if detected_at:
+            listing.sold_after_seconds = max(int((listing.gone_detected_at - detected_at).total_seconds()), 0)
+
+
 def _candidate_query(cutoff: datetime, used_listing_ids: Iterable[int]):
     status_value = func.lower(func.coalesce(Listing.status, Listing.available_status, ""))
     query = (
@@ -266,13 +306,11 @@ def mark_recent_gone_listings(now: datetime | None = None, *, limit: int | None 
     max_cutoff = current - timedelta(hours=FREE_GONE_MAX_AGE_HOURS)
     min_age_cutoff = current - timedelta(minutes=FREE_GONE_AVAILABILITY_MIN_AGE_MINUTES)
     recheck_cutoff = current - timedelta(minutes=FREE_GONE_AVAILABILITY_RECHECK_MINUTES)
-    status_value = func.lower(func.coalesce(Listing.status, Listing.available_status, ""))
     check_limit = max(1, int(limit or FREE_GONE_AVAILABILITY_CHECK_LIMIT))
 
     candidates = (
         Listing.query.filter(
             _is_pokemon_tcg_clause(),
-            ~status_value.in_(GONE_AVAILABLE_STATUSES),
             Listing.external_url.isnot(None),
             Listing.detected_at >= max_cutoff,
             Listing.detected_at <= min_age_cutoff,
@@ -288,28 +326,49 @@ def mark_recent_gone_listings(now: datetime | None = None, *, limit: int | None 
     for listing in candidates:
         checked += 1
         platform = listing.platform or listing.source
-        print(f"[availability] checking id={listing.id} platform={platform}", flush=True)
+        previous_status = _current_listing_status(listing)
+        was_confirmed_gone = previous_status in GONE_AVAILABLE_STATUSES
+        was_pending_confirmation = previous_status == GONE_PENDING_CONFIRMATION_STATUS
+        print(
+            f"[GONE_CHECK_START] id={listing.id} platform={platform} previous_status={previous_status or 'none'}",
+            flush=True,
+        )
         result = check_listing_availability(listing.external_url, platform=platform)
         listing.availability_checked_at = current
+        print(
+            f"[GONE_CHECK_RESULT] id={listing.id} status={result.status} reason={result.reason}",
+            flush=True,
+        )
+
+        if result.status == "available":
+            if was_confirmed_gone or was_pending_confirmation:
+                print(
+                    f"[GONE_FALSE_POSITIVE_RECOVERED] id={listing.id} previous_status={previous_status}",
+                    flush=True,
+                )
+            _mark_available(listing, current)
+            continue
+
         if result.is_gone:
-            listing.status = result.status
-            listing.available_status = result.status
-            listing.status_updated_at = current
-            listing.gone_detected_at = listing.gone_detected_at or current
-            if listing.detected_at and listing.sold_after_seconds is None:
-                detected_at = _localize(listing.detected_at)
-                if detected_at:
-                    listing.sold_after_seconds = max(int((listing.gone_detected_at - detected_at).total_seconds()), 0)
-            marked += 1
+            if was_pending_confirmation or was_confirmed_gone:
+                _mark_confirmed_gone(listing, result.status, current)
+                if not was_confirmed_gone:
+                    marked += 1
+                print(
+                    f"[GONE_MARKED_CONFIRMED] id={listing.id} status={result.status} reason={result.reason}",
+                    flush=True,
+                )
+                continue
+
+            _mark_pending_gone_confirmation(listing, current)
             print(
-                f"[availability] gone id={listing.id} status={result.status} reason={result.reason}",
+                f"[GONE_CHECK_RESULT] id={listing.id} status={result.status} reason={result.reason} action=pending_confirmation",
                 flush=True,
             )
-        else:
-            print(
-                f"[availability] not_gone id={listing.id} status={result.status} reason={result.reason}",
-                flush=True,
-            )
+            continue
+
+        _mark_unknown_check_failed(listing, current)
+        print(f"[GONE_CHECK_WEAK_SIGNAL] id={listing.id} action=keep_available reason={result.reason}", flush=True)
 
     if checked:
         db.session.commit()

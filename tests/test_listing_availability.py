@@ -1,6 +1,6 @@
 import unittest
 
-from services.listing_availability import check_listing_availability
+from services.listing_availability import UNKNOWN_CHECK_FAILED_STATUS, check_listing_availability
 
 
 class FakeResponse:
@@ -40,6 +40,33 @@ class ListingAvailabilityTests(unittest.TestCase):
         self.assertTrue(result.is_gone)
         self.assertEqual(result.status, "sold")
 
+    def test_vinted_active_actions_keep_listing_available(self):
+        result = check_listing_availability(
+            "https://www.vinted.pt/items/1-test",
+            platform="Vinted",
+            session=FakeSession(
+                FakeResponse(
+                    body=(
+                        "<html><body>Pokemon card listing "
+                        "Buy now Make an offer Ask seller "
+                        "sold items you might like</body></html>"
+                    )
+                )
+            ),
+        )
+        self.assertFalse(result.is_gone)
+        self.assertEqual(result.status, "available")
+        self.assertIn("vinted_active_action", result.reason)
+
+    def test_vinted_plain_200_is_unknown_not_gone(self):
+        result = check_listing_availability(
+            "https://www.vinted.pt/items/1-test",
+            platform="Vinted",
+            session=FakeSession(FakeResponse(body="<html><title>Pokemon card listing</title></html>")),
+        )
+        self.assertFalse(result.is_gone)
+        self.assertEqual(result.status, UNKNOWN_CHECK_FAILED_STATUS)
+
     def test_rate_limit_does_not_mark_gone(self):
         result = check_listing_availability(
             "https://www.ebay.com/itm/123",
@@ -47,7 +74,7 @@ class ListingAvailabilityTests(unittest.TestCase):
             session=FakeSession(FakeResponse(status_code=429)),
         )
         self.assertFalse(result.is_gone)
-        self.assertEqual(result.status, "unknown")
+        self.assertEqual(result.status, UNKNOWN_CHECK_FAILED_STATUS)
 
     def test_plain_200_stays_available(self):
         result = check_listing_availability(
