@@ -632,10 +632,11 @@ def render_deals_board(
     board_label="Market intelligence",
     stat_label="Live stream",
     default_region="",
+    default_platform="",
 ):
     feed_started = time.perf_counter()
     search = request.args.get("q", "").strip()
-    platform = request.args.get("platform", "").strip()
+    platform = request.args.get("platform", default_platform).strip()
     badge = request.args.get("badge", "").strip()
     language_raw = request.args.get("language", "").strip()
     selected_languages = parse_language_filter(language_raw)
@@ -678,6 +679,13 @@ def render_deals_board(
         deal_count = sum(1 for listing in listings if listing.is_deal)
         last_detected_at = listings[0].detected_at if listings else None
 
+    if page_mode == "ebay":
+        current_app.logger.info(
+            "[EBAY_DEALS_PAGE_QUERY] count=%s ids=%s",
+            len(listings),
+            ",".join(str(listing.external_id or listing.id) for listing in listings[:10]),
+        )
+
     live_stats = {
         "count": live_listings_count,
         "deal_count": deal_count,
@@ -689,7 +697,7 @@ def render_deals_board(
     if region == "eu":
         platforms = ["Vinted", "Wallapop"]
         platform_all_label = "All EU"
-    elif region == "ebay":
+    elif region == "ebay" or page_mode == "ebay":
         platforms = ["eBay"]
         platform_all_label = "All eBay"
     else:
@@ -720,6 +728,8 @@ def render_deals_board(
             len(listings),
             total_ms,
         )
+    if page_mode == "ebay":
+        current_app.logger.info("[EBAY_DEALS_PAGE_RENDER] count=%s", len(listings))
 
     return render_template(
         "feed.html",
@@ -897,7 +907,7 @@ def ebay_deals():
         board_title="eBay Deals",
         board_intro="Fresh eBay listings kept separate from the European marketplace stream.",
         stat_label="eBay stream",
-        default_region="ebay",
+        default_platform="ebay",
     )
 
 
@@ -1299,11 +1309,12 @@ def health():
     return jsonify(
         {
             "status": "ok",
-            "app_version": "2026-04-30-ebay-detected-order",
+            "app_version": "2026-04-30-ebay-page-platform-filter",
             "git_commit": os.getenv("RENDER_GIT_COMMIT", os.getenv("GIT_COMMIT", "unknown")),
             "ebay_platform_normalization": True,
             "ebay_duplicate_refresh": True,
             "ebay_api_listings_detected_order": True,
+            "ebay_deals_platform_filter": True,
         }
     ), 200, {"Cache-Control": "no-store, max-age=0"}
 
