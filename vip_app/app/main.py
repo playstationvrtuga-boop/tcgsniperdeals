@@ -680,6 +680,14 @@ def render_deals_board(
         last_detected_at = listings[0].detected_at if listings else None
 
     if page_mode == "ebay":
+        if cache_key:
+            current_app.logger.info(
+                "[EBAY_FEED_CACHE_%s] key=%s",
+                "HIT" if cache_hit else "MISS",
+                cache_key,
+            )
+        else:
+            current_app.logger.info("[EBAY_FEED_CACHE_MISS] key=none reason=disabled")
         current_app.logger.info(
             "[EBAY_DEALS_PAGE_QUERY] count=%s ids=%s",
             len(listings),
@@ -729,7 +737,11 @@ def render_deals_board(
             total_ms,
         )
     if page_mode == "ebay":
-        current_app.logger.info("[EBAY_DEALS_PAGE_RENDER] count=%s", len(listings))
+        current_app.logger.info(
+            "[EBAY_DEALS_PAGE_RENDER] count=%s ids=%s",
+            len(listings),
+            ",".join(str(listing.external_id or listing.id) for listing in listings[:10]),
+        )
 
     return render_template(
         "feed.html",
@@ -1049,6 +1061,7 @@ def feed_updates():
         rendered_items.append(
             {
                 "id": listing.id,
+                "external_id": listing.external_id,
                 "detected_at": listing.detected_at_iso,
                 "platform": listing.platform,
                 "platform_key": listing.platform.lower().replace(" ", "-") if listing.platform else "",
@@ -1089,6 +1102,14 @@ def feed_updates():
     )
     for item in rendered_items:
         current_app.logger.debug("[LIVE_POLL_ITEM] id=%s platform=%s", item["id"], item["platform"])
+    if platform == "ebay":
+        newest_item = rendered_items[0] if rendered_items else None
+        current_app.logger.info(
+            "[EBAY_LIVE_POLL] platform=ebay count=%s newest_id=%s newest_detected_at=%s",
+            len(rendered_items),
+            newest_item["external_id"] if newest_item else None,
+            newest_item["detected_at"] if newest_item else None,
+        )
     current_app.logger.debug(
         "[feed-updates] timestamp_source=detected_at returned=%s cursor_detected_at=%s cursor_id=%s first_item_detected_at=%s",
         len(rendered_items),
@@ -1309,12 +1330,13 @@ def health():
     return jsonify(
         {
             "status": "ok",
-            "app_version": "2026-04-30-ebay-page-platform-filter",
+            "app_version": "2026-04-30-ebay-route-trace",
             "git_commit": os.getenv("RENDER_GIT_COMMIT", os.getenv("GIT_COMMIT", "unknown")),
             "ebay_platform_normalization": True,
             "ebay_duplicate_refresh": True,
             "ebay_api_listings_detected_order": True,
             "ebay_deals_platform_filter": True,
+            "ebay_route_trace": True,
         }
     ), 200, {"Cache-Control": "no-store, max-age=0"}
 

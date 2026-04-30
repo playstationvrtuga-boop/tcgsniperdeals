@@ -759,6 +759,10 @@ function initLiveFeed() {
 
       const items = Array.isArray(data.items) ? data.items : [];
       console.debug(`[LIVE_POLL] received count=${items.length}`);
+      if (normalizePlatformKey(platformFilter) === "ebay" || normalizePlatformKey(regionFilter) === "ebay") {
+        const ebayIds = items.map((item) => item?.external_id || item?.id || "unknown").slice(0, 10).join(",");
+        console.debug(`[EBAY_LIVE_POLL] platform=ebay count=${items.length} ids=${ebayIds}`);
+      }
       items.forEach((item) => {
         const platform = normalizePlatformKey(item?.platform_key || item?.platform);
         console.debug(`[LIVE_POLL_ITEM] id=${item?.id || "unknown"} platform=${platform || "unknown"}`);

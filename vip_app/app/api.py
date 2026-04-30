@@ -351,6 +351,14 @@ def list_listings():
         limit = 20
 
     listings = query.order_by(Listing.detected_at.desc(), Listing.id.desc()).limit(limit).all()
+    if platform == "ebay":
+        newest = listings[0] if listings else None
+        current_app.logger.info(
+            "[EBAY_API_LISTINGS_GET] count=%s newest_id=%s newest_detected_at=%s",
+            len(listings),
+            newest.external_id if newest else None,
+            newest.detected_at_iso if newest else None,
+        )
     return jsonify(
         {
             "status": "ok",
@@ -379,6 +387,10 @@ def create_listing():
                 db.session.commit()
                 invalidate("feed:")
                 current_app.logger.info(
+                    "[EBAY_FEED_CACHE_INVALIDATED] id=%s status=duplicate",
+                    existing.external_id,
+                )
+                current_app.logger.info(
                     "[APP_FEED_VISIBLE] id=%s app_listing_id=%s source=%s status=duplicate refreshed=true",
                     existing.external_id,
                     existing.id,
@@ -389,6 +401,11 @@ def create_listing():
         db.session.add(listing)
         db.session.commit()
         invalidate("feed:")
+        if (listing.source or "").strip().lower() == "ebay":
+            current_app.logger.info(
+                "[EBAY_FEED_CACHE_INVALIDATED] id=%s status=inserted",
+                listing.external_id,
+            )
         current_app.logger.debug(
             "[listing-inserted] timestamp_source=detected_at id=%s detected_at=%s",
             listing.id,
