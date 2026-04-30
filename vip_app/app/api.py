@@ -81,7 +81,7 @@ def normalize_listing_url(url):
 def normalize_platform(value):
     raw = str(value or "").strip().lower()
     mapping = {
-        "ebay": "eBay",
+        "ebay": "ebay",
         "vinted": "Vinted",
         "olx": "OLX",
         "wallapop": "Wallapop",
@@ -281,6 +281,51 @@ def find_listing_for_status_update(payload):
         return None
 
     return query.order_by(Listing.id.desc()).first()
+
+
+def serialize_listing(listing):
+    return {
+        "id": listing.id,
+        "source": listing.source,
+        "external_id": listing.external_id,
+        "platform": listing.platform,
+        "title": listing.title,
+        "price": listing.price_display,
+        "url": listing.external_url,
+        "image_url": listing.image_url,
+        "detected_at": listing.detected_at_iso,
+        "created_at": listing.created_at.isoformat() if listing.created_at else None,
+        "status": listing.status,
+        "available_status": listing.available_status,
+    }
+
+
+@api_bp.route("/listings", methods=["GET"])
+def list_listings():
+    if not check_debug_access():
+        return api_response("unauthorized", 401, message="Admin login or X-API-Key required.")
+
+    query = Listing.query
+    external_id = (request.args.get("external_id") or "").strip()
+    platform = (request.args.get("platform") or "").strip().lower()
+    if external_id:
+        query = query.filter(Listing.external_id == external_id)
+    if platform:
+        query = query.filter(db.func.lower(Listing.platform) == platform)
+
+    try:
+        limit = min(max(int(request.args.get("limit", 20)), 1), 100)
+    except (TypeError, ValueError):
+        limit = 20
+
+    listings = query.order_by(Listing.id.desc()).limit(limit).all()
+    return jsonify(
+        {
+            "status": "ok",
+            "count": len(listings),
+            "listings": [serialize_listing(listing) for listing in listings],
+        }
+    )
 
 
 @api_bp.route("/listings", methods=["POST"])

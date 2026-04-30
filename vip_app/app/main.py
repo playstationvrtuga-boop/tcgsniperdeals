@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import os
 import time
 from decimal import Decimal
 from pathlib import Path
@@ -1295,7 +1296,14 @@ def offline():
 
 @main_bp.route("/health")
 def health():
-    return "ok", 200, {"Cache-Control": "no-store, max-age=0"}
+    return jsonify(
+        {
+            "status": "ok",
+            "app_version": "2026-04-30-ebay-platform-normalization",
+            "git_commit": os.getenv("RENDER_GIT_COMMIT", os.getenv("GIT_COMMIT", "unknown")),
+            "ebay_platform_normalization": True,
+        }
+    ), 200, {"Cache-Control": "no-store, max-age=0"}
 
 
 @main_bp.route("/push-info")
