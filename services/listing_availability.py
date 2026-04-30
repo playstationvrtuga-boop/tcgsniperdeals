@@ -22,22 +22,25 @@ VINTED_ACTIVE_ACTION_MARKERS = [
     "chiedi al venditore",
 ]
 
+VINTED_WEAK_GONE_TEXT_MARKERS = [
+    "sold",
+    "vendu",
+    "vendido",
+    "vendida",
+    "reserved",
+    "reservado",
+    "reservada",
+]
+
 GONE_TEXT_MARKERS = {
     "vinted": [
         "this item is no longer available",
         "item is no longer available",
         "item sold",
-        "sold",
-        "vendido",
-        "vendida",
-        "reservado",
-        "reservada",
-        "reserved",
         "indisponivel",
         "indisponible",
         "indisponível",
         "article vendu",
-        "vendu",
         "annonce supprim",
         "supprimé",
         "supprime",
@@ -168,6 +171,16 @@ def check_listing_availability(
         if marker in body:
             status = "sold" if "sold" in marker or "vend" in marker or "item sold" in body else "unavailable"
             return AvailabilityResult(status=status, is_gone=True, reason=f"text_marker:{marker}", http_status=status_code)
+
+    if platform_key == "vinted":
+        for marker in VINTED_WEAK_GONE_TEXT_MARKERS:
+            if marker in body:
+                return AvailabilityResult(
+                    status=UNKNOWN_CHECK_FAILED_STATUS,
+                    is_gone=False,
+                    reason=f"vinted_weak_text_marker:{marker}",
+                    http_status=status_code,
+                )
 
     if platform_key == "vinted" and status_code == 200:
         return AvailabilityResult(

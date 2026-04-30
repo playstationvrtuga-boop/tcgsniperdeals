@@ -58,6 +58,16 @@ class ListingAvailabilityTests(unittest.TestCase):
         self.assertEqual(result.status, "available")
         self.assertIn("vinted_active_action", result.reason)
 
+    def test_vinted_generic_sold_text_is_weak_signal(self):
+        result = check_listing_availability(
+            "https://www.vinted.pt/items/1-test",
+            platform="Vinted",
+            session=FakeSession(FakeResponse(body="<html><body>sold items you might like</body></html>")),
+        )
+        self.assertFalse(result.is_gone)
+        self.assertEqual(result.status, UNKNOWN_CHECK_FAILED_STATUS)
+        self.assertIn("vinted_weak_text_marker", result.reason)
+
     def test_vinted_plain_200_is_unknown_not_gone(self):
         result = check_listing_availability(
             "https://www.vinted.pt/items/1-test",

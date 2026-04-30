@@ -46,6 +46,8 @@ GONE_AVAILABLE_STATUSES = [
     "vendido",
 ]
 GONE_PENDING_CONFIRMATION_STATUS = "gone_pending_confirmation"
+GONE_CONFIRMED_STATUS = "gone_confirmed"
+GONE_RECOVERY_RECHECK_MINUTES = 5
 
 
 @dataclass(frozen=True)
@@ -271,7 +273,7 @@ def _mark_pending_gone_confirmation(listing: Listing, current: datetime) -> None
 
 def _mark_confirmed_gone(listing: Listing, status: str, current: datetime) -> None:
     listing.status = status
-    listing.available_status = status
+    listing.available_status = GONE_CONFIRMED_STATUS
     listing.status_updated_at = current
     listing.gone_detected_at = listing.gone_detected_at or current
     if listing.detected_at and listing.sold_after_seconds is None:
@@ -306,6 +308,8 @@ def mark_recent_gone_listings(now: datetime | None = None, *, limit: int | None 
     max_cutoff = current - timedelta(hours=FREE_GONE_MAX_AGE_HOURS)
     min_age_cutoff = current - timedelta(minutes=FREE_GONE_AVAILABILITY_MIN_AGE_MINUTES)
     recheck_cutoff = current - timedelta(minutes=FREE_GONE_AVAILABILITY_RECHECK_MINUTES)
+    gone_recheck_cutoff = current - timedelta(minutes=GONE_RECOVERY_RECHECK_MINUTES)
+    status_value = func.lower(func.coalesce(Listing.status, Listing.available_status, ""))
     check_limit = max(1, int(limit or FREE_GONE_AVAILABILITY_CHECK_LIMIT))
 
     candidates = (
@@ -314,7 +318,17 @@ def mark_recent_gone_listings(now: datetime | None = None, *, limit: int | None 
             Listing.external_url.isnot(None),
             Listing.detected_at >= max_cutoff,
             Listing.detected_at <= min_age_cutoff,
-            or_(Listing.availability_checked_at.is_(None), Listing.availability_checked_at <= recheck_cutoff),
+            or_(
+                Listing.availability_checked_at.is_(None),
+                (
+                    status_value.in_(GONE_AVAILABLE_STATUSES)
+                    & (Listing.availability_checked_at <= gone_recheck_cutoff)
+                ),
+                (
+                    ~status_value.in_(GONE_AVAILABLE_STATUSES)
+                    & (Listing.availability_checked_at <= recheck_cutoff)
+                ),
+            ),
         )
         .order_by(Listing.detected_at.desc(), Listing.id.desc())
         .limit(check_limit)

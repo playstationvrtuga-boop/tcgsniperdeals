@@ -8,6 +8,7 @@ from services.alert_formatter import format_free_gone_alert_text
 from services import free_gone_alerts
 from services.free_gone_alerts import (
     GONE_AVAILABLE_STATUSES,
+    GONE_CONFIRMED_STATUS,
     GONE_PENDING_CONFIRMATION_STATUS,
     build_daily_plan,
     mark_recent_gone_listings,
@@ -121,7 +122,7 @@ class GoneAvailabilityStateTests(unittest.TestCase):
         db.session.refresh(listing)
         self.assertEqual(marked_second, 1)
         self.assertEqual(listing.status, "sold")
-        self.assertEqual(listing.available_status, "sold")
+        self.assertEqual(listing.available_status, GONE_CONFIRMED_STATUS)
         self.assertIsNotNone(listing.gone_detected_at)
 
     def test_available_result_recovers_false_positive_sold_listing(self):

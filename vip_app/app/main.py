@@ -1042,17 +1042,25 @@ def log_smart_deals_diagnostics(query) -> None:
 @main_bp.route("/missed-deals")
 @vip_required
 def missed_deals():
-    status_value = db.func.lower(db.func.coalesce(Listing.status, Listing.available_status, ""))
-    query = Listing.query.filter(status_value.in_(gone_status_values()))
+    query = build_missed_deals_query()
     return render_deals_board(
         query=query,
         order_by=missed_deal_order(),
-        cache_key="feed:missed",
+        cache_key="feed:missed:v2",
         page_mode="missed",
         board_label="Lost opportunities",
         board_title="Missed Deals already gone",
         board_intro="Sold, removed or unavailable listings detected earlier by TCG Sniper Deals.",
         stat_label="Missed stream",
+    )
+
+
+def build_missed_deals_query():
+    status_value = db.func.lower(db.func.coalesce(Listing.status, Listing.available_status, ""))
+    confirmation_value = db.func.lower(db.func.coalesce(Listing.available_status, ""))
+    return Listing.query.filter(
+        status_value.in_(gone_status_values()),
+        confirmation_value == "gone_confirmed",
     )
 
 
