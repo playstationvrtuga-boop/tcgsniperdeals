@@ -721,6 +721,98 @@ def _launch_wallapop_browser(playwright, headless: bool):
     )
 
 
+def fetch_wallapop_listings_with_context(
+    context,
+    *,
+    max_items: int | None = None,
+    delay_min_seconds: float | None = None,
+    delay_max_seconds: float | None = None,
+    queries: Iterable[str] | None = None,
+    seen_ids: set[str] | None = None,
+    return_stats: bool = False,
+):
+    max_items = max_items if max_items is not None else wallapop_max_items()
+    max_items = _safe_int(max_items, default=6, minimum=1)
+    delay_min_seconds = float(delay_min_seconds if delay_min_seconds is not None else os.getenv("WALLAPOP_DELAY_MIN_SECONDS", "2"))
+    delay_max_seconds = float(delay_max_seconds if delay_max_seconds is not None else os.getenv("WALLAPOP_DELAY_MAX_SECONDS", "5"))
+    if delay_max_seconds < delay_min_seconds:
+        delay_max_seconds = delay_min_seconds
+    search_delay_ms = max(WALLAPOP_AFTER_GOTO_WAIT_MS, int(delay_min_seconds * 1000))
+    selected_queries = list(queries or WALLAPOP_QUERIES)[:wallapop_max_queries_per_run()]
+    print(f"[WALLAPOP_RUN_START] max_items={max_items} queries={len(selected_queries)} mode=existing_context", flush=True)
+    stats = _new_wallapop_stats()
+    before_rss = _log_wallapop_memory("before_run")
+    if before_rss and before_rss > WALLAPOP_MEMORY_LIMIT_MB:
+        stats["memory_high"] = 1
+        print(f"[WALLAPOP_MEMORY_LIMIT] rss_mb={before_rss} action=skip_run", flush=True)
+        _log_wallapop_memory("after_cleanup")
+        return ([], stats) if return_stats else []
+
+    accepted: list[dict] = []
+    try:
+        try:
+            context.set_default_timeout(WALLAPOP_RESULTS_TIMEOUT_MS)
+            context.set_default_navigation_timeout(WALLAPOP_GOTO_TIMEOUT_MS)
+        except Exception as exc:
+            print(f"[WALLAPOP_CONTEXT_TIMEOUT_SKIPPED] level=warning error={_brief_error(exc)}", flush=True)
+        candidates = _obter_wallapop_links(
+            context,
+            selected_queries,
+            seen_ids=set(seen_ids or set()),
+            max_items=max_items,
+            stats=stats,
+            delay_ms=search_delay_ms,
+        )
+        current_seen_ids = set(seen_ids or set())
+        for candidate in candidates:
+            if len(accepted) >= max_items:
+                break
+            if wallapop_memory_over_limit():
+                stats["memory_high"] = 1
+                rss_mb = _log_wallapop_memory("detail_memory_limit")
+                print(f"[WALLAPOP_MEMORY_LIMIT] rss_mb={rss_mb} action=stop_details", flush=True)
+                break
+            if candidate.get("title") and candidate.get("price"):
+                item = candidate
+            else:
+                page_detalhe = None
+                try:
+                    page_detalhe = context.new_page()
+                    item = _extrair_wallapop(page_detalhe, candidate["url"])
+                finally:
+                    _close_wallapop_page(page_detalhe, "detail")
+            if not item:
+                stats["rejected"] += 1
+                continue
+            new_items = filter_wallapop_candidates(
+                [item],
+                seen_ids=current_seen_ids | {existing["external_id"] for existing in accepted},
+                max_items=max_items - len(accepted),
+                stats=stats,
+            )
+            accepted.extend(new_items)
+            for new_item in new_items:
+                current_seen_ids.add(new_item["external_id"])
+            if len(accepted) >= max_items:
+                break
+    except Exception as exc:
+        print(f"[WALLAPOP_ERROR] reason=existing_context_failed error={_brief_error(exc)}", flush=True)
+        _log_wallapop_memory("after_cleanup")
+        return (accepted[:max_items], stats) if return_stats else accepted[:max_items]
+
+    after_rss = _log_wallapop_memory("after_cleanup")
+    if after_rss and after_rss > WALLAPOP_MEMORY_LIMIT_MB:
+        stats["memory_high"] = 1
+        print(f"[WALLAPOP_MEMORY_LIMIT] rss_mb={after_rss} action=cycle_done", flush=True)
+    print(
+        f"[WALLAPOP_RUN_DONE accepted={len(accepted)} rejected={stats['rejected']} "
+        f"duplicates={stats['duplicates']} timeouts={stats['timeouts']} query_errors={stats['query_errors']}]",
+        flush=True,
+    )
+    time.sleep(0)
+    return (accepted[:max_items], stats) if return_stats else accepted[:max_items]
+
+
 def fetch_wallapop_listings(
     *,
     max_items: int | None = None,

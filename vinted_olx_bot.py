@@ -26,7 +26,11 @@ from services.ebay_affiliate import build_ebay_affiliate_url
 from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
 from services.free_promos import schedule_free_promos_every_hour
 from services.public_links import build_free_public_listing_url
-from services.wallapop_scraper import fetch_wallapop_listings, should_send_wallapop_to_telegram
+from services.wallapop_scraper import (
+    fetch_wallapop_listings,
+    fetch_wallapop_listings_with_context,
+    should_send_wallapop_to_telegram,
+)
 from urllib.parse import parse_qs, quote_plus, unquote_plus, urljoin, urlsplit
 import requests
 import os
@@ -87,10 +91,7 @@ MEMORY_LOG_EVERY_CYCLES = 5
 LOG_TITLE_MAX_CHARS = 120
 
 def env_bool(name, default=False):
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
+    return str(os.getenv(name, str(default))).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def env_int(name, default, minimum=1):
@@ -269,7 +270,7 @@ def start_cycle_diag(cycle, processar_ebay):
     for platform, urls in (("vinted", VINTED_SEARCH_URLS), ("ebay", EBAY_SEARCH_URLS)):
         for search_url in urls:
             diag_get_query(diag, platform, search_url)
-    if ENABLE_WALLAPOP and WALLAPOP_INLINE_IN_MAIN_BOT:
+    if wallapop_inline_enabled():
         diag_get_query(diag, "wallapop", "wallapop:inline")
 
     print(
@@ -639,9 +640,11 @@ def construir_payload_app(anuncio):
 
 
 def enviar_anuncio_app(anuncio):
+    item_id = anuncio.get("id")
+    platform = anuncio.get("source") or anuncio.get("origem") or "unknown"
     if not tcg_enabled(anuncio.get("tcg_type")):
         print(
-            f"[APP API] skipped disabled tcg id={anuncio.get('id')} "
+            f"[APP API] skipped disabled tcg id={item_id} "
             f"tcg_type={anuncio.get('tcg_type')}"
         )
         return {"status": "disabled_tcg"}
@@ -649,15 +652,24 @@ def enviar_anuncio_app(anuncio):
     if not APP_API_ENABLED:
         return {"status": "disabled"}
 
-    if not APP_API_URL or not BOT_API_KEY:
-        print("[APP API] disabled because URL or API key is missing")
+    if not APP_API_URL:
+        print(f"[APP_API_SEND_ATTEMPT] id={item_id} url=missing platform={platform}")
+        print("[APP API] disabled because URL is missing")
+        return {"status": "disabled_missing_config"}
+
+    if not BOT_API_KEY:
+        print(f"[APP_API_SEND_ATTEMPT] id={item_id} url={APP_API_URL} platform={platform}")
+        print("[APP_API_AUTH_MISSING]")
         return {"status": "disabled_missing_config"}
 
     payload = construir_payload_app(anuncio)
     if not payload:
-        print(f"[APP API] skipped invalid payload for {anuncio.get('id')}")
+        print(f"[APP API] skipped invalid payload for {item_id}")
         return {"status": "invalid_payload"}
-    print(f"[APP API] sending {payload.get('external_id')} detected_at={payload.get('detected_at')}")
+    print(
+        f"[APP_API_SEND_ATTEMPT] id={payload.get('external_id')} "
+        f"url={APP_API_URL} platform={payload.get('source')}"
+    )
 
     try:
         resposta = HTTP_SESSION.post(
@@ -670,9 +682,13 @@ def enviar_anuncio_app(anuncio):
             timeout=APP_API_TIMEOUT,
         )
     except requests.RequestException as e:
-        print(f"[APP API] request failed for {payload.get('external_id')}: {e}")
+        print(
+            f"[APP_API_SEND_RESULT] id={payload.get('external_id')} "
+            f"http=request_failed status=request_failed body_short={str(e)[:220]}"
+        )
         return {"status": "request_failed", "error": str(e)}
 
+    body_short = (resposta.text or "")[:300].replace("\n", "\\n")
     try:
         dados = resposta.json()
     except ValueError:
@@ -682,12 +698,18 @@ def enviar_anuncio_app(anuncio):
         }
 
     status = dados.get("status") or f"http_{resposta.status_code}"
+    print(
+        f"[APP_API_SEND_RESULT] id={payload.get('external_id')} "
+        f"http={resposta.status_code} status={status} body_short={body_short}"
+    )
     if resposta.status_code == 201 and status == "inserted":
         print(f"[APP API] inserted {payload.get('external_id')} into VIP app")
+        print(f"[APP_FEED_VISIBLE] id={payload.get('external_id')} app_listing_id={dados.get('id')}")
     elif resposta.status_code == 200 and status == "duplicate":
         print(f"[APP API] duplicate {payload.get('external_id')} already in VIP app")
-    elif resposta.status_code == 401:
-        print("[APP API] unauthorized - check BOT_API_KEY")
+        print(f"[APP_FEED_VISIBLE] id={payload.get('external_id')} app_listing_id={dados.get('id')} status=duplicate")
+    elif resposta.status_code in {401, 403}:
+        print("[APP_API_AUTH_FAILED]")
     else:
         print(f"[APP API] unexpected response for {payload.get('external_id')}: {resposta.status_code} {dados}")
 
@@ -722,6 +744,10 @@ def log_delivery_config():
         f"app_api_enabled={APP_API_ENABLED} "
         f"app_target={_app_api_target_label()} "
         f"app_api_url={APP_API_URL or 'missing'}"
+    )
+    print(
+        "[delivery_config] "
+        f"app_api_key={'present' if BOT_API_KEY else 'missing'}"
     )
     print(
         "[delivery_config] "
@@ -837,12 +863,16 @@ def carregar_vistos():
     if not os.path.exists(FICHEIRO_VISTOS):
         return set()
 
+    drop_prefixes = ["olx_"] if not OLX_ENABLED else []
+    if EBAY_DEBUG_IGNORE_MAIN_VISTOS:
+        drop_prefixes.append("ebay_")
+
     with open(FICHEIRO_VISTOS, "r", encoding="utf-8") as f:
         ultimos = deque(
             (
                 l.strip()
                 for l in f
-                if l.strip() and (OLX_ENABLED or not l.strip().startswith("olx_"))
+                if l.strip() and not any(l.strip().startswith(prefix) for prefix in drop_prefixes)
             ),
             maxlen=MAX_VISTOS_ITEMS,
         )
@@ -885,6 +915,24 @@ def mark_seen_after_app_delivery(anuncio, app_result):
     ):
         guardar_visto_ebay_debug(item_id)
     print(f"[SEEN_MARKED] id={item_id} app_status={app_status}")
+    return True
+
+
+def mark_seen_after_telegram_delivery(anuncio, free_result):
+    item_id = anuncio.get("id") if isinstance(anuncio, dict) else None
+    free_status = (free_result or {}).get("status")
+    if not item_id or free_status != "sent":
+        print(f"[SEEN_SKIPPED] id={item_id} free_status={free_status}")
+        return False
+
+    guardar_visto(item_id)
+    if (
+        (anuncio.get("source") or "").lower() == "ebay"
+        and EBAY_DEBUG_MODE
+        and EBAY_DEBUG_IGNORE_MAIN_VISTOS
+    ):
+        guardar_visto_ebay_debug(item_id)
+    print(f"[SEEN_MARKED] id={item_id} free_status={free_status}")
     return True
 
 
@@ -5460,22 +5508,41 @@ def extrair_ebay(page, link):
         clear_playwright_page(page)
 
 
+def wallapop_env_enabled():
+    return env_bool("ENABLE_WALLAPOP", False)
+
+
+def wallapop_inline_requested():
+    return env_bool("WALLAPOP_INLINE_IN_MAIN_BOT", False)
+
+
 def wallapop_inline_enabled():
-    return bool(ENABLE_WALLAPOP and WALLAPOP_INLINE_IN_MAIN_BOT)
+    return wallapop_env_enabled() and wallapop_inline_requested()
+
+
+def log_wallapop_config():
+    print(f"[WALLAPOP_CONFIG] ENABLE_WALLAPOP={os.getenv('ENABLE_WALLAPOP', '')}")
+    print(f"[WALLAPOP_CONFIG] WALLAPOP_INLINE_IN_MAIN_BOT={os.getenv('WALLAPOP_INLINE_IN_MAIN_BOT', '')}")
+    print(f"[WALLAPOP_CONFIG] WALLAPOP_MAX_ITEMS_PER_RUN={os.getenv('WALLAPOP_MAX_ITEMS_PER_RUN', '')}")
+    print(f"[WALLAPOP_INLINE] enabled={str(wallapop_inline_enabled()).lower()}")
+    if wallapop_inline_requested() and not wallapop_env_enabled():
+        print("[WALLAPOP_INLINE] disabled reason=ENABLE_WALLAPOP_FALSE")
 
 
 def wallapop_inline_max_items():
     return min(env_int("WALLAPOP_MAX_ITEMS_PER_RUN", WALLAPOP_MAX_ITEMS_PER_RUN), MAX_EBAY_CANDIDATES_PER_CYCLE)
 
 
-def processar_wallapop_inline(vistos, novos, diag=None):
+def processar_wallapop_inline(vistos, novos, diag=None, context=None):
     enabled = wallapop_inline_enabled()
     max_items = wallapop_inline_max_items()
     print(f"[WALLAPOP_INLINE] enabled={str(enabled).lower()}")
     print(f"[WALLAPOP_INLINE] max_items_per_run={max_items}")
     if not enabled:
-        if ENABLE_WALLAPOP:
-            print("[WALLAPOP_MAIN_BOT_SKIPPED] reason=inline_disabled")
+        if wallapop_inline_requested() and not wallapop_env_enabled():
+            print("[WALLAPOP_INLINE] disabled reason=ENABLE_WALLAPOP_FALSE")
+        elif wallapop_env_enabled() and not wallapop_inline_requested():
+            print("[WALLAPOP_INLINE] disabled reason=WALLAPOP_INLINE_IN_MAIN_BOT_FALSE")
         return {"items_found": 0, "items_sent": 0}
 
     print("[WALLAPOP_INLINE] cycle_start")
@@ -5486,14 +5553,24 @@ def processar_wallapop_inline(vistos, novos, diag=None):
     try:
         seen_ids = set(vistos or set())
         seen_ids.update(item.get("id") for item in novos if item.get("id"))
-        wallapop_items, scrape_stats = fetch_wallapop_listings(
-            max_items=max_items,
-            headless=WALLAPOP_HEADLESS,
-            delay_min_seconds=WALLAPOP_DELAY_MIN_SECONDS,
-            delay_max_seconds=WALLAPOP_DELAY_MAX_SECONDS,
-            seen_ids=seen_ids,
-            return_stats=True,
-        )
+        if context is not None:
+            wallapop_items, scrape_stats = fetch_wallapop_listings_with_context(
+                context,
+                max_items=max_items,
+                delay_min_seconds=WALLAPOP_DELAY_MIN_SECONDS,
+                delay_max_seconds=WALLAPOP_DELAY_MAX_SECONDS,
+                seen_ids=seen_ids,
+                return_stats=True,
+            )
+        else:
+            wallapop_items, scrape_stats = fetch_wallapop_listings(
+                max_items=max_items,
+                headless=WALLAPOP_HEADLESS,
+                delay_min_seconds=WALLAPOP_DELAY_MIN_SECONDS,
+                delay_max_seconds=WALLAPOP_DELAY_MAX_SECONDS,
+                seen_ids=seen_ids,
+                return_stats=True,
+            )
         items_found = len(wallapop_items)
         diag_count(query_diag, "raw", items_found)
         diag_count(query_diag, "parsed", items_found)
@@ -6131,7 +6208,7 @@ def procurar_anuncios(processar_ebay=True, diag=None):
             log_ram_usage("after_ebay")
 
         # WALLAPOP
-        processar_wallapop_inline(vistos, novos, diag=diag)
+        processar_wallapop_inline(vistos, novos, diag=diag, context=context)
 
     finally:
         if not should_close_context and LIGHT_MODE:
@@ -6164,13 +6241,17 @@ def procurar_anuncios(processar_ebay=True, diag=None):
 def main():
     ensure_logs_dir()
     ensure_log_file(FICHEIRO_LOG_EBAY_DEBUG)
-    compactar_ficheiro_linhas(FICHEIRO_VISTOS, MAX_VISTOS_ITEMS, drop_prefixes=["olx_"] if not OLX_ENABLED else None)
+    vistos_drop_prefixes = ["olx_"] if not OLX_ENABLED else []
+    if EBAY_DEBUG_IGNORE_MAIN_VISTOS:
+        vistos_drop_prefixes.append("ebay_")
+    compactar_ficheiro_linhas(FICHEIRO_VISTOS, MAX_VISTOS_ITEMS, drop_prefixes=vistos_drop_prefixes)
     compactar_ficheiro_linhas(FICHEIRO_VISTOS_EBAY_DEBUG, MAX_VISTOS_EBAY_DEBUG_ITEMS)
     if FREE_LANDING_ONLY:
         guardar_fila_free([])
     schedule_free_promos_every_hour()
     print("Bot ativo...")
     log_delivery_config()
+    log_wallapop_config()
     ciclo = 0
     next_cycle_at = time.monotonic()
 
@@ -6225,12 +6306,14 @@ def main():
                 if anuncio.get("source") == "wallapop" and (anuncio.get("app_sync") or {}).get("http_status") is not None:
                     wallapop_items_sent += 1
                 mark_listing_app_synced(anuncio.get("id"), anuncio.get("app_sync"))
-                mark_seen_after_app_delivery(anuncio, anuncio.get("app_sync"))
+                app_seen_marked = mark_seen_after_app_delivery(anuncio, anuncio.get("app_sync"))
                 if anuncio.get("source") == "wallapop" and not should_send_wallapop_to_telegram(anuncio, WALLAPOP_SEND_TELEGRAM):
                     free_result = {"status": "disabled_wallapop"}
                     print(f"[WALLAPOP_TELEGRAM_SKIPPED] id={anuncio.get('id')} reason=disabled")
                 else:
                     free_result = enfileirar_anuncio_free(anuncio)
+                if not app_seen_marked:
+                    mark_seen_after_telegram_delivery(anuncio, free_result)
                 diag_record_delivery(diag, anuncio, anuncio.get("app_sync"), free_result)
                 print(
                     f"[delivery_result] id={anuncio.get('id')} "

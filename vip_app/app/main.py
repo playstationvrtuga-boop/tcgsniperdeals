@@ -1093,7 +1093,7 @@ def feed_updates():
             (time.perf_counter() - started) * 1000,
         )
 
-    return jsonify(
+    response = jsonify(
         {
             "status": "ok",
             "items": rendered_items,
@@ -1101,6 +1101,8 @@ def feed_updates():
             "has_more": len(rendered_items) == limit,
         }
     )
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 @main_bp.route("/billing", methods=["GET", "POST"])

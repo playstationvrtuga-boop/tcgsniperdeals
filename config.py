@@ -55,8 +55,14 @@ APP_API_STATUS_URL = _get_setting(
 )
 SITE_URL = _get_setting("SITE_URL", "http://127.0.0.1:5000")
 APP_PUBLIC_URL = _get_setting("APP_PUBLIC_URL", "https://tcg-sniper-deals.onrender.com")
-BOT_API_KEY = os.environ.get("BOT_API_KEY") or LOCAL_ENV.get("BOT_API_KEY", "") or TOKEN
-APP_API_KEY = BOT_API_KEY or os.environ.get("APP_API_KEY") or LOCAL_ENV.get("APP_API_KEY", "")
+BOT_API_KEY = (
+    os.environ.get("BOT_API_KEY")
+    or os.environ.get("APP_API_KEY")
+    or LOCAL_ENV.get("BOT_API_KEY", "")
+    or LOCAL_ENV.get("APP_API_KEY", "")
+    or TOKEN
+)
+APP_API_KEY = BOT_API_KEY
 APP_API_TIMEOUT = float(_get_setting("APP_API_TIMEOUT", "8"))
 APP_API_ENABLED = _get_flag("APP_API_ENABLED", default=bool(APP_API_URL and (BOT_API_KEY or TOKEN)))
 

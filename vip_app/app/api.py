@@ -308,6 +308,12 @@ def create_listing():
             listing.id,
             listing.detected_at.isoformat() if listing.detected_at else None,
         )
+        current_app.logger.info(
+            "[APP_FEED_VISIBLE] id=%s app_listing_id=%s source=%s",
+            listing.external_id,
+            listing.id,
+            listing.source,
+        )
 
         return api_response("inserted", 201, id=listing.id, push={"sent": 0, "enabled": False})
     except Exception as error:
