@@ -998,7 +998,7 @@ def build_smart_deals_query():
     buy_now_market_signal = and_(
         pricing_basis == "buy_now",
         buy_now_comparable_signal,
-        confidence_value >= 60,
+        confidence_value >= 58,
         or_(
             score_level.in_(["MEDIUM", "HIGH", "INSANE"]),
             profit_value >= 10,

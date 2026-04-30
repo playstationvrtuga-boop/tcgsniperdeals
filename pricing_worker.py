@@ -7,7 +7,7 @@ import random
 import re
 import time
 from datetime import timedelta
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
 from config import (
     APP_API_URL,
@@ -45,6 +45,10 @@ DB_TEXT_LIMIT = 250
 
 def _pending_listing_query():
     retry_before = utcnow() - timedelta(minutes=PRICING_RETRY_AFTER_MINUTES)
+    checked_before_retry = (
+        (Listing.pricing_checked_at.is_(None))
+        | (Listing.pricing_checked_at <= retry_before)
+    )
     retryable_old_results = (
         Listing.pricing_status.in_([
             "needs_review",
@@ -52,17 +56,25 @@ def _pending_listing_query():
             "retry_later",
             "pricing_deferred",
         ])
-        & (
-            (Listing.pricing_checked_at.is_(None))
-            | (Listing.pricing_checked_at <= retry_before)
+        & checked_before_retry
+    )
+    retryable_incomplete_analyzed = (
+        Listing.pricing_status.in_(["analyzed", "priced"])
+        & checked_before_retry
+        & or_(
+            Listing.pricing_basis.is_(None),
+            Listing.pricing_basis == "",
+            Listing.pricing_reason.is_(None),
+            and_(
+                ~Listing.pricing_reason.contains("identity=strong"),
+                ~Listing.pricing_reason.contains("PRICING_STRONG_ID"),
+                ~Listing.pricing_reason.contains("PRICING_WEAK_ID_NEEDS_REVIEW"),
+            ),
         )
     )
     retryable_legacy_skips = (
         (Listing.pricing_status == "skipped")
-        & (
-            (Listing.pricing_checked_at.is_(None))
-            | (Listing.pricing_checked_at <= retry_before)
-        )
+        & checked_before_retry
         & (
             Listing.pricing_error.contains("listing_not_precisely_identified")
             | Listing.pricing_error.contains("not_enough_price")
@@ -77,12 +89,10 @@ def _pending_listing_query():
                 Listing.pricing_status == "pending",
                 (
                     Listing.pricing_status.in_(["rate_limited", "api_error"])
-                    & (
-                        (Listing.pricing_checked_at.is_(None))
-                        | (Listing.pricing_checked_at <= retry_before)
-                    )
+                    & checked_before_retry
                 ),
                 retryable_old_results,
+                retryable_incomplete_analyzed,
                 retryable_legacy_skips,
             )
         )

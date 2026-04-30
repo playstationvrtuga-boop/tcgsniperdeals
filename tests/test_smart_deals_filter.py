@@ -84,14 +84,34 @@ class SmartDealsFilterTests(unittest.TestCase):
 
         self.assertEqual(build_smart_deals_query().count(), 0)
 
-    def test_buy_now_only_low_confidence_is_not_visible(self):
-        self._listing(
+    def test_strong_buy_now_market_signal_is_visible(self):
+        expected = self._listing(
             pricing_basis="buy_now",
             confidence_score=58,
             is_deal=False,
             score_level="MEDIUM",
             estimated_profit=30.0,
             discount_percent=25.0,
+            last_2_sales_json="[]",
+            pricing_reason=(
+                "source=buy_now; sold_refs=0; buy_now_refs=3; comparable_results=3; "
+                "identity=strong; confidence=HIGH; basis=buy_now; listing_type=raw_card; "
+                "note=PRICING_STRONG_ID; BUY_NOW_REFERENCE_FOUND; PRICING_LOW_CONFIDENCE_BUY_NOW_ONLY"
+            ),
+        )
+
+        results = build_smart_deals_query().all()
+
+        self.assertEqual([listing.id for listing in results], [expected.id])
+
+    def test_buy_now_without_market_edge_is_not_visible(self):
+        self._listing(
+            pricing_basis="buy_now",
+            confidence_score=58,
+            is_deal=False,
+            score_level="LOW",
+            estimated_profit=4.0,
+            discount_percent=4.0,
             last_2_sales_json="[]",
             pricing_reason=(
                 "source=buy_now; sold_refs=0; buy_now_refs=3; comparable_results=3; "
