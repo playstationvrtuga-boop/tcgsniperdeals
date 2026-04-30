@@ -926,14 +926,35 @@ def ebay_deals():
 @main_bp.route("/smart-deals")
 @vip_required
 def smart_deals():
+    query = build_smart_deals_query()
+    log_smart_deals_diagnostics(query)
+    return render_deals_board(
+        query=query,
+        order_by=smart_deal_order(),
+        cache_key="feed:smart:v5",
+        page_mode="smart",
+        board_label="Sniper pricing",
+        board_title="Sniper Deals with pricing edge",
+        board_intro="Only enriched listings with market signals, discount pressure or real profit potential.",
+        stat_label="Sniper stream",
+    )
+
+
+def build_smart_deals_query():
     score_level = db.func.upper(db.func.coalesce(Listing.score_level, ""))
     profit_value = db.func.coalesce(Listing.estimated_profit, Listing.profit_margin, Listing.gross_margin, 0)
     pricing_status = db.func.lower(db.func.coalesce(Listing.pricing_status, ""))
     pricing_basis = db.func.lower(db.func.coalesce(Listing.pricing_basis, ""))
     listing_type = db.func.lower(db.func.coalesce(Listing.listing_type, "unknown"))
     confidence_value = db.func.coalesce(Listing.confidence_score, 0)
-    enough_comparables = or_(
+    sold_comparable_signal = or_(
         and_(Listing.last_2_sales_json.isnot(None), Listing.last_2_sales_json.ilike("%,%")),
+        Listing.pricing_reason.ilike("%sold_refs=1%"),
+        Listing.pricing_reason.ilike("%sold_refs=2%"),
+        Listing.pricing_reason.ilike("%sold_refs=3%"),
+        Listing.pricing_reason.ilike("%PRICING_SOLD_FOUND%"),
+        Listing.pricing_reason.ilike("%SIMPLE_SOLD_AVG_OPPORTUNITY%"),
+        Listing.pricing_reason.ilike("%comparable_results=1%"),
         Listing.pricing_reason.ilike("%comparable_results=2%"),
         Listing.pricing_reason.ilike("%comparable_results=3%"),
         Listing.pricing_reason.ilike("%comparable_results=4%"),
@@ -942,40 +963,80 @@ def smart_deals():
         Listing.pricing_reason.ilike("%comparable_results=7%"),
         Listing.pricing_reason.ilike("%comparable_results=8%"),
         Listing.pricing_reason.ilike("%comparable_results=9%"),
+    )
+    buy_now_comparable_signal = or_(
         Listing.pricing_reason.ilike("%buy_now_refs=2%"),
         Listing.pricing_reason.ilike("%buy_now_refs=3%"),
         Listing.pricing_reason.ilike("%buy_now_refs=4%"),
         Listing.pricing_reason.ilike("%buy_now_refs=5%"),
     )
-    query = Listing.query.filter(
-        pricing_status.in_(["analyzed", "priced", "deal"]),
-        pricing_basis.in_(["sold", "buy_now", "mixed"]),
-        listing_type.in_(["raw_card", "graded_card", "sealed_product"]),
-        or_(Listing.estimated_fair_value.isnot(None), Listing.reference_price.isnot(None)),
-        confidence_value >= 70,
-        enough_comparables,
+    strong_identity_signal = or_(
         Listing.pricing_reason.ilike("%identity=strong%"),
-        or_(
-            Listing.pricing_reason.is_(None),
-            ~Listing.pricing_reason.ilike("%PRICE_COMPARE_INSUFFICIENT_RAW_COMPARABLES%"),
-        ),
+        Listing.pricing_reason.ilike("%PRICING_STRONG_ID%"),
+    )
+    false_positive_risk_signal = or_(
+        Listing.pricing_reason.ilike("%false_positive_risk=true%"),
+        Listing.pricing_reason.ilike("%PRICING_SKIPPED_SNIPER_FALSE_POSITIVE_RISK%"),
+    )
+    sold_opportunity_signal = and_(
+        pricing_basis == "sold",
+        sold_comparable_signal,
         or_(
             Listing.is_deal.is_(True),
+            Listing.pricing_reason.ilike("%DEAL_ACCEPTED%"),
+            Listing.pricing_reason.ilike("%SIMPLE_SOLD_AVG_OPPORTUNITY%"),
+            and_(
+                confidence_value >= 70,
+                or_(
+                    score_level.in_(["MEDIUM", "HIGH", "INSANE"]),
+                    profit_value >= 5,
+                    Listing.discount_percent >= 8,
+                ),
+            ),
+        ),
+    )
+    buy_now_market_signal = and_(
+        pricing_basis == "buy_now",
+        buy_now_comparable_signal,
+        confidence_value >= 60,
+        or_(
             score_level.in_(["MEDIUM", "HIGH", "INSANE"]),
             profit_value >= 10,
             Listing.discount_percent >= 10,
         ),
     )
-    return render_deals_board(
-        query=query,
-        order_by=smart_deal_order(),
-        cache_key="feed:smart:v4",
-        page_mode="smart",
-        board_label="Sniper pricing",
-        board_title="Sniper Deals with pricing edge",
-        board_intro="Only enriched listings with market signals, discount pressure or real profit potential.",
-        stat_label="Sniper stream",
+    return Listing.query.filter(
+        pricing_status.in_(["analyzed", "priced", "deal"]),
+        pricing_basis.in_(["sold", "buy_now", "mixed"]),
+        listing_type.in_(["raw_card", "graded_card", "sealed_product"]),
+        or_(Listing.estimated_fair_value.isnot(None), Listing.reference_price.isnot(None)),
+        strong_identity_signal,
+        or_(Listing.pricing_reason.is_(None), ~false_positive_risk_signal),
+        or_(
+            Listing.pricing_reason.is_(None),
+            ~Listing.pricing_reason.ilike("%PRICE_COMPARE_INSUFFICIENT_RAW_COMPARABLES%"),
+        ),
+        or_(sold_opportunity_signal, buy_now_market_signal),
     )
+
+
+def log_smart_deals_diagnostics(query) -> None:
+    try:
+        final_count = query.limit(31).count()
+        pricing_status = db.func.lower(db.func.coalesce(Listing.pricing_status, ""))
+        strong_count = Listing.query.filter(Listing.pricing_reason.ilike("%identity=strong%")).count()
+        analyzed_count = Listing.query.filter(pricing_status.in_(["analyzed", "priced", "deal"])).count()
+        current_app.logger.info(
+            "[SNIPER_DEALS_QUERY] final_count=%s analyzed_like=%s strong_identity=%s",
+            final_count,
+            analyzed_count,
+            strong_count,
+        )
+    except Exception as error:
+        current_app.logger.warning(
+            "[SNIPER_DEALS_QUERY] diagnostics_failed error=%s",
+            error,
+        )
 
 
 @main_bp.route("/missed-deals")
