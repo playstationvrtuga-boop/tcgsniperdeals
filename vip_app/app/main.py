@@ -1,12 +1,13 @@
 from collections import Counter
 from datetime import datetime, timezone
+from hashlib import sha1
 import os
 import re
 import time
 from decimal import Decimal
 from pathlib import Path
 
-from flask import Blueprint, Response, current_app, flash, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
+from flask import Blueprint, Response, current_app, flash, jsonify, make_response, redirect, render_template, request, send_file, send_from_directory, url_for
 from flask_login import current_user, login_required
 from sqlalchemy import and_, case, or_
 from sqlalchemy.orm import defer
@@ -606,13 +607,15 @@ def build_seo_page_context(slug):
 
 def render_seo_page(slug):
     page = build_seo_page_context(slug)
-    return render_template(
+    response = make_response(render_template(
         "seo_page.html",
         page=page,
         canonical_url=canonical_for_path(f"/{slug}"),
         vip_access_url=url_for("main.billing"),
         app_url=url_for("main.index"),
-    )
+    ))
+    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=3600"
+    return response
 
 
 def register_seo_page_routes():
@@ -765,6 +768,23 @@ def normalize_platform_filter(raw_value: str) -> str:
     return value.replace(" ", "-").replace("_", "-")
 
 
+def parse_feed_page_args():
+    try:
+        page = max(1, int(request.args.get("page", "1")))
+    except (TypeError, ValueError):
+        page = 1
+
+    default_size = max(1, int(current_app.config.get("FEED_PAGE_SIZE", 24)))
+    max_size = max(default_size, int(current_app.config.get("FEED_PAGE_MAX_SIZE", 48)))
+    try:
+        per_page = int(request.args.get("per_page", default_size))
+    except (TypeError, ValueError):
+        per_page = default_size
+
+    per_page = min(max(1, per_page), max_size)
+    return page, per_page
+
+
 def platform_filter_label(platform_key: str) -> str:
     normalized = normalize_platform_filter(platform_key).replace("-", "_")
     return PLATFORM_LABELS.get(normalized, PLATFORM_LABELS.get(platform_key, platform_key))
@@ -855,16 +875,20 @@ def render_deals_board(
 ):
     feed_started = time.perf_counter()
     search = request.args.get("q", "").strip()
-    platform = request.args.get("platform", default_platform).strip()
+    platform_arg = request.args.get("platform", "").strip()
+    platform = (platform_arg or default_platform).strip()
     badge = request.args.get("badge", "").strip()
     language_raw = request.args.get("language", "").strip()
     selected_languages = parse_language_filter(language_raw)
     set_raw = request.args.get("set", "").strip()
     selected_sets = parse_set_filter(set_raw)
-    region = parse_region_filter(request.args.get("region", default_region).strip())
+    region_arg = request.args.get("region", "").strip()
+    region = parse_region_filter((region_arg or default_region).strip())
     market_type_raw = request.args.get("market_type", "").strip()
     selected_market_types = parse_market_type_filter(market_type_raw)
     platform_key = normalize_platform_filter(platform)
+    page, per_page = parse_feed_page_args()
+    offset = (page - 1) * per_page
     query = apply_listing_filters(
         query.options(defer(Listing.raw_payload)),
         search,
@@ -877,23 +901,30 @@ def render_deals_board(
     )
 
     cache_hit = False
-    if cache_key and not search and not platform and not badge and not region and not selected_languages and not selected_sets and not selected_market_types:
+    feed_cache_key = f"{cache_key}:page={page}:size={per_page}" if cache_key else None
+    has_user_filters = bool(search or platform_arg or badge or region_arg or selected_languages or selected_sets or selected_market_types)
+    if cache_key and not has_user_filters:
         def build_snapshot():
-            listings = query.order_by(*order_by).limit(30).all()
+            page_items = query.order_by(*order_by).offset(offset).limit(per_page + 1).all()
+            listings = page_items[:per_page]
             return {
                 "listings": listings,
+                "has_next": len(page_items) > per_page,
                 "live_listings_count": len(listings),
                 "deal_count": sum(1 for listing in listings if listing.is_deal),
                 "last_detected_at": listings[0].detected_at if listings else None,
             }
 
-        feed_snapshot, cache_hit = get_or_set(cache_key, current_app.config["FEED_CACHE_TTL_SECONDS"], build_snapshot)
+        feed_snapshot, cache_hit = get_or_set(feed_cache_key, current_app.config["FEED_CACHE_TTL_SECONDS"], build_snapshot)
         listings = feed_snapshot["listings"]
+        has_next_page = feed_snapshot["has_next"]
         live_listings_count = feed_snapshot["live_listings_count"]
         deal_count = feed_snapshot["deal_count"]
         last_detected_at = feed_snapshot["last_detected_at"]
     else:
-        listings = query.order_by(*order_by).limit(30).all()
+        page_items = query.order_by(*order_by).offset(offset).limit(per_page + 1).all()
+        listings = page_items[:per_page]
+        has_next_page = len(page_items) > per_page
         live_listings_count = len(listings)
         deal_count = sum(1 for listing in listings if listing.is_deal)
         last_detected_at = listings[0].detected_at if listings else None
@@ -903,7 +934,7 @@ def render_deals_board(
             current_app.logger.info(
                 "[EBAY_FEED_CACHE_%s] key=%s",
                 "HIT" if cache_hit else "MISS",
-                cache_key,
+                feed_cache_key,
             )
         else:
             current_app.logger.info("[EBAY_FEED_CACHE_MISS] key=none reason=disabled")
@@ -962,6 +993,13 @@ def render_deals_board(
             ",".join(str(listing.external_id or listing.id) for listing in listings[:10]),
         )
 
+    next_page_url = None
+    if has_next_page:
+        next_args = request.args.to_dict(flat=True)
+        next_args["page"] = str(page + 1)
+        next_args["per_page"] = str(per_page)
+        next_page_url = url_for(request.endpoint, **next_args)
+
     return render_template(
         "feed.html",
         listings=listings,
@@ -987,6 +1025,10 @@ def render_deals_board(
         feed_poll_interval_ms=current_app.config["FEED_POLL_INTERVAL_MS"],
         feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
         feed_cursor_id=feed_cursor_id,
+        page=page,
+        per_page=per_page,
+        has_next_page=has_next_page,
+        next_page_url=next_page_url,
         enable_live_radar=current_app.config["ENABLE_LIVE_RADAR"] and page_mode in {"live", "eu", "ebay"},
         enable_target_feedback=current_app.config["ENABLE_TARGET_FEEDBACK"] and page_mode in {"live", "eu", "ebay"},
         enable_card_entry_animations=current_app.config["ENABLE_CARD_ENTRY_ANIMATIONS"],
@@ -1049,7 +1091,7 @@ def index():
         "last_detected_at": listings[0].detected_at if listings else None,
         "alerts_active": False,
     }
-    return render_template(
+    response = make_response(render_template(
         "landing.html",
         listings=listings,
         favorite_ids=set(),
@@ -1063,7 +1105,14 @@ def index():
         feed_delta_max_items=current_app.config["FEED_DELTA_MAX_ITEMS"],
         seo_home=SEO_HOME_CONTENT,
         canonical_url=canonical_for_path("/"),
-    )
+    ))
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
+    return response
+
+
+@main_bp.route("/live-view")
+def live_view():
+    return index()
 
 
 @main_bp.route("/app")
@@ -1121,7 +1170,7 @@ def feed():
     return render_deals_board(
         query=Listing.query,
         order_by=newest_listing_order(),
-        cache_key=None,
+        cache_key="feed:eu:v2",
         page_mode="eu",
         board_label="EU marketplaces",
         board_title="EU Deals",
@@ -1137,7 +1186,7 @@ def ebay_deals():
     return render_deals_board(
         query=Listing.query,
         order_by=newest_listing_order(),
-        cache_key=None,
+        cache_key="feed:ebay:v2",
         page_mode="ebay",
         board_label="eBay marketplace",
         board_title="eBay Deals",
@@ -1451,7 +1500,21 @@ def feed_updates():
             "has_more": len(rendered_items) == limit,
         }
     )
-    response.headers["Cache-Control"] = "no-store, max-age=0"
+    etag_basis = "|".join(
+        [
+            str(cursor_id or 0),
+            cursor_detected_at_raw,
+            ",".join(str(item["id"]) for item in rendered_items),
+            str(next_cursor["latest_id"] if next_cursor else cursor_id or 0),
+        ]
+    )
+    response.set_etag(sha1(etag_basis.encode("utf-8")).hexdigest())
+    response.headers["Cache-Control"] = (
+        f"private, max-age={max(0, int(current_app.config.get('FEED_HTTP_CACHE_SECONDS', 5)))}, must-revalidate"
+    )
+    if items and items[0].detected_at:
+        response.last_modified = items[0].detected_at
+    response.make_conditional(request)
     return response
 
 

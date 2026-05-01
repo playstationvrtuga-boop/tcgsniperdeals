@@ -16,6 +16,14 @@ function isStandaloneWebApp() {
   return window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true;
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+}
+
+function isLowPowerDevice() {
+  return Number(navigator.hardwareConcurrency || 8) <= 4 || window.matchMedia?.("(max-width: 520px)")?.matches === true;
+}
+
 function initLanguageFilter() {
   const form = document.querySelector("[data-language-filter-form]");
   if (!form) return;
@@ -62,6 +70,38 @@ function initLanguageFilter() {
   options.forEach((option) => option.addEventListener("change", syncState));
   form.addEventListener("submit", syncState);
   syncState();
+}
+
+function initFilterUX() {
+  const form = document.querySelector("[data-language-filter-form]");
+  if (!form) return;
+
+  const searchInput = form.querySelector('input[type="search"]');
+  const selects = [...form.querySelectorAll("select")];
+  const submitButton = form.querySelector('button[type="submit"]');
+  let submitTimer = null;
+
+  function markPending() {
+    submitButton?.classList.add("is-pending");
+  }
+
+  function submitSoon(delay) {
+    if (submitTimer) window.clearTimeout(submitTimer);
+    markPending();
+    submitTimer = window.setTimeout(() => {
+      if (form.requestSubmit) {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+    }, delay);
+  }
+
+  searchInput?.addEventListener("input", () => submitSoon(520));
+  selects.forEach((select) => select.addEventListener("change", () => submitSoon(120)));
+  form.addEventListener("submit", () => {
+    submitButton?.classList.add("is-loading");
+  });
 }
 
 async function initNativeShell() {
@@ -564,9 +604,11 @@ function initLiveFeed() {
   const updatesUrl = feedRoot.dataset.feedUpdatesUrl;
   const pollIntervalMs = Number(feedRoot.dataset.feedPollMs || 2500);
   const deltaLimit = Number(feedRoot.dataset.feedDeltaLimit || 12);
-  const radarEnabled = feedRoot.dataset.feedLiveRadar === "1";
-  const targetFeedbackEnabled = feedRoot.dataset.feedTargetFeedback === "1";
-  const cardAnimationsEnabled = feedRoot.dataset.feedCardAnimations === "1";
+  const motionReduced = prefersReducedMotion();
+  const lowPowerDevice = isLowPowerDevice();
+  const radarEnabled = feedRoot.dataset.feedLiveRadar === "1" && !motionReduced && !lowPowerDevice;
+  const targetFeedbackEnabled = feedRoot.dataset.feedTargetFeedback === "1" && !motionReduced;
+  const cardAnimationsEnabled = feedRoot.dataset.feedCardAnimations === "1" && !motionReduced && !lowPowerDevice;
   const relativeTimeEnabled = feedRoot.dataset.feedRelativeTimeUpdates === "1";
   const relativeTimeIntervalMs = Number(feedRoot.dataset.feedRelativeTimeIntervalMs || 15000);
   const languageFilter = feedRoot.dataset.feedLanguage || "";
@@ -821,6 +863,38 @@ window.addEventListener("beforeinstallprompt", (event) => {
 });
 
 document.addEventListener("click", async (event) => {
+  const paginationLink = event.target.closest(".feed-next-page");
+  if (paginationLink) {
+    const feedRoot = document.querySelector("[data-live-feed-root], .listing-grid");
+    if (!feedRoot) return;
+    event.preventDefault();
+    paginationLink.classList.add("is-loading");
+    try {
+      const response = await fetch(paginationLink.href, {
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "fetch" },
+      });
+      if (!response.ok) throw new Error(`Page fetch failed (${response.status})`);
+      const html = await response.text();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const nextGrid = doc.querySelector(".listing-grid");
+      const nextCards = nextGrid ? [...nextGrid.querySelectorAll(".listing-card")] : [];
+      nextCards.forEach((card) => feedRoot.appendChild(document.importNode(card, true)));
+      const currentPagination = document.querySelector(".feed-pagination");
+      const replacementPagination = doc.querySelector(".feed-pagination");
+      if (currentPagination && replacementPagination) {
+        currentPagination.replaceWith(document.importNode(replacementPagination, true));
+      } else {
+        currentPagination?.remove();
+      }
+      updateRelativeTimeLabels(feedRoot);
+    } catch (error) {
+      console.debug("Older feed page fetch fell back to navigation:", error);
+      window.location.href = paginationLink.href;
+    }
+    return;
+  }
+
   const favoriteButton = event.target.closest(".favorite-toggle");
   if (favoriteButton) {
     event.preventDefault();
@@ -865,5 +939,6 @@ initNativeShell().finally(() => {
   initSplash();
   initBilling();
   initLanguageFilter();
+  initFilterUX();
   initLiveFeed();
 });

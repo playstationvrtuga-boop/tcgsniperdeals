@@ -219,10 +219,20 @@
   {% for listing in listings %}
     {% include "partials/listing_card.html" %}
   {% else %}
+    <div class="listing-skeleton-stack" aria-hidden="true">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
     <div class="empty-state">
       <h2>No listings here yet</h2>
       <p>This tab will fill automatically when the matching bot or worker data arrives.</p>
     </div>
   {% endfor %}
 </section>
+{% if has_next_page and next_page_url %}
+<nav class="feed-pagination" aria-label="Deal pagination">
+  <a class="ghost-button feed-next-page" href="{{ next_page_url }}">Load older deals</a>
+</nav>
+{% endif %}
 {% endblock %}

@@ -86,13 +86,13 @@ class Listing(TimestampMixin, db.Model):
     image_url = db.Column(db.String(1000))
     title = db.Column(db.String(500), nullable=False, index=True)
     price_display = db.Column(db.String(120), nullable=False)
-    platform = db.Column(db.String(40), nullable=False)
+    platform = db.Column(db.String(40), nullable=False, index=True)
     badge_label = db.Column(db.String(80), default="Strong", nullable=False)
-    score_label = db.Column(db.String(40))
+    score_label = db.Column(db.String(40), index=True)
     score = db.Column(db.Float)
     category = db.Column(db.String(80))
     tcg_type = db.Column(db.String(40), default="pokemon")
-    available_status = db.Column(db.String(40), default="available", nullable=False)
+    available_status = db.Column(db.String(40), default="available", nullable=False, index=True)
     pricing_status = db.Column(db.String(40), default="pending", nullable=False, index=True)
     pricing_checked_at = db.Column(db.DateTime(timezone=True))
     pricing_error = db.Column(db.String(255))
@@ -120,10 +120,10 @@ class Listing(TimestampMixin, db.Model):
     profit_margin = db.Column(db.Float)
     gross_margin = db.Column(db.Float)
     pricing_score = db.Column(db.Integer)
-    score_level = db.Column(db.String(40))
+    score_level = db.Column(db.String(40), index=True)
     pricing_reason = db.Column(db.String(255))
     pricing_analyzed_at = db.Column(db.DateTime(timezone=True))
-    status = db.Column(db.String(40))
+    status = db.Column(db.String(40), index=True)
     status_updated_at = db.Column(db.DateTime(timezone=True))
     availability_checked_at = db.Column(db.DateTime(timezone=True))
     gone_detected_at = db.Column(db.DateTime(timezone=True))
@@ -149,6 +149,7 @@ class Listing(TimestampMixin, db.Model):
     __table_args__ = (
         db.UniqueConstraint("source", "external_id", name="uq_listing_source_external"),
         db.Index("ix_listings_detected_at_id", "detected_at", "id"),
+        db.Index("ix_listings_created_at", "created_at"),
         db.Index("ix_listings_platform_detected_at", "platform", "detected_at"),
         db.Index("ix_listings_is_deal_detected_at", "is_deal", "detected_at"),
         db.Index("ix_listings_badge_label_detected_at", "badge_label", "detected_at"),

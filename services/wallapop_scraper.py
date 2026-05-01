@@ -109,7 +109,7 @@ def wallapop_enabled() -> bool:
 
 
 def wallapop_max_items() -> int:
-    return _safe_int(os.getenv("WALLAPOP_MAX_ITEMS_PER_RUN"), default=6, minimum=1)
+    return _safe_int(os.getenv("WALLAPOP_MAX_ITEMS_PER_RUN"), default=1, minimum=1)
 
 
 def wallapop_max_queries_per_run() -> int:

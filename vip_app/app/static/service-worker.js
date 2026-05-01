@@ -35,10 +35,17 @@ self.addEventListener("fetch", (event) => {
   const isSameOrigin = url.origin === self.location.origin;
   const isStaticAsset = ["style", "script", "image", "font"].includes(request.destination);
   const mustRefresh = isSameOrigin && ["style", "script", "manifest"].includes(request.destination);
+  const dynamicPrefixes = ["/api/", "/feed/updates", "/push-info", "/push-subscriptions"];
+  const isDynamicData = isSameOrigin && dynamicPrefixes.some((prefix) => url.pathname.startsWith(prefix));
+
+  if (isDynamicData) {
+    event.respondWith(fetch(request, { cache: "no-store" }));
+    return;
+  }
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(async () => {
+      fetch(request, { cache: "no-store" }).catch(async () => {
         return caches.match(OFFLINE_URL);
       })
     );

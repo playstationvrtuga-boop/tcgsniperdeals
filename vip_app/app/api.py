@@ -347,8 +347,12 @@ def list_listings():
         limit = min(max(int(request.args.get("limit", 20)), 1), 100)
     except (TypeError, ValueError):
         limit = 20
+    try:
+        page = max(int(request.args.get("page", 1)), 1)
+    except (TypeError, ValueError):
+        page = 1
 
-    listings = query.order_by(Listing.detected_at.desc(), Listing.id.desc()).limit(limit).all()
+    listings = query.order_by(Listing.detected_at.desc(), Listing.id.desc()).offset((page - 1) * limit).limit(limit).all()
     if platform == "ebay":
         newest = listings[0] if listings else None
         current_app.logger.info(
@@ -361,6 +365,8 @@ def list_listings():
         {
             "status": "ok",
             "count": len(listings),
+            "page": page,
+            "limit": limit,
             "listings": [serialize_listing(listing) for listing in listings],
         }
     )

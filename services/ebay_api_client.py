@@ -49,7 +49,7 @@ FX_TO_EUR = {
     "GBP": 1.17,
 }
 EBAY_TOKEN_REQUEST_TIMEOUT = 20
-EBAY_TOKEN_MAX_ATTEMPTS = 1
+EBAY_TOKEN_MAX_ATTEMPTS = 2
 EBAY_TOKEN_FAILURE_COOLDOWN_SECONDS = 300
 
 NOISY_QUERY_TERMS = {
@@ -654,7 +654,7 @@ class EbayApiClient:
             _log(f"buy_now skipped reason={self.config_status()}")
             return []
 
-        limit = max(5, min(max_results * 3, 10))
+        limit = max(20, min(max_results * 3, 50))
         best_listings: list[EbaySoldListing] = []
         for query in build_query_variants(product_name, listing_kind=listing_kind)[:1]:
             items = self._search_active_raw(query, limit=limit)

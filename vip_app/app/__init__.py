@@ -2,7 +2,7 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, redirect, request
+from flask import Flask, g, redirect, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from services.site_config import DEFAULT_PUBLIC_SITE_URL, OLD_PUBLIC_SITE_HOST, normalize_public_site_url
@@ -142,7 +142,12 @@ def ensure_runtime_schema(app):
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_normalized_url ON listings (normalized_url)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_detected_at ON listings (detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_detected_at_id ON listings (detected_at, id)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_created_at ON listings (created_at)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_platform ON listings (platform)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_status ON listings (status)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_available_status ON listings (available_status)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_pricing_status ON listings (pricing_status)"))
+        connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_score_label ON listings (score_label)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_score_level ON listings (score_level)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_gone_detected_at ON listings (gone_detected_at)"))
         connection.execute(text("CREATE INDEX IF NOT EXISTS ix_listings_status_updated_at ON listings (status_updated_at)"))
@@ -278,6 +283,36 @@ def create_app(minimal=False, skip_db=False, skip_blueprints=False):
             "telegram_free_url": app.config.get("TELEGRAM_FREE_URL", ""),
             "public_site_url": app.config.get("PUBLIC_SITE_URL", ""),
         }
+
+    @app.before_request
+    def start_performance_timer():
+        if app.config.get("LOG_PERFORMANCE", False):
+            g.performance_started_at = time.perf_counter()
+        return None
+
+    @app.after_request
+    def log_route_performance(response):
+        if not app.config.get("LOG_PERFORMANCE", False):
+            return response
+
+        started_at = getattr(g, "performance_started_at", None)
+        if started_at is None:
+            return response
+
+        elapsed_ms = (time.perf_counter() - started_at) * 1000
+        payload_size = response.calculate_content_length()
+        if payload_size is None:
+            payload_size = len(response.get_data()) if response.is_sequence else 0
+        app.logger.info(
+            "[PERF] method=%s path=%s endpoint=%s status=%s duration=%.1fms payload=%sB",
+            request.method,
+            request.path,
+            request.endpoint or "-",
+            response.status_code,
+            elapsed_ms,
+            payload_size,
+        )
+        return response
 
     @app.before_request
     def redirect_legacy_public_host():

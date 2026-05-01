@@ -20,7 +20,7 @@ services:
       - key: WEB_CONCURRENCY
         value: "1"
       - key: GUNICORN_THREADS
-        value: "1"
+        value: "2"
       - key: GUNICORN_TIMEOUT
         value: "60"
       - key: GUNICORN_KEEPALIVE
@@ -33,10 +33,18 @@ services:
         value: "true"
       - key: LOG_FEED_TIMING
         value: "false"
+      - key: LOG_PERFORMANCE
+        value: "false"
       - key: FEED_CACHE_TTL_SECONDS
+        value: "5"
+      - key: FEED_HTTP_CACHE_SECONDS
         value: "5"
       - key: FEED_OPTIONS_CACHE_TTL_SECONDS
         value: "60"
+      - key: FEED_PAGE_SIZE
+        value: "24"
+      - key: FEED_PAGE_MAX_SIZE
+        value: "48"
       - key: FEED_POLL_INTERVAL_MS
         value: "2500"
       - key: FEED_DELTA_MAX_ITEMS
@@ -74,7 +82,7 @@ services:
       - key: SITE_URL
         value: "https://tcgsniperdeals.com"
       - key: MOBILE_APP_URL
-        value: "https://tcgsniperdeals.com"
+        value: "https://tcgsniperdeals.com/app"
       - key: ANDROID_APK_URL
         sync: false
       - key: EBAY_EPN_ENABLED
@@ -117,7 +125,7 @@ services:
       - key: SITE_URL
         value: "https://tcgsniperdeals.com"
       - key: MOBILE_APP_URL
-        value: "https://tcgsniperdeals.com"
+        value: "https://tcgsniperdeals.com/app"
       - key: VAPID_SUBJECT
         sync: false
       - key: VAPID_PUBLIC_KEY

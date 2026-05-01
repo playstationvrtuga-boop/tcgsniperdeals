@@ -73,7 +73,7 @@
   {% endif %}
   <div class="listing-image-wrap">
     {% if listing.image_url %}
-      <img class="listing-image" src="{{ listing.image_url }}" alt="{{ listing.title }}" loading="lazy">
+      <img class="listing-image" src="{{ listing.image_url }}" alt="{{ listing.title }}" width="640" height="480" loading="lazy" decoding="async" sizes="(max-width: 720px) 100vw, 420px">
     {% else %}
       <div class="listing-image placeholder">Preview incoming</div>
     {% endif %}

@@ -1797,11 +1797,22 @@ select { font: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
   .live-radar-sweep,
   .live-status-dot,
+  .signal-wave,
   .live-radar-blip.is-visible,
   .live-radar-ping.is-visible,
   .live-radar-link.is-active,
+  .live-radar-link.is-active::after,
   .source-pill.is-targeted,
   .listing-card.is-new-feed-item {
     animation: none !important;
@@ -1883,6 +1894,8 @@ select { font: inherit; }
 
 .listing-image {
   object-fit: cover;
+  aspect-ratio: 4 / 3;
+  content-visibility: auto;
 }
 
 .listing-image.placeholder {
@@ -2624,6 +2637,41 @@ select { font: inherit; }
     radial-gradient(circle at top left, rgba(53, 224, 255, 0.05), transparent 24%),
     radial-gradient(circle at top right, rgba(124, 92, 255, 0.05), transparent 24%),
     rgba(7, 14, 25, 0.36);
+}
+
+.listing-skeleton-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.listing-skeleton-stack span {
+  display: block;
+  min-height: 190px;
+  border: 1px solid rgba(120, 190, 255, 0.12);
+  border-radius: 16px;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent),
+    linear-gradient(180deg, rgba(18, 28, 43, 0.94), rgba(9, 14, 23, 0.98));
+  background-size: 180% 100%, 100% 100%;
+  animation: skeleton-sheen 1.6s ease-in-out infinite;
+}
+
+@keyframes skeleton-sheen {
+  from { background-position: 160% 0, 0 0; }
+  to { background-position: -60% 0, 0 0; }
+}
+
+.feed-pagination {
+  display: flex;
+  justify-content: center;
+  margin: 18px 0 6px;
+}
+
+.feed-next-page.is-loading,
+.filter-grid .primary-button.is-loading,
+.filter-grid .primary-button.is-pending {
+  opacity: 0.72;
+  pointer-events: none;
 }
 
 .bottom-nav {
@@ -6078,6 +6126,34 @@ body:has(.feed-command-center) .filter-grid .primary-button {
 body:has(.feed-command-center) .language-filter-options {
   min-width: 0;
   max-width: 100%;
+}
+
+@media (max-width: 719px) {
+  .listing-card,
+  .listing-card-smart,
+  .listing-card-missed,
+  .listing-card.deal-tone-premium,
+  .feed-command-center,
+  .toolbar-card,
+  .stat-card,
+  .deal-alert-panel {
+    box-shadow: 0 10px 24px rgba(1, 7, 20, 0.3) !important;
+  }
+
+  .listing-card:hover {
+    transform: none;
+  }
+
+  .listing-card:hover .listing-image {
+    transform: none;
+    filter: none;
+  }
+
+  .live-radar-sweep,
+  .live-status-dot,
+  .signal-wave {
+    animation: none !important;
+  }
 }
 
 body:has(.feed-command-center) .control-feature-strip {

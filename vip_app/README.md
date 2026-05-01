@@ -83,6 +83,28 @@ When `SITE_URL` uses `https://` or the app runs on Render, the app now enables:
 - HTTP-only cookies
 - `SameSite=Lax` cookies
 
+## Performance tuning
+
+Optional route timing logs can be enabled with:
+
+```env
+LOG_PERFORMANCE=true
+```
+
+When enabled, each request logs method, path, endpoint, status code, response time and payload size. Keep it off in normal production unless you are investigating latency.
+
+Feed tuning env vars:
+
+```env
+FEED_CACHE_TTL_SECONDS=5
+FEED_HTTP_CACHE_SECONDS=5
+FEED_OPTIONS_CACHE_TTL_SECONDS=60
+FEED_PAGE_SIZE=24
+FEED_PAGE_MAX_SIZE=48
+FEED_POLL_INTERVAL_MS=2500
+FEED_DELTA_MAX_ITEMS=12
+```
+
 ## Incoming listings API
 
 Route:
