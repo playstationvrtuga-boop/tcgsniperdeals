@@ -28,8 +28,8 @@ SEO_PAGE_ALIASES = {
 
 DYNAMIC_SEO_PAGES = {
     "pokemon-deals-today": {
-        "title": "Pokemon Deals Today | Live eBay and Vinted Listings",
-        "meta_description": "Find Pokemon deals today from live eBay, Vinted and EU marketplace listings updated from the TCG Sniper Deals bot.",
+        "title": "Pokemon Deals Today EU - Live Cheap Cards & Booster Boxes",
+        "meta_description": "Find Pokemon deals today across the EU with live cheap cards, booster boxes, Charizard finds and marketplace listings from eBay and Vinted daily.",
         "h1": "Pokemon Deals Today (Updated Live)",
         "intro": (
             "Pokemon deals today can appear and disappear quickly across marketplaces like Vinted, eBay and other EU platforms. "
@@ -67,8 +67,8 @@ DYNAMIC_SEO_PAGES = {
         "related": ["best-pokemon-deals-today", "top-pokemon-deals-eu", "cheap-pokemon-cards-eu", "pokemon-deals"],
     },
     "best-pokemon-deals-today": {
-        "title": "Best Pokemon Deals Today (Updated Live) | TCG Sniper Deals",
-        "meta_description": "See the best Pokemon deals today with live marketplace signals from eBay, Vinted and EU Pokemon TCG listings.",
+        "title": "Best Pokemon Deals Today EU - Live Cheap Cards & Booster Boxes",
+        "meta_description": "Find the best Pokemon deals today in the EU. Cheap cards, booster boxes and Charizard listings update live from eBay and Vinted every day now.",
         "h1": "Best Pokemon Deals Today (Updated Live)",
         "intro": (
             "The best Pokemon deals today are the listings that deserve attention before the wider market notices them. "
@@ -107,8 +107,8 @@ DYNAMIC_SEO_PAGES = {
         "related": ["pokemon-deals-today", "top-pokemon-deals-eu", "charizard-deals-under-100", "pokemon-card-deals"],
     },
     "top-pokemon-deals-eu": {
-        "title": "Top Pokemon Deals EU | Live Vinted and Wallapop Listings",
-        "meta_description": "Track top Pokemon deals in the EU from live Vinted, Wallapop and European marketplace listings.",
+        "title": "Top Pokemon Deals EU Today - Live Cheap Cards from Vinted",
+        "meta_description": "Track top Pokemon deals in the EU today. Cheap cards, bundles and sealed products from Vinted, Wallapop and eBay update live all day for collectors.",
         "h1": "Top Pokemon Deals EU",
         "intro": (
             "Top Pokemon deals in the EU often come from marketplaces where casual sellers list cards, sealed products and bundles quickly. "
@@ -146,8 +146,8 @@ DYNAMIC_SEO_PAGES = {
         "related": ["pokemon-deals-today", "cheap-pokemon-cards-eu", "vinted-pokemon-deals", "pokemon-deals"],
     },
     "charizard-deals-under-100": {
-        "title": "Charizard Deals Under 100 | Live Pokemon Card Listings",
-        "meta_description": "Find Charizard deals under 100 EUR from live Pokemon card listings across eBay, Vinted and EU marketplaces.",
+        "title": "Charizard Pokemon Deals Under 100 EU - Cheap Cards Today",
+        "meta_description": "Find Charizard Pokemon deals under 100 EUR in the EU today. Cheap cards and live listings from eBay, Vinted and EU marketplaces update daily.",
         "h1": "Charizard Deals Under 100",
         "intro": (
             "Charizard deals under 100 are high-intent searches because collectors know that affordable Charizard cards can move quickly. "
@@ -185,8 +185,8 @@ DYNAMIC_SEO_PAGES = {
         "related": ["best-pokemon-deals-today", "pokemon-card-deals", "charizard-deals", "cheap-pokemon-cards-eu"],
     },
     "cheap-pokemon-cards-eu": {
-        "title": "Cheap Pokemon Cards EU | Live Deals from Vinted and eBay",
-        "meta_description": "Find cheap Pokemon cards in the EU with live listing data from Vinted, eBay and European marketplace monitoring.",
+        "title": "Cheap Pokemon Cards EU Today - Live Deals from Vinted & eBay",
+        "meta_description": "Find cheap Pokemon cards in the EU today. Live deals from Vinted, eBay and regional marketplaces update as the bot finds fresh listings daily.",
         "h1": "Cheap Pokemon Cards EU",
         "intro": (
             "Cheap Pokemon cards in the EU can come from casual sellers, local-language listings, mixed lots and fast-moving marketplace posts. "
@@ -261,12 +261,14 @@ SEO_HOME_CONTENT = {
         },
     ],
     "links": [
+        ("Pokemon deals today", "main.seo_page_pokemon_deals_today"),
+        ("Charizard deals under 100", "main.seo_page_charizard_deals_under_100"),
+        ("Cheap Pokemon cards EU", "main.seo_page_cheap_pokemon_cards_eu"),
         ("Pokemon deals", "main.seo_page_pokemon_deals"),
         ("Pokemon card deals", "main.seo_page_pokemon_card_deals"),
         ("Charizard deals", "main.seo_page_charizard_deals"),
         ("ETB deals", "main.seo_page_etb_deals"),
         ("Booster box deals", "main.seo_page_booster_box_deals"),
-        ("Graded Pokemon cards", "main.seo_page_graded_pokemon_cards"),
         ("Vinted Pokemon deals", "main.seo_page_vinted_pokemon_deals"),
         ("eBay Pokemon deals", "main.seo_page_ebay_pokemon_deals"),
     ],

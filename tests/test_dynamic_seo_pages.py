@@ -9,6 +9,7 @@ from vip_app.app import create_app
 from vip_app.app.config import Config
 from vip_app.app.extensions import db
 from vip_app.app.models import Listing
+from vip_app.app.seo_content import DYNAMIC_SEO_PAGES
 
 
 OFFICIAL_URL = "https://tcgsniperdeals.com"
@@ -110,6 +111,40 @@ class DynamicSeoPagesTests(unittest.TestCase):
         self.assertIn(f"{OFFICIAL_URL}/top-pokemon-deals-eu", entries)
         self.assertIn(f"{OFFICIAL_URL}/cheap-pokemon-cards-eu", entries)
         self.assertTrue(all("onrender.com" not in loc for loc in entries))
+
+    def test_homepage_has_visible_links_to_priority_dynamic_seo_pages(self):
+        response = self.client.get("/")
+        body = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('href="/pokemon-deals-today"', body)
+        self.assertIn('href="/charizard-deals-under-100"', body)
+        self.assertIn('href="/cheap-pokemon-cards-eu"', body)
+
+    def test_seo_pages_include_related_internal_links(self):
+        response = self.client.get("/top-pokemon-deals-eu")
+        body = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Related Pokemon Deals", body)
+        self.assertIn('href="/"', body)
+        self.assertIn('href="/pokemon-deals"', body)
+        self.assertIn('href="/charizard-deals"', body)
+        self.assertIn('href="/cheap-pokemon-cards-eu"', body)
+
+    def test_dynamic_seo_titles_and_meta_descriptions_are_ctr_ready(self):
+        titles = [page["title"] for page in DYNAMIC_SEO_PAGES.values()]
+
+        self.assertEqual(len(titles), len(set(titles)))
+        for page in DYNAMIC_SEO_PAGES.values():
+            title = page["title"].lower()
+            description = page["meta_description"]
+            searchable_text = f"{title} {description.lower()}"
+
+            self.assertGreaterEqual(len(description), 140)
+            self.assertLessEqual(len(description), 160)
+            for keyword in ("pokemon", "deals", "cheap", "eu", "today"):
+                self.assertIn(keyword, searchable_text)
 
 
 if __name__ == "__main__":

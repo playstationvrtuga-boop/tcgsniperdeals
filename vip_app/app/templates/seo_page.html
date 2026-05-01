@@ -100,11 +100,11 @@
   </section>
 
   <section class="seo-related">
-    <h2>Explore more pages</h2>
+    <h2>Related Pokemon Deals</h2>
     <div class="seo-related-grid">
       {% for related in page.related_pages %}
       <a class="seo-related-card" href="{{ related.url }}">
-        <span class="seo-related-label">Related page</span>
+        <span class="seo-related-label">Internal link</span>
         <strong>{{ related.label }}</strong>
       </a>
       {% endfor %}

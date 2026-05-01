@@ -377,20 +377,26 @@ def seo_page_data(slug):
     return pages[slug]
 
 
-def _seo_related_pages(data):
+def _seo_related_pages(data, slug):
     pages = seo_page_catalog()
-    related_pages = [
-        {
-            "slug": related_slug,
-            "label": pages[related_slug]["h1"],
-            "url": f"/{related_slug}",
-        }
-        for related_slug in data.get("related", [])
-        if related_slug in pages
-    ]
-    if not any(related["url"] == "/" for related in related_pages):
-        related_pages.insert(0, {"slug": "", "label": "TCG Sniper Deals homepage", "url": "/"})
-    return related_pages
+    related_pages = []
+    seen_urls = set()
+
+    def add_related(related_slug, label, url):
+        if url in seen_urls or related_slug == slug:
+            return
+        seen_urls.add(url)
+        related_pages.append({"slug": related_slug, "label": label, "url": url})
+
+    add_related("", "TCG Sniper Deals homepage", "/")
+    for related_slug in data.get("related", []):
+        if related_slug in pages:
+            add_related(related_slug, pages[related_slug]["h1"], f"/{related_slug}")
+    for base_slug in ("pokemon-deals", "charizard-deals"):
+        if base_slug in pages:
+            add_related(base_slug, pages[base_slug]["h1"], f"/{base_slug}")
+
+    return related_pages[:10]
 
 
 def _parse_price_eur(price_display):
@@ -493,7 +499,7 @@ def build_seo_page_context(slug):
         "h1": data["h1"],
         "intro": data["intro"],
         "sections": [dict(section) for section in data["sections"]],
-        "related_pages": _seo_related_pages(data),
+        "related_pages": _seo_related_pages(data, slug),
         "faqs": data.get(
             "faqs",
             [
