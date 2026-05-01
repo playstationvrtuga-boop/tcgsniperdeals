@@ -1,6 +1,7 @@
-const CACHE_NAME = "tcg-sniper-deals-v9-official-domain";
+const CACHE_NAME = "tcg-sniper-deals-v10-pwa-app-entry";
 const OFFLINE_URL = "/offline";
 const CORE_ASSETS = [
+  "/manifest.webmanifest",
   OFFLINE_URL,
   "/static/css/app.css",
   "/static/js/app.js",
@@ -33,12 +34,12 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   const isSameOrigin = url.origin === self.location.origin;
   const isStaticAsset = ["style", "script", "image", "font"].includes(request.destination);
-  const mustRefresh = isSameOrigin && ["style", "script"].includes(request.destination);
+  const mustRefresh = isSameOrigin && ["style", "script", "manifest"].includes(request.destination);
 
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request).catch(async () => {
-        return (await caches.match(request)) || caches.match(OFFLINE_URL);
+        return caches.match(OFFLINE_URL);
       })
     );
     return;

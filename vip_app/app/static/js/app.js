@@ -117,7 +117,7 @@ function urlBase64ToUint8Array(base64String) {
 async function registerServiceWorker() {
   if (isNativeShell()) return null;
   if (!("serviceWorker" in navigator)) return null;
-  return navigator.serviceWorker.register("/service-worker.js");
+  return navigator.serviceWorker.register("/service-worker.js", { scope: "/" });
 }
 
 function setPushButtonsState({ enabled, active, blocked = false }) {

@@ -26,15 +26,24 @@ function pickServerUrl(envValues) {
     envValues.CAP_SERVER_URL ||
     envValues.PUBLIC_SITE_URL ||
     envValues.SITE_URL ||
-    "https://tcgsniperdeals.com"
+    "https://tcgsniperdeals.com/app"
   );
+}
+
+function normalizeMobileLaunchUrl(value) {
+  const parsedUrl = new URL(value);
+  if (parsedUrl.pathname === "/" || parsedUrl.pathname === "") {
+    parsedUrl.pathname = "/app";
+  }
+  parsedUrl.hash = "";
+  return parsedUrl.toString().replace(/\/$/, parsedUrl.pathname === "/" ? "/" : "");
 }
 
 const envValues = fs.existsSync(vipAppEnvPath)
   ? parseEnv(fs.readFileSync(vipAppEnvPath, "utf8"))
   : {};
 
-const targetUrl = pickServerUrl(envValues);
+const targetUrl = normalizeMobileLaunchUrl(pickServerUrl(envValues));
 const parsedUrl = new URL(targetUrl);
 const cleartext = parsedUrl.protocol === "http:";
 

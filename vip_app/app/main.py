@@ -1649,7 +1649,9 @@ def vip_pending():
 
 @main_bp.route("/manifest.webmanifest")
 def manifest():
-    return send_from_directory(current_app.static_folder, "manifest.webmanifest", mimetype="application/manifest+json")
+    response = send_from_directory(current_app.static_folder, "manifest.webmanifest", mimetype="application/manifest+json")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 @main_bp.route("/sitemap.xml")
@@ -1684,7 +1686,10 @@ def robots_txt():
 
 @main_bp.route("/service-worker.js")
 def service_worker():
-    return send_from_directory(current_app.static_folder, "service-worker.js", mimetype="application/javascript")
+    response = send_from_directory(current_app.static_folder, "service-worker.js", mimetype="application/javascript")
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response
 
 
 @main_bp.route("/offline")

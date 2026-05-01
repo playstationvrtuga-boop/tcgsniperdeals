@@ -3,7 +3,7 @@
   "appName": "TCG Sniper Deals",
   "webDir": "web",
   "server": {
-    "url": "https://tcgsniperdeals.com",
+    "url": "https://tcgsniperdeals.com/app",
     "cleartext": false,
     "allowNavigation": [
       "tcgsniperdeals.com"
