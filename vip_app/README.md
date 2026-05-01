@@ -216,8 +216,9 @@ This project is now prepared for a simple Render deployment with:
 5. After the first deploy, set:
 
 ```env
-SITE_URL=https://your-public-domain.onrender.com
-MOBILE_APP_URL=https://your-public-domain.onrender.com
+PUBLIC_SITE_URL=https://tcgsniperdeals.com
+SITE_URL=https://tcgsniperdeals.com
+MOBILE_APP_URL=https://tcgsniperdeals.com
 ```
 
 6. Rebuild the mobile wrapper after the public URL is known.

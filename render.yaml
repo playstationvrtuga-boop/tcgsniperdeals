@@ -69,10 +69,12 @@ services:
         value: "12"
       - key: PRICING_ENABLE_EBAY_HTML_FALLBACK
         value: "false"
+      - key: PUBLIC_SITE_URL
+        value: "https://tcgsniperdeals.com"
       - key: SITE_URL
-        sync: false
+        value: "https://tcgsniperdeals.com"
       - key: MOBILE_APP_URL
-        sync: false
+        value: "https://tcgsniperdeals.com"
       - key: ANDROID_APK_URL
         sync: false
       - key: EBAY_EPN_ENABLED
@@ -110,10 +112,12 @@ services:
         sync: false
       - key: VIP_CHAT_ID
         sync: false
+      - key: PUBLIC_SITE_URL
+        value: "https://tcgsniperdeals.com"
       - key: SITE_URL
-        sync: false
+        value: "https://tcgsniperdeals.com"
       - key: MOBILE_APP_URL
-        sync: false
+        value: "https://tcgsniperdeals.com"
       - key: VAPID_SUBJECT
         sync: false
       - key: VAPID_PUBLIC_KEY
@@ -187,6 +191,10 @@ services:
         sync: false
       - key: FREE_CHAT_ID
         sync: false
+      - key: PUBLIC_SITE_URL
+        value: "https://tcgsniperdeals.com"
+      - key: APP_PUBLIC_URL
+        value: "https://tcgsniperdeals.com"
       - key: RUN_STARTUP_SCHEMA_CHECK
         value: "true"
       - key: ENABLE_FREE_GONE_ALERTS

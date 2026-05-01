@@ -2,6 +2,12 @@ import os
 import secrets
 from pathlib import Path
 
+from services.site_config import (
+    DEFAULT_PUBLIC_SITE_URL,
+    normalize_known_public_url,
+    public_site_url_from,
+)
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DB_PATH = BASE_DIR / "data" / "tcg_sniper_deals.db"
@@ -68,8 +74,9 @@ class Config:
     VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
     VAPID_PRIVATE_KEY = _normalize_multiline_env(os.getenv("VAPID_PRIVATE_KEY", ""))
     VAPID_SUBJECT = os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
-    SITE_URL = os.getenv("SITE_URL", "http://127.0.0.1:5000")
-    MOBILE_APP_URL = os.getenv("MOBILE_APP_URL", SITE_URL)
+    PUBLIC_SITE_URL = public_site_url_from(os.getenv)
+    SITE_URL = normalize_known_public_url(os.getenv("SITE_URL", "http://127.0.0.1:5000"), default="http://127.0.0.1:5000")
+    MOBILE_APP_URL = normalize_known_public_url(os.getenv("MOBILE_APP_URL", PUBLIC_SITE_URL), default=DEFAULT_PUBLIC_SITE_URL)
     ANDROID_APK_URL = os.getenv("ANDROID_APK_URL", "").strip()
     TELEGRAM_FREE_URL = os.getenv("TELEGRAM_FREE_URL", "https://t.me/pokemonsniperdeals").strip()
     IS_PRODUCTION = _bool_env("RENDER") or _bool_env("FLASK_FORCE_HTTPS") or SITE_URL.startswith("https://")

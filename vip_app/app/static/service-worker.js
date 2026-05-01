@@ -1,4 +1,4 @@
-const CACHE_NAME = "tcg-sniper-deals-v8-live-feed-poll";
+const CACHE_NAME = "tcg-sniper-deals-v9-official-domain";
 const OFFLINE_URL = "/offline";
 const CORE_ASSETS = [
   OFFLINE_URL,

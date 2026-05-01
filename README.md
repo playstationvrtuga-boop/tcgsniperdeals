@@ -65,6 +65,7 @@ Example app env values:
 ```env
 BOT_API_KEY=change-me-bot-api-key
 # APP_API_KEY=change-me-bot-api-key
+PUBLIC_SITE_URL=https://tcgsniperdeals.com
 SITE_URL=http://127.0.0.1:5000
 ```
 
@@ -80,7 +81,8 @@ The bot now auto-reads values from `vip_app\.env` when possible, so on the same 
 
 For the hourly FREE promotional banners, set:
 
-- `APP_PUBLIC_URL` for the button target
+- `PUBLIC_SITE_URL=https://tcgsniperdeals.com` for public app, SEO and Telegram CTA links
+- `APP_PUBLIC_URL=https://tcgsniperdeals.com` only if you need the legacy alias
 - `FREE_PROMO_ENABLED=true`
 - `FREE_PROMO_FOLDER=vip_app/app/static/promos`
 - `FREE_PROMO_INTERVAL_MINUTES=60`
@@ -188,6 +190,7 @@ To make that work online, Render must have:
 - `TELEGRAM_BOT_TOKEN`
 - `FREE_CHAT_ID`
 - `VIP_CHAT_ID`
+- `PUBLIC_SITE_URL`
 - `SITE_URL`
 - `VAPID_SUBJECT`
 - `VAPID_PUBLIC_KEY`
@@ -590,6 +593,7 @@ Required app env values in:
 VAPID_SUBJECT=mailto:admin@example.com
 VAPID_PUBLIC_KEY=your-public-vapid-key
 VAPID_PRIVATE_KEY=your-private-vapid-key
+PUBLIC_SITE_URL=https://tcgsniperdeals.com
 SITE_URL=http://127.0.0.1:5000
 ```
 

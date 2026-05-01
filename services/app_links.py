@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit, urlunsplit
 
+from services.site_config import normalize_known_public_url
+
 
 def app_live_deals_url(app_url: str | None) -> str:
     """Return the VIP live-feed entry URL without exposing secrets or changing domains."""
-    raw_url = str(app_url or "").strip()
+    raw_url = normalize_known_public_url(app_url)
     if not raw_url:
         return ""
 

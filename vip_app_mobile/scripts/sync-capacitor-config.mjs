@@ -24,8 +24,9 @@ function pickServerUrl(envValues) {
   return (
     envValues.MOBILE_APP_URL ||
     envValues.CAP_SERVER_URL ||
+    envValues.PUBLIC_SITE_URL ||
     envValues.SITE_URL ||
-    "http://127.0.0.1:5000"
+    "https://tcgsniperdeals.com"
   );
 }
 

@@ -11,6 +11,7 @@ from sqlalchemy.orm import defer
 
 from services.ai_market_intel import build_ai_market_intel_payload
 from services.pokemon_title_parser import detect_pokemon_set
+from services.site_config import normalize_public_site_url
 
 from .decorators import vip_required
 from .extensions import db
@@ -358,7 +359,7 @@ from .seo_content import SEO_HOME_CONTENT, SEO_PAGE_ALIASES, SEO_PAGES, SEO_PUBL
 
 
 def site_root_url():
-    return (current_app.config.get("SITE_URL") or request.url_root).rstrip("/")
+    return normalize_public_site_url(current_app.config.get("PUBLIC_SITE_URL"))
 
 
 def canonical_for_path(path):
@@ -1385,18 +1386,15 @@ def sitemap():
 
 @main_bp.route("/robots.txt")
 def robots_txt():
-    site_root = (current_app.config.get("SITE_URL") or request.url_root).rstrip("/")
+    site_root = site_root_url()
     lines = [
         "User-agent: *",
         "Allow: /",
         "Disallow: /feed",
-        "Disallow: /deals",
-        "Disallow: /live-deals",
-        "Disallow: /smart-deals",
-        "Disallow: /missed-deals",
         "Disallow: /favorites",
         "Disallow: /profile",
         "Disallow: /billing",
+        "Disallow: /vip",
         "Disallow: /vip-access",
         "Disallow: /vip-pending",
         "Disallow: /admin",

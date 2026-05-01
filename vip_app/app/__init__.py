@@ -2,8 +2,10 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, redirect, request
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+from services.site_config import DEFAULT_PUBLIC_SITE_URL, OLD_PUBLIC_SITE_HOST, normalize_public_site_url
 
 from .extensions import db, login_manager
 from .filters import datetime_format, register_template_filters, relative_time, urgency_hint
@@ -274,7 +276,31 @@ def create_app(minimal=False, skip_db=False, skip_blueprints=False):
     def inject_public_links():
         return {
             "telegram_free_url": app.config.get("TELEGRAM_FREE_URL", ""),
+            "public_site_url": app.config.get("PUBLIC_SITE_URL", ""),
         }
+
+    @app.before_request
+    def redirect_legacy_public_host():
+        forwarded_host = (request.headers.get("X-Forwarded-Host") or "").split(",", 1)[0].strip()
+        host_candidates = [
+            forwarded_host,
+            request.host,
+            request.environ.get("HTTP_HOST", ""),
+            request.environ.get("SERVER_NAME", ""),
+        ]
+        hosts = {candidate.split(":", 1)[0].lower() for candidate in host_candidates if candidate}
+        if OLD_PUBLIC_SITE_HOST not in hosts:
+            return None
+
+        path = request.path or "/"
+        technical_prefixes = ("/api", "/static", "/assets")
+        technical_paths = {"/health", "/service-worker.js", "/manifest.webmanifest"}
+        if path in technical_paths or path.startswith(technical_prefixes):
+            return None
+
+        public_site_url = normalize_public_site_url(app.config.get("PUBLIC_SITE_URL"), default=DEFAULT_PUBLIC_SITE_URL)
+        target = f"{public_site_url}{request.full_path}"
+        return redirect(target[:-1] if target.endswith("?") else target, code=301)
 
     print("[startup] 4.3) template filters registered", flush=True)
 

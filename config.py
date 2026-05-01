@@ -1,6 +1,12 @@
 import os
 from pathlib import Path
 
+from services.site_config import (
+    DEFAULT_PUBLIC_SITE_URL,
+    normalize_known_public_url,
+    public_site_url_from,
+)
+
 
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_ENV_PATH = BASE_DIR / ".env"
@@ -53,8 +59,9 @@ APP_API_STATUS_URL = _get_setting(
     "APP_API_STATUS_URL",
     f"{str(_get_setting('SITE_URL', 'http://127.0.0.1:5000')).rstrip('/')}/api/listings/status",
 )
-SITE_URL = _get_setting("SITE_URL", "http://127.0.0.1:5000")
-APP_PUBLIC_URL = _get_setting("APP_PUBLIC_URL", "https://tcg-sniper-deals.onrender.com")
+PUBLIC_SITE_URL = public_site_url_from(_get_setting)
+SITE_URL = normalize_known_public_url(_get_setting("SITE_URL", "http://127.0.0.1:5000"), default="http://127.0.0.1:5000")
+APP_PUBLIC_URL = normalize_known_public_url(_get_setting("APP_PUBLIC_URL", PUBLIC_SITE_URL), default=DEFAULT_PUBLIC_SITE_URL)
 BOT_API_KEY = (
     os.environ.get("BOT_API_KEY")
     or os.environ.get("APP_API_KEY")
@@ -118,7 +125,7 @@ FREE_ALERT_DELAY_MAX_MINUTES = int(_get_setting("FREE_ALERT_DELAY_MAX_MINUTES", 
 FREE_CTA_EVERY_N_POSTS = int(_get_setting("FREE_CTA_EVERY_N_POSTS", "20"))
 FREE_CTA_APP_LINK = _get_setting(
     "FREE_CTA_APP_LINK",
-    _get_setting("MOBILE_APP_URL", _get_setting("SITE_URL", "")),
+    APP_PUBLIC_URL,
 )
 FREE_PROMO_ENABLED = _get_flag("FREE_PROMO_ENABLED", default=True)
 FREE_PROMO_FOLDER = _get_setting(

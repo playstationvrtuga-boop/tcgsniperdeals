@@ -7,11 +7,12 @@
 <meta property="og:description" content="{{ page.meta_description }}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="{{ canonical_url }}">
-<meta property="og:image" content="{{ url_for('static', filename='icons/app-icon-512.png', _external=True) }}">
+<meta property="og:image" content="{{ public_site_url }}/static/icons/app-icon-512.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{{ page.title }}">
 <meta name="twitter:description" content="{{ page.meta_description }}">
-<meta name="twitter:image" content="{{ url_for('static', filename='icons/app-icon-512.png', _external=True) }}">
+<meta name="twitter:url" content="{{ canonical_url }}">
+<meta name="twitter:image" content="{{ public_site_url }}/static/icons/app-icon-512.png">
 <meta name="robots" content="index,follow">
 {% endblock %}
 {% block content %}

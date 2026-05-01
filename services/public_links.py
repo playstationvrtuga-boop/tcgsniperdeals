@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from config import SITE_URL
+from config import PUBLIC_SITE_URL
 
 
 def build_free_public_listing_url(listing_id) -> str:
-    base_url = (SITE_URL or "").rstrip("/")
-    if not base_url:
-        base_url = "http://127.0.0.1:5000"
+    base_url = (PUBLIC_SITE_URL or "").rstrip("/")
 
     try:
         numeric_id = int(listing_id)

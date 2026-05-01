@@ -3,10 +3,10 @@
   "appName": "TCG Sniper Deals",
   "webDir": "web",
   "server": {
-    "url": "https://tcg-sniper-deals.onrender.com",
+    "url": "https://tcgsniperdeals.com",
     "cleartext": false,
     "allowNavigation": [
-      "tcg-sniper-deals.onrender.com"
+      "tcgsniperdeals.com"
     ]
   },
   "android": {
