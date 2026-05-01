@@ -86,14 +86,14 @@ class EbaySeenCacheTests(unittest.TestCase):
         self.assertTrue(raw.startswith("ebay_555555555555\t"))
         self.assertIn("ebay_555555555555", bot.carregar_vistos())
 
-    def test_ebay_app_duplicate_does_not_mark_seen(self):
+    def test_ebay_app_duplicate_marks_seen(self):
         marked = bot.mark_seen_after_app_delivery(
             {"id": "ebay_666666666666", "source": "ebay"},
             {"status": "duplicate"},
         )
 
-        self.assertFalse(marked)
-        self.assertFalse(self.seen_file.exists())
+        self.assertTrue(marked)
+        self.assertIn("ebay_666666666666", bot.carregar_vistos())
 
     def test_rejected_ebay_item_does_not_mark_seen(self):
         marked = bot.mark_seen_after_app_delivery(
@@ -154,7 +154,7 @@ class EbaySeenCacheTests(unittest.TestCase):
         self.assertTrue(raw.startswith("ebay_101010101010\t"))
         self.assertIn("ebay_101010101010", bot.carregar_vistos_ebay_debug())
 
-    def test_ebay_tracking_duplicate_does_not_block_seen(self):
+    def test_ebay_tracking_duplicate_blocks_seen(self):
         now = bot.now_iso()
         bot.guardar_tracking(
             {
@@ -184,8 +184,8 @@ class EbaySeenCacheTests(unittest.TestCase):
 
         synced = bot.carregar_ids_app_sincronizados()
 
-        self.assertNotIn("ebay_202020202020", synced)
-        self.assertNotIn("ebay_505050505050", synced)
+        self.assertIn("ebay_202020202020", synced)
+        self.assertIn("ebay_505050505050", synced)
         self.assertIn("ebay_303030303030", synced)
         self.assertIn("vinted_404040", synced)
 

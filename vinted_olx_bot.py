@@ -1055,7 +1055,7 @@ def mark_seen_after_app_delivery(anuncio, app_result):
     item_id = anuncio.get("id") if isinstance(anuncio, dict) else None
     app_status = (app_result or {}).get("status")
     source = (anuncio.get("source") or "").lower() if isinstance(anuncio, dict) else ""
-    successful_statuses = {"inserted"} if source == "ebay" else {"inserted", "duplicate"}
+    successful_statuses = {"inserted", "duplicate"}
     if not item_id or app_status not in successful_statuses:
         if source == "ebay":
             print(f"[EBAY_SEEN_NOT_MARKED] item_id={item_id} app_status={app_status}")
@@ -1071,7 +1071,7 @@ def mark_seen_after_app_delivery(anuncio, app_result):
     ):
         guardar_visto_ebay_debug(item_id)
     if source == "ebay":
-        print(f"[EBAY_SEEN_MARKED] item_id={item_id} reason=inserted")
+        print(f"[EBAY_SEEN_MARKED] item_id={item_id} reason={app_status}")
     else:
         print(f"[SEEN_MARKED] id={item_id} app_status={app_status}")
     return True
@@ -2409,7 +2409,7 @@ def carregar_ids_app_sincronizados():
             status = item.get("app_sync_status")
             is_ebay_item = platform == "ebay" or str(item_id).startswith("ebay_")
             if is_ebay_item:
-                if status == "inserted":
+                if status in {"inserted", "duplicate"}:
                     synced_ids.add(item_id)
             elif status in {"inserted", "duplicate"}:
                 synced_ids.add(item_id)

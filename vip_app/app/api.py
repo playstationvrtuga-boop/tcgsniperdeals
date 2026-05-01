@@ -304,7 +304,6 @@ def refresh_existing_ebay_listing(existing, payload):
     if (existing.source or "").strip().lower() != "ebay":
         return False
 
-    detected_at = parse_datetime(payload.get("detected_at"), fallback=existing.detected_at)
     title = str(pick_first(payload, "title", default=existing.title or "")).strip()
     price_display = str(pick_first(payload, "price_display", "price", default=existing.price_display or "")).strip()
     external_url = str(pick_first(payload, "external_url", "url", default=existing.external_url or "")).strip()
@@ -312,7 +311,6 @@ def refresh_existing_ebay_listing(existing, payload):
 
     existing.source = "ebay"
     existing.platform = "ebay"
-    existing.detected_at = detected_at
     existing.status = normalize_available_status(pick_first(payload, "available_status", "status", default="available"))
     existing.available_status = existing.status
     if title:

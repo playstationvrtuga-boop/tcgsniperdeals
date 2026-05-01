@@ -840,34 +840,6 @@ def alerts_are_active():
     return PushSubscription.query.filter_by(user_id=current_user.id).first() is not None
 
 
-def live_view_listing_query(limit=40):
-    status_value = db.func.lower(db.func.coalesce(Listing.status, Listing.available_status, ""))
-    unavailable_statuses = ("gone", "sold", "unavailable", "removed", "deleted")
-    return (
-        Listing.query.options(defer(Listing.raw_payload))
-        .filter(or_(status_value == "", ~status_value.in_(unavailable_statuses)))
-        .order_by(*newest_listing_order())
-        .limit(limit)
-    )
-
-
-def live_view_deal_level(listing):
-    value = listing.score_level or listing.deal_level or listing.badge_label or listing.display_signal or ""
-    return value.strip().upper()
-
-
-def serialize_live_view_listing(listing):
-    platform_key = (listing.platform or "").strip().lower()
-    return {
-        "image_url": listing.image_url or "",
-        "title": listing.title,
-        "price": listing.price_display or "Price incoming",
-        "platform": PLATFORM_LABELS.get(platform_key, (listing.platform or "Marketplace").strip() or "Marketplace"),
-        "detected_at": listing.detected_at_iso,
-        "score_label": live_view_deal_level(listing),
-    }
-
-
 def render_deals_board(
     *,
     query,
@@ -1172,30 +1144,6 @@ def ebay_deals():
         board_intro="Fresh eBay listings kept separate from the European marketplace stream.",
         stat_label="eBay stream",
         default_platform="ebay",
-    )
-
-
-@main_bp.route("/live-view")
-def live_view():
-    listings = live_view_listing_query().all()
-    return render_template(
-        "live_view.html",
-        listings_payload=[serialize_live_view_listing(listing) for listing in listings],
-        refresh_url=url_for("main.live_view_listings"),
-        rotation_min_ms=5000,
-        rotation_max_ms=8000,
-        refresh_interval_ms=max(current_app.config["FEED_POLL_INTERVAL_MS"] * 4, 10000),
-    )
-
-
-@main_bp.route("/live-view/listings")
-def live_view_listings():
-    listings = live_view_listing_query().all()
-    return jsonify(
-        {
-            "count": len(listings),
-            "listings": [serialize_live_view_listing(listing) for listing in listings],
-        }
     )
 
 
