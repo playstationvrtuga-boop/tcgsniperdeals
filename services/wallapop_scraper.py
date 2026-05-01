@@ -118,7 +118,7 @@ def wallapop_max_queries_per_run() -> int:
 
 def should_send_wallapop_to_telegram(listing: dict | None = None, send_enabled: bool | None = None) -> bool:
     if send_enabled is None:
-        send_enabled = str(os.getenv("WALLAPOP_SEND_TELEGRAM", "false")).strip().lower() in {"1", "true", "yes", "on"}
+        send_enabled = str(os.getenv("WALLAPOP_SEND_TELEGRAM", "true")).strip().lower() in {"1", "true", "yes", "on"}
     if not listing:
         return bool(send_enabled)
     source = str(listing.get("source") or listing.get("platform") or "").strip().lower()

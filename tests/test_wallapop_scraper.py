@@ -1,4 +1,5 @@
 import io
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -204,7 +205,11 @@ class WallapopScraperTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertIn(reason, {"card_signals", "tcg_terms"})
 
-    def test_wallapop_telegram_disabled_by_default_flag(self):
+    def test_wallapop_telegram_enabled_by_default(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertTrue(should_send_wallapop_to_telegram({"source": "wallapop"}))
+
+    def test_wallapop_telegram_can_be_disabled_explicitly(self):
         self.assertFalse(should_send_wallapop_to_telegram({"source": "wallapop"}, send_enabled=False))
         self.assertTrue(should_send_wallapop_to_telegram({"source": "vinted"}, send_enabled=False))
 
