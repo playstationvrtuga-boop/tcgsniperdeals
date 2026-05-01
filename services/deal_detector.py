@@ -729,6 +729,7 @@ def _raise_if_ebay_paused(source: str, query: str) -> None:
     if remaining <= 0:
         return
     print(f"[EBAY_PAUSE_ACTIVE] remaining={remaining}s source={source} query=\"{query}\"", flush=True)
+    print(f"[EBAY_GLOBAL_PAUSE_ACTIVE] remaining={remaining}s source={source} query=\"{query}\"", flush=True)
     print(f"[EBAY_CALL_SKIPPED] source={source} query=\"{query}\" pause_remaining={remaining}s", flush=True)
     raise EbayPricingDeferred(f"EBAY_PAUSE_ACTIVE remaining={remaining}s")
 
@@ -752,6 +753,11 @@ def _pause_ebay_calls(error: Exception) -> bool:
     print(
         f"[EBAY_RATE_LIMIT_TRIGGER] reason={reason} status_code={status_code or 'n/a'} "
         f"error=\"{str(error)[:160]}\"",
+        flush=True,
+    )
+    print(
+        f"[EBAY_RATE_LIMIT] reason={reason} status_code={status_code or 'n/a'} "
+        f"pause_seconds={pause_seconds}",
         flush=True,
     )
     print(f"[EBAY_PAUSE_SET seconds={pause_seconds}]", flush=True)

@@ -31,7 +31,7 @@ from services.wallapop_scraper import (
     fetch_wallapop_listings_with_context,
     should_send_wallapop_to_telegram,
 )
-from urllib.parse import parse_qs, quote_plus, unquote_plus, urljoin, urlsplit
+from urllib.parse import parse_qs, parse_qsl, quote_plus, urlencode, unquote_plus, urljoin, urlsplit, urlunsplit
 import requests
 import os
 import sys
@@ -74,6 +74,7 @@ EBAY_DETAIL_PAGE_RESET_EVERY = 2 if LIGHT_MODE else 4
 EBAY_SOLD_CACHE_MAX_AGE_HOURS = 6
 EBAY_SOLD_NEGATIVE_CACHE_MAX_AGE_MINUTES = 20
 EBAY_DEBUG_MODE = True
+EBAY_DEBUG_DETECTION = str(os.getenv("EBAY_DEBUG_DETECTION", "false")).strip().lower() in {"1", "true", "yes", "on"}
 EBAY_FORCE_ALWAYS_ON_DEBUG = False
 EBAY_DEBUG_IGNORE_MAIN_VISTOS = True
 FREE_LANDING_ONLY = False
@@ -102,11 +103,20 @@ def env_int(name, default, minimum=1):
     return max(minimum, value)
 
 
+def should_process_ebay_cycle(cycle):
+    processar_ebay = (cycle % EBAY_FETCH_EVERY == 0) if LIGHT_MODE else True
+    if EBAY_FORCE_ALWAYS_ON_DEBUG:
+        processar_ebay = True
+    return processar_ebay
+
+
 ENABLE_ONE_PIECE = False
 MAX_VINTED_PER_CYCLE = 8
 MAX_EBAY_CANDIDATES_PER_CYCLE = 6
 EBAY_SEEN_TTL_HOURS = env_int("EBAY_SEEN_TTL_HOURS", 12)
 MAX_EBAY_SEEN_ITEMS = env_int("MAX_EBAY_SEEN_ITEMS", 7500, minimum=100)
+EBAY_SEARCH_PAGES_PER_QUERY = min(3, env_int("EBAY_SEARCH_PAGES_PER_QUERY", 2, minimum=1))
+EBAY_STALE_SEEN_WARNING_CYCLES = min(5, env_int("EBAY_STALE_SEEN_WARNING_CYCLES", 3, minimum=2))
 MAX_OLX = 0 if not OLX_ENABLED else 8
 MAX_EBAY = MAX_EBAY_CANDIDATES_PER_CYCLE
 EBAY_MAX_CANDIDATES_PER_QUERY = MAX_EBAY_CANDIDATES_PER_CYCLE
@@ -216,6 +226,7 @@ _FREE_QUEUE_CACHE = {
     "data": [],
 }
 EBAY_MAX_CANDIDATES_PER_CYCLE = MAX_EBAY_CANDIDATES_PER_CYCLE
+_EBAY_ALREADY_SEEN_HISTORY = deque(maxlen=EBAY_STALE_SEEN_WARNING_CYCLES)
 
 
 DIAG_COUNTER_KEYS = (
@@ -255,6 +266,68 @@ def _query_keyword(search_url):
         return unquote_plus(value).strip() or parsed.netloc
     except Exception:
         return str(search_url or "unknown")
+
+
+def ebay_search_url_page(search_url, page_number):
+    page_number = max(1, int(page_number or 1))
+    parts = urlsplit(search_url)
+    params = [(key, value) for key, value in parse_qsl(parts.query, keep_blank_values=True) if key != "_pgn"]
+    params.append(("_pgn", str(page_number)))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(params), parts.fragment))
+
+
+def ebay_search_page_urls(search_url, max_pages=None):
+    pages = min(3, max(1, int(max_pages or EBAY_SEARCH_PAGES_PER_QUERY)))
+    return [ebay_search_url_page(search_url, page_number) for page_number in range(1, pages + 1)]
+
+
+def ebay_seen_ratio(results_count, already_seen_count):
+    if results_count <= 0:
+        return 0.0
+    return already_seen_count / results_count
+
+
+def ebay_stale_seen_warning_active(history):
+    history = list(history or [])
+    if len(history) < EBAY_STALE_SEEN_WARNING_CYCLES:
+        return False
+    recent = history[-EBAY_STALE_SEEN_WARNING_CYCLES:]
+    return all(entry.get("results", 0) > 0 and entry.get("already_seen", 0) / entry["results"] >= 0.9 for entry in recent)
+
+
+def ebay_record_cycle_seen_ratio(results_count, already_seen_count):
+    _EBAY_ALREADY_SEEN_HISTORY.append({
+        "results": int(results_count or 0),
+        "already_seen": int(already_seen_count or 0),
+    })
+    if ebay_stale_seen_warning_active(_EBAY_ALREADY_SEEN_HISTORY):
+        print(
+            "[EBAY_WARNING] too_many_already_seen_possible_stale_query "
+            f"cycles={len(_EBAY_ALREADY_SEEN_HISTORY)} "
+            f"latest_ratio={ebay_seen_ratio(results_count, already_seen_count):.2f} "
+            f"results={results_count} already_seen={already_seen_count}",
+            flush=True,
+        )
+
+
+def ebay_detection_debug_print(query, total_results, first_ids, first_titles, already_seen_count, accepted_count, rejected_reasons):
+    if not EBAY_DEBUG_DETECTION:
+        return
+    print(f"[EBAY_DEBUG_DETECTION] query=\"{query}\"", flush=True)
+    print(f"[EBAY_DEBUG_DETECTION] total_results={total_results}", flush=True)
+    print(f"[EBAY_DEBUG_DETECTION] first_5_item_ids={','.join(first_ids[:5]) or 'none'}", flush=True)
+    for idx, title in enumerate(first_titles[:5], start=1):
+        print(f"[EBAY_DEBUG_DETECTION] first_5_title_{idx}=\"{str(title)[:LOG_TITLE_MAX_CHARS]}\"", flush=True)
+    print(
+        f"[EBAY_DEBUG_DETECTION] already_seen_count={already_seen_count} "
+        f"accepted_count={accepted_count} rejected_reasons={_counter_summary(rejected_reasons)}",
+        flush=True,
+    )
+
+
+def ebay_error_is_rate_limit(error):
+    text = str(error or "").lower()
+    return any(marker in text for marker in ("429", "rate limit", "too many requests", "captcha"))
 
 
 def _diag_key(platform, search_url):
@@ -337,7 +410,7 @@ def diag_record_ebay_rejection(query, reason, item_id=None, title=None, stage=No
     seen_value = str(bool(already_seen or clean_reason == "already_seen")).lower()
     print(
         f"[EBAY_REJECT] reason={clean_reason} stage={stage or 'unknown'} "
-        f"item_id={item_id or 'unknown'} query=\"{_diag_query_label(query)}\" "
+        f"id={item_id or 'unknown'} item_id={item_id or 'unknown'} query=\"{_diag_query_label(query)}\" "
         f"already_seen={seen_value}"
         f"{title_part}{detail_part}"
     )
@@ -499,6 +572,12 @@ def log_cycle_diag(diag):
         f"inserted={ebay_app_status['inserted']} "
         f"failed={ebay_failed}"
     )
+    print(f"[EBAY_RESULTS_COUNT] cycle={diag['cycle']} count={totals['ebay_parsed']}")
+    print(f"[EBAY_NEW_ACCEPTED_COUNT] cycle={diag['cycle']} count={totals['ebay_accepted']}")
+    print(f"[EBAY_ALREADY_SEEN_COUNT] cycle={diag['cycle']} count={totals['ebay_skipped_seen']}")
+    print(f"[EBAY_SENT_APP_COUNT] cycle={diag['cycle']} count={totals['ebay_sent_app']}")
+    ebay_record_cycle_seen_ratio(totals["ebay_parsed"], totals["ebay_skipped_seen"])
+    print(f"[EBAY_CYCLE_END] cycle={diag['cycle']} processar_ebay={diag['processar_ebay']}")
 
 
 FREE_LANDING_MESSAGE = (
@@ -714,6 +793,11 @@ def enviar_anuncio_app(anuncio):
             f"[APP_API_SEND_RESULT] id={payload.get('external_id')} "
             f"http=request_failed status=request_failed body_short={str(e)[:220]}"
         )
+        if payload.get("source") == "ebay":
+            print(
+                f"[EBAY_SEND_APP_ERROR] id={payload.get('external_id')} "
+                f"status=request_failed error=\"{str(e)[:220]}\""
+            )
         return {"status": "request_failed", "error": str(e)}
 
     body_short = (resposta.text or "")[:300].replace("\n", "\\n")
@@ -730,6 +814,17 @@ def enviar_anuncio_app(anuncio):
         f"[APP_API_SEND_RESULT] id={payload.get('external_id')} "
         f"http={resposta.status_code} status={status} body_short={body_short}"
     )
+    if payload.get("source") == "ebay":
+        if 200 <= resposta.status_code < 300:
+            print(
+                f"[EBAY_SENT_APP] id={payload.get('external_id')} "
+                f"status={status} http={resposta.status_code} url={APP_API_URL}"
+            )
+        else:
+            print(
+                f"[EBAY_SEND_APP_ERROR] id={payload.get('external_id')} "
+                f"status={status} http={resposta.status_code} body_short={body_short}"
+            )
     if resposta.status_code == 201 and status == "inserted":
         print(f"[APP API] inserted {payload.get('external_id')} into VIP app")
         print(f"[APP_FEED_VISIBLE] id={payload.get('external_id')} app_listing_id={dados.get('id')}")
@@ -5419,181 +5514,273 @@ def obter_ebay_links(page, vistos=None, diag=None):
         query_category = ebay_query_category(search_url)
         query_diag = diag_get_query(diag, "ebay", search_url)
         query_candidates = []
-        page.goto(search_url, timeout=40000, wait_until="domcontentloaded")
-        page.wait_for_timeout(3500 if LIGHT_MODE else 5000)
+        query_page_signatures = set()
+        query_first_ids = []
+        query_first_titles = []
+        query_reject_start = Counter(query_diag.get("ebay_reject_reasons") or {}) if query_diag else Counter()
+        query_parsed_start = query_diag.get("parsed", 0) if query_diag else 0
+        query_seen_start = query_diag.get("skipped_seen", 0) if query_diag else 0
+        query_accepted_start = len(query_candidates)
 
-        for seletor in seletores:
+        for page_number, page_url in enumerate(ebay_search_page_urls(search_url), start=1):
+            if len(query_candidates) >= EBAY_MAX_CANDIDATES_PER_QUERY:
+                break
+            page_parsed_start = query_diag.get("parsed", 0) if query_diag else 0
+            page_seen_start = query_diag.get("skipped_seen", 0) if query_diag else 0
+            page_accepted_start = len(query_candidates)
+            page_item_ids = []
+            print(
+                f"[EBAY_QUERY_START] query=\"{_query_keyword(search_url)}\" "
+                f"page={page_number} url=\"{page_url}\" sort=newly_listed"
+            )
             try:
-                elementos = page.query_selector_all(seletor)
-                elementos = elementos[:50]
-                diag_count(query_diag, "raw", len(elementos))
-
-                for el in elementos:
-                    texto_card = texto_card_link(el)
-                    if parece_patrocinado(texto_card):
-                        diag_count(query_diag, "excluded")
-                        diag_record_ebay_rejection(
-                            query_diag,
-                            "other",
-                            title=texto_card,
-                            stage="search_result",
-                            detail="sponsored_or_promoted",
-                        )
-                        continue
-
-                    if ebay_search_card_is_placeholder(texto_card):
-                        diag_count(query_diag, "excluded")
-                        diag_record_ebay_rejection(
-                            query_diag,
-                            "placeholder_item",
-                            title=texto_card,
-                            stage="search_result",
-                        )
-                        continue
-
-                    href = el.get_attribute("href")
-                    if not href:
-                        diag_count(query_diag, "rejected")
-                        diag_record_ebay_rejection(
-                            query_diag,
-                            "parse_error",
-                            title=texto_card,
-                            stage="search_result",
-                            detail="missing_href",
-                        )
-                        continue
-
-                    if "/itm/" not in href and "ebay." not in href:
-                        diag_count(query_diag, "rejected")
-                        diag_record_ebay_rejection(
-                            query_diag,
-                            "parse_error",
-                            title=texto_card,
-                            stage="search_result",
-                            detail="invalid_href",
-                        )
-                        continue
-
-                    href = limpar_link(href)
-                    if ebay_search_card_is_placeholder(texto_card, href):
-                        diag_count(query_diag, "excluded")
-                        diag_record_ebay_rejection(
-                            query_diag,
-                            "placeholder_item",
-                            title=texto_card,
-                            stage="search_result",
-                            detail="placeholder_item",
-                        )
-                        continue
-
-                    id_item = ebay_seen_id_from_link(href)
-                    if not id_item:
-                        diag_count(query_diag, "rejected")
-                        diag_record_ebay_rejection(
-                            query_diag,
-                            "parse_error",
-                            title=texto_card,
-                            stage="search_result",
-                            detail="missing_ebay_item_id",
-                        )
-                        continue
-
-                    auction_signals = ebay_search_auction_signals(texto_card)
-                    if auction_signals:
-                        diag_count(query_diag, "excluded")
-                        diag_record_ebay_rejection(
-                            query_diag,
-                            "auction",
-                            item_id=id_item,
-                            title=texto_card,
-                            stage="search_result",
-                            detail=",".join(auction_signals),
-                        )
-                        print(
-                            f"[EBAY_SEARCH_SKIP_AUCTION] id={id_item} "
-                            f"title=\"{texto_card[:LOG_TITLE_MAX_CHARS]}\" signals={','.join(auction_signals)}"
-                        )
-                        continue
-
-                    diag_count(query_diag, "parsed")
-                    if id_item in vistos:
-                        diag_count(query_diag, "skipped_seen")
-                        print(
-                            f"[EBAY_SEEN_SKIP] item_id={id_item} stage=search_result "
-                            f"query=\"{_diag_query_label(query_diag)}\" "
-                            f"title=\"{texto_card[:LOG_TITLE_MAX_CHARS]}\""
-                        )
-                        diag_record_ebay_rejection(
-                            query_diag,
-                            "already_seen",
-                            item_id=id_item,
-                            title=texto_card,
-                            stage="search_result",
-                        )
-                        continue
-
-                    allocation_category = ebay_allocation_category_for_title(texto_card, query_category)
-                    if allocation_category == "junk":
-                        excluded_keyword = ebay_excluded_keyword(texto_card) or "ebay_junk"
-                        diag_count(query_diag, "excluded")
-                        diag_record_ebay_rejection(
-                            query_diag,
-                            "excluded_keyword",
-                            item_id=id_item,
-                            title=texto_card,
-                            stage="search_result",
-                            detail=excluded_keyword,
-                        )
-                        continue
-
-                    if id_item not in seen_candidate_item_ids:
-                        seen_candidate_item_ids.add(id_item)
-                        candidate = {
-                            "link": href,
-                            "search_title": texto_card.strip(),
-                            "query_url": search_url,
-                            "allocation_category": allocation_category,
-                            "excluded_keyword_value": ebay_excluded_keyword(texto_card),
-                            "search_english_validation": ebay_english_validation(texto_card, ""),
-                            "score": ebay_priority_score(texto_card),
-                            "detected_at": now_iso(),
-                            "position": len(query_candidates),
-                        }
-                        query_candidates.append(candidate)
-                        candidatos_por_categoria.setdefault(allocation_category, []).append(candidate)
-                        diag_register_link(diag, "ebay", href, search_url)
-                    else:
-                        diag_count(query_diag, "duplicate")
-                        diag_record_ebay_rejection(
-                            query_diag,
-                            "duplicate",
-                            item_id=id_item,
-                            title=texto_card,
-                            stage="search_result",
-                        )
-
-                    if len(query_candidates) >= EBAY_MAX_CANDIDATES_PER_QUERY:
-                        break
-
-                if len(query_candidates) >= EBAY_MAX_CANDIDATES_PER_QUERY:
-                    break
+                page.goto(page_url, timeout=40000, wait_until="domcontentloaded")
+                page.wait_for_timeout(3500 if LIGHT_MODE else 5000)
             except Exception as error:
                 diag_count(query_diag, "rejected")
                 diag_record_ebay_rejection(
                     query_diag,
                     "parse_error",
-                    stage="search_result",
+                    stage="query_navigation",
                     detail=error,
                 )
-                print(
-                    f"[EBAY_QUERY_ERROR] keyword=\"{_query_keyword(search_url)}\" "
-                    f"selector=\"{seletor}\" error=\"{error}\""
-                )
-            finally:
+                print(f"[EBAY_ERROR] stage=query_navigation query=\"{_query_keyword(search_url)}\" page={page_number} error=\"{error}\"")
+                if ebay_error_is_rate_limit(error):
+                    print(f"[EBAY_RATE_LIMIT] stage=query_navigation query=\"{_query_keyword(search_url)}\" page={page_number} error=\"{error}\"")
+                    print(f"[EBAY_CALL_SKIPPED] query=\"{_query_keyword(search_url)}\" page={page_number} reason=rate_limit")
+                print(f"[EBAY_QUERY_END] query=\"{_query_keyword(search_url)}\" page={page_number} status=error")
+                clear_playwright_page(page)
+                continue
+
+            for seletor in seletores:
+                elementos = []
                 try:
-                    elementos.clear()
-                except Exception:
-                    pass
+                    elementos = page.query_selector_all(seletor)
+                    elementos = elementos[:50]
+                    diag_count(query_diag, "raw", len(elementos))
+
+                    for el in elementos:
+                        texto_card = texto_card_link(el)
+                        href = el.get_attribute("href")
+                        href_limpo = limpar_link(href) if href else ""
+                        id_item = ebay_seen_id_from_link(href_limpo) if href_limpo else None
+                        if id_item:
+                            page_item_ids.append(id_item)
+                            if len(query_first_ids) < 5 and id_item not in query_first_ids:
+                                query_first_ids.append(id_item)
+                                query_first_titles.append(texto_card)
+
+                        if parece_patrocinado(texto_card):
+                            diag_count(query_diag, "excluded")
+                            diag_record_ebay_rejection(
+                                query_diag,
+                                "other",
+                                item_id=id_item,
+                                title=texto_card,
+                                stage="search_result",
+                                detail="sponsored_or_promoted",
+                            )
+                            continue
+
+                        if ebay_search_card_is_placeholder(texto_card):
+                            diag_count(query_diag, "excluded")
+                            diag_record_ebay_rejection(
+                                query_diag,
+                                "placeholder_item",
+                                item_id=id_item,
+                                title=texto_card,
+                                stage="search_result",
+                            )
+                            continue
+
+                        if not href:
+                            diag_count(query_diag, "rejected")
+                            diag_record_ebay_rejection(
+                                query_diag,
+                                "parse_error",
+                                title=texto_card,
+                                stage="search_result",
+                                detail="missing_href",
+                            )
+                            continue
+
+                        if "/itm/" not in href and "ebay." not in href:
+                            diag_count(query_diag, "rejected")
+                            diag_record_ebay_rejection(
+                                query_diag,
+                                "parse_error",
+                                title=texto_card,
+                                stage="search_result",
+                                detail="invalid_href",
+                            )
+                            continue
+
+                        href = href_limpo
+                        if ebay_search_card_is_placeholder(texto_card, href):
+                            diag_count(query_diag, "excluded")
+                            diag_record_ebay_rejection(
+                                query_diag,
+                                "placeholder_item",
+                                item_id=id_item,
+                                title=texto_card,
+                                stage="search_result",
+                                detail="placeholder_item",
+                            )
+                            continue
+
+                        if not id_item:
+                            diag_count(query_diag, "rejected")
+                            diag_record_ebay_rejection(
+                                query_diag,
+                                "parse_error",
+                                title=texto_card,
+                                stage="search_result",
+                                detail="missing_ebay_item_id",
+                            )
+                            continue
+
+                        auction_signals = ebay_search_auction_signals(texto_card)
+                        if auction_signals:
+                            diag_count(query_diag, "excluded")
+                            diag_record_ebay_rejection(
+                                query_diag,
+                                "auction",
+                                item_id=id_item,
+                                title=texto_card,
+                                stage="search_result",
+                                detail=",".join(auction_signals),
+                            )
+                            print(
+                                f"[EBAY_SEARCH_SKIP_AUCTION] id={id_item} "
+                                f"title=\"{texto_card[:LOG_TITLE_MAX_CHARS]}\" signals={','.join(auction_signals)}"
+                            )
+                            continue
+
+                        diag_count(query_diag, "parsed")
+                        if id_item in vistos:
+                            diag_count(query_diag, "skipped_seen")
+                            print(
+                                f"[EBAY_SEEN_SKIP] item_id={id_item} stage=search_result "
+                                f"query=\"{_diag_query_label(query_diag)}\" "
+                                f"title=\"{texto_card[:LOG_TITLE_MAX_CHARS]}\""
+                            )
+                            diag_record_ebay_rejection(
+                                query_diag,
+                                "already_seen",
+                                item_id=id_item,
+                                title=texto_card,
+                                stage="search_result",
+                            )
+                            continue
+
+                        allocation_category = ebay_allocation_category_for_title(texto_card, query_category)
+                        if allocation_category == "junk":
+                            excluded_keyword = ebay_excluded_keyword(texto_card) or "ebay_junk"
+                            diag_count(query_diag, "excluded")
+                            diag_record_ebay_rejection(
+                                query_diag,
+                                "excluded_keyword",
+                                item_id=id_item,
+                                title=texto_card,
+                                stage="search_result",
+                                detail=excluded_keyword,
+                            )
+                            continue
+
+                        if id_item not in seen_candidate_item_ids:
+                            seen_candidate_item_ids.add(id_item)
+                            candidate = {
+                                "link": href,
+                                "search_title": texto_card.strip(),
+                                "query_url": search_url,
+                                "query_page_url": page_url,
+                                "allocation_category": allocation_category,
+                                "excluded_keyword_value": ebay_excluded_keyword(texto_card),
+                                "search_english_validation": ebay_english_validation(texto_card, ""),
+                                "score": ebay_priority_score(texto_card),
+                                "detected_at": now_iso(),
+                                "position": len(query_candidates),
+                                "page": page_number,
+                            }
+                            query_candidates.append(candidate)
+                            candidatos_por_categoria.setdefault(allocation_category, []).append(candidate)
+                            diag_register_link(diag, "ebay", href, search_url)
+                        else:
+                            diag_count(query_diag, "duplicate")
+                            diag_record_ebay_rejection(
+                                query_diag,
+                                "duplicate",
+                                item_id=id_item,
+                                title=texto_card,
+                                stage="search_result",
+                            )
+
+                        if len(query_candidates) >= EBAY_MAX_CANDIDATES_PER_QUERY:
+                            break
+
+                    if len(query_candidates) >= EBAY_MAX_CANDIDATES_PER_QUERY:
+                        break
+                except Exception as error:
+                    diag_count(query_diag, "rejected")
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        "parse_error",
+                        stage="search_result",
+                        detail=error,
+                    )
+                    print(
+                        f"[EBAY_ERROR] stage=search_result keyword=\"{_query_keyword(search_url)}\" "
+                        f"page={page_number} selector=\"{seletor}\" error=\"{error}\""
+                    )
+                    if ebay_error_is_rate_limit(error):
+                        print(
+                            f"[EBAY_RATE_LIMIT] stage=search_result keyword=\"{_query_keyword(search_url)}\" "
+                            f"page={page_number} selector=\"{seletor}\" error=\"{error}\""
+                        )
+                finally:
+                    try:
+                        elementos.clear()
+                    except Exception:
+                        pass
+
+            page_results = (query_diag.get("parsed", 0) if query_diag else 0) - page_parsed_start
+            page_already_seen = (query_diag.get("skipped_seen", 0) if query_diag else 0) - page_seen_start
+            page_accepted = len(query_candidates) - page_accepted_start
+            print(f"[EBAY_RESULTS_COUNT] query=\"{_query_keyword(search_url)}\" page={page_number} count={max(0, page_results)}")
+            print(f"[EBAY_ALREADY_SEEN_COUNT] query=\"{_query_keyword(search_url)}\" page={page_number} count={max(0, page_already_seen)}")
+            print(f"[EBAY_NEW_ACCEPTED_COUNT] query=\"{_query_keyword(search_url)}\" page={page_number} count={max(0, page_accepted)}")
+            print(
+                f"[EBAY_QUERY_END] query=\"{_query_keyword(search_url)}\" page={page_number} "
+                f"status=ok accepted_total={len(query_candidates)}"
+            )
+            signature = tuple(page_item_ids[:20])
+            duplicate_page = bool(signature and signature in query_page_signatures)
+            if duplicate_page:
+                print(
+                    f"[EBAY_QUERY_PAGE_DUPLICATE] query=\"{_query_keyword(search_url)}\" "
+                    f"page={page_number} repeated_first_ids={','.join(signature[:5])}"
+                )
+            elif signature:
+                query_page_signatures.add(signature)
+            clear_playwright_page(page)
+            gc.collect()
+            if duplicate_page:
+                break
+
+        query_total_results = (query_diag.get("parsed", 0) if query_diag else 0) - query_parsed_start
+        query_already_seen = (query_diag.get("skipped_seen", 0) if query_diag else 0) - query_seen_start
+        query_accepted = len(query_candidates) - query_accepted_start
+        query_rejected = Counter(query_diag.get("ebay_reject_reasons") or {}) if query_diag else Counter()
+        query_rejected.subtract(query_reject_start)
+        ebay_detection_debug_print(
+            _query_keyword(search_url),
+            max(0, query_total_results),
+            query_first_ids,
+            query_first_titles,
+            max(0, query_already_seen),
+            max(0, query_accepted),
+            +query_rejected,
+        )
         if len(query_candidates) >= EBAY_MAX_CANDIDATES_PER_QUERY:
             print(
                 f"[EBAY_LIMIT] keyword=\"{_query_keyword(search_url)}\" "
@@ -5601,8 +5788,6 @@ def obter_ebay_links(page, vistos=None, diag=None):
                 f"max_ebay_per_query={EBAY_MAX_CANDIDATES_PER_QUERY}"
             )
         query_candidates.clear()
-        clear_playwright_page(page)
-        gc.collect()
 
     total_candidates = sum(len(query_candidates) for query_candidates in candidatos_por_categoria.values())
     if total_candidates > EBAY_MAX_CANDIDATES_PER_CYCLE:
@@ -6489,11 +6674,10 @@ def main():
             maybe_send_hourly_summary()
             maybe_send_vip_market_report()
             processar_fila_free()
-            processar_ebay = (ciclo % EBAY_FETCH_EVERY == 0) if LIGHT_MODE else True
-            if EBAY_FORCE_ALWAYS_ON_DEBUG:
-                processar_ebay = True
+            processar_ebay = should_process_ebay_cycle(ciclo)
             print(f"Cycle {ciclo} | processar_ebay={processar_ebay}")
             if processar_ebay:
+                print(f"[EBAY_CYCLE_START] cycle={ciclo} processar_ebay=true")
                 log_ebay_debug({
                     "final_status": "EBAY_CYCLE_START",
                     "cycle": ciclo,
@@ -6501,6 +6685,7 @@ def main():
                 })
             else:
                 print("EBAY SKIPPED THIS CYCLE")
+                print(f"[EBAY_CALL_SKIPPED] cycle={ciclo} reason=cycle_schedule")
                 log_ebay_debug({
                     "final_status": "EBAY_SKIPPED_THIS_CYCLE",
                     "cycle": ciclo,
