@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha1
 import os
 import re
@@ -683,11 +683,30 @@ def smart_deal_order():
         (db.func.upper(db.func.coalesce(Listing.score_level, "")) == "MEDIUM", 1),
         else_=0,
     )
+    activity_at = db.func.coalesce(Listing.pricing_analyzed_at, Listing.detected_at, Listing.created_at)
     return (
+        activity_at.desc(),
         score_rank.desc(),
         db.func.coalesce(Listing.estimated_profit, Listing.profit_margin, Listing.gross_margin, -999).desc(),
         *newest_listing_order(),
     )
+
+
+def smart_deals_cache_version():
+    pricing_status = db.func.lower(db.func.coalesce(Listing.pricing_status, ""))
+    latest_analyzed_at = (
+        Listing.query.filter(Listing.pricing_analyzed_at.isnot(None))
+        .with_entities(db.func.max(Listing.pricing_analyzed_at))
+        .scalar()
+    )
+    latest_pending_detected_at = (
+        Listing.query.filter(pricing_status.in_(["", "pending", "analyzing"]))
+        .with_entities(db.func.max(Listing.detected_at))
+        .scalar()
+    )
+    latest_activity = latest_analyzed_at or latest_pending_detected_at or ""
+    latest_pending = latest_pending_detected_at or ""
+    return f"activity={latest_activity}:pending={latest_pending}"
 
 
 def missed_deal_order():
@@ -902,6 +921,11 @@ def render_deals_board(
 
     cache_hit = False
     feed_cache_key = f"{cache_key}:page={page}:size={per_page}" if cache_key else None
+    feed_cache_ttl = int(current_app.config["FEED_CACHE_TTL_SECONDS"])
+    if page_mode == "smart":
+        feed_cache_ttl = min(feed_cache_ttl, 3)
+        if feed_cache_key:
+            feed_cache_key = f"{feed_cache_key}:{smart_deals_cache_version()}"
     has_user_filters = bool(search or platform_arg or badge or region_arg or selected_languages or selected_sets or selected_market_types)
     if cache_key and not has_user_filters:
         def build_snapshot():
@@ -915,7 +939,7 @@ def render_deals_board(
                 "last_detected_at": listings[0].detected_at if listings else None,
             }
 
-        feed_snapshot, cache_hit = get_or_set(feed_cache_key, current_app.config["FEED_CACHE_TTL_SECONDS"], build_snapshot)
+        feed_snapshot, cache_hit = get_or_set(feed_cache_key, feed_cache_ttl, build_snapshot)
         listings = feed_snapshot["listings"]
         has_next_page = feed_snapshot["has_next"]
         live_listings_count = feed_snapshot["live_listings_count"]
@@ -1000,7 +1024,7 @@ def render_deals_board(
         next_args["per_page"] = str(per_page)
         next_page_url = url_for(request.endpoint, **next_args)
 
-    return render_template(
+    response = make_response(render_template(
         "feed.html",
         listings=listings,
         favorite_ids=favorite_ids_for_current_user(),
@@ -1040,7 +1064,9 @@ def render_deals_board(
         board_label=board_label,
         stat_label=stat_label,
         active_tab=page_mode,
-    )
+    ))
+    response.headers["Cache-Control"] = f"private, max-age={max(0, feed_cache_ttl)}, must-revalidate"
+    return response
 
 
 def get_android_apk_candidates():
@@ -1209,6 +1235,7 @@ def ebay_deals():
 
 
 @main_bp.route("/smart-deals")
+@main_bp.route("/sniper-deals")
 @vip_required
 def smart_deals():
     query = build_smart_deals_query()
@@ -1290,7 +1317,12 @@ def build_smart_deals_query():
             Listing.discount_percent >= 10,
         ),
     )
-    return Listing.query.filter(
+    recent_cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    recent_pending_pricing_signal = and_(
+        pricing_status.in_(["", "pending", "analyzing"]),
+        Listing.detected_at >= recent_cutoff,
+    )
+    analyzed_sniper_signal = and_(
         pricing_status.in_(["analyzed", "priced", "deal"]),
         pricing_basis.in_(["sold", "buy_now", "mixed"]),
         listing_type.in_(["raw_card", "graded_card", "sealed_product"]),
@@ -1302,6 +1334,9 @@ def build_smart_deals_query():
             ~Listing.pricing_reason.ilike("%PRICE_COMPARE_INSUFFICIENT_RAW_COMPARABLES%"),
         ),
         or_(sold_opportunity_signal, buy_now_market_signal),
+    )
+    return Listing.query.filter(
+        or_(analyzed_sniper_signal, recent_pending_pricing_signal),
     )
 
 

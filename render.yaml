@@ -152,6 +152,10 @@ services:
         sync: false
       - key: PRICING_WORKER_MAX_SLEEP
         sync: false
+      - key: PRICING_WORKER_BATCH_LIMIT
+        value: "30"
+      - key: PRICING_WORKER_FRESH_WINDOW_HOURS
+        value: "24"
       - key: PRICING_WORKER_ENABLED
         value: "true"
       - key: EBAY_CLIENT_ID

@@ -111,6 +111,18 @@ class FeedPerformanceTests(unittest.TestCase):
         self.assertNotIn("raw_payload", data["listings"][0])
         self.assertNotIn("pricing_reason", data["listings"][0])
 
+    def test_pricing_debug_endpoint_is_api_key_protected(self):
+        latest = self._listing(0, pricing_status="analyzed", pricing_analyzed_at=utcnow())
+
+        unauthorized = self.client.get("/api/debug/pricing")
+        response = self.client.get("/api/debug/pricing", headers={"X-API-Key": "test-key"})
+        data = response.get_json()
+
+        self.assertEqual(unauthorized.status_code, 401)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("status_counts", data)
+        self.assertEqual(data["latest_analyzed"][0]["id"], latest.id)
+
     def test_filters_still_apply_to_feed(self):
         expected = self._listing(0, title="Charizard PFL", set_code="PFL", card_language="en", listing_type="raw_card")
         self._listing(1, title="Pikachu BRS", set_code="BRS", card_language="jp", listing_type="sealed_product")

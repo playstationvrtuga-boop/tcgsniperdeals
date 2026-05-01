@@ -85,6 +85,56 @@ class PricingWorkerQueueTests(unittest.TestCase):
 
         self.assertIsNone(self.pricing_worker.fetch_next_pending_listing())
 
+    def test_recent_pending_listing_wins_over_old_retryable_backfill(self):
+        old = utcnow() - timedelta(days=3)
+        fresh = utcnow()
+        self._listing(
+            title="Old retryable Charizard",
+            pricing_status="needs_review",
+            pricing_checked_at=old,
+            detected_at=old,
+            created_at=old,
+        )
+        expected = self._listing(
+            title="Fresh pending Charizard",
+            pricing_status="pending",
+            pricing_checked_at=None,
+            detected_at=fresh,
+            created_at=fresh,
+        )
+
+        result = self.pricing_worker.fetch_next_pending_listing()
+
+        self.assertEqual(result.id, expected.id)
+
+    def test_batch_limit_is_filled_with_recent_listings_before_old_backfill(self):
+        old = utcnow() - timedelta(days=3)
+        fresh = utcnow()
+        for index in range(3):
+            self._listing(
+                title=f"Old retryable {index}",
+                pricing_status="needs_review",
+                pricing_checked_at=old,
+                detected_at=old + timedelta(minutes=index),
+                created_at=old + timedelta(minutes=index),
+            )
+        fresh_one = self._listing(
+            title="Fresh pending one",
+            pricing_status="pending",
+            detected_at=fresh - timedelta(minutes=1),
+            created_at=fresh - timedelta(minutes=1),
+        )
+        fresh_two = self._listing(
+            title="Fresh pending two",
+            pricing_status="pending",
+            detected_at=fresh,
+            created_at=fresh,
+        )
+
+        batch = self.pricing_worker.fetch_pending_listing_batch(limit=2)
+
+        self.assertEqual([listing.id for listing in batch], [fresh_two.id, fresh_one.id])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -34,6 +34,7 @@ from services.deal_detector import (
 from services.ebay_api_client import ebay_api_client
 from vip_app.app import create_app
 from vip_app.app.extensions import db
+from vip_app.app.feed_cache import invalidate
 from vip_app.app.models import Listing, utcnow
 from vip_app.app.push import send_deal_push
 
@@ -41,9 +42,11 @@ from vip_app.app.push import send_deal_push
 app = create_app()
 EBAY_PAUSE_WORKER_BACKOFF_MAX_SECONDS = 60
 DB_TEXT_LIMIT = 250
+PRICING_WORKER_BATCH_LIMIT = max(1, int(os.environ.get("PRICING_WORKER_BATCH_LIMIT", "30")))
+PRICING_WORKER_FRESH_WINDOW_HOURS = max(1, int(os.environ.get("PRICING_WORKER_FRESH_WINDOW_HOURS", "24")))
 
 
-def _pending_listing_query():
+def _pending_listing_filter():
     retry_before = utcnow() - timedelta(minutes=PRICING_RETRY_AFTER_MINUTES)
     checked_before_retry = (
         (Listing.pricing_checked_at.is_(None))
@@ -81,29 +84,82 @@ def _pending_listing_query():
             | Listing.pricing_error.contains("DEAL_REJECTED_NO_REFERENCE")
         )
     )
-    return (
-        Listing.query.filter(
-            or_(
-                Listing.pricing_status.is_(None),
-                Listing.pricing_status == "",
-                Listing.pricing_status == "pending",
-                (
-                    Listing.pricing_status.in_(["rate_limited", "api_error"])
-                    & checked_before_retry
-                ),
-                retryable_old_results,
-                retryable_incomplete_analyzed,
-                retryable_legacy_skips,
+    return or_(
+        Listing.pricing_status.is_(None),
+        Listing.pricing_status == "",
+        Listing.pricing_status == "pending",
+        (
+            Listing.pricing_status.in_(["analyzing", "rate_limited", "api_error"])
+            & checked_before_retry
+        ),
+        retryable_old_results,
+        retryable_incomplete_analyzed,
+        retryable_legacy_skips,
+    )
+
+
+def _pending_listing_query(*, recent_only: bool | None = None):
+    query = Listing.query.filter(_pending_listing_filter())
+    if recent_only is not None:
+        fresh_cutoff = utcnow() - timedelta(hours=PRICING_WORKER_FRESH_WINDOW_HOURS)
+        if recent_only:
+            query = query.filter(Listing.detected_at >= fresh_cutoff)
+        else:
+            query = query.filter(
+                or_(Listing.detected_at < fresh_cutoff, Listing.detected_at.is_(None))
             )
-        )
+    return (
+        query
         # Fresh opportunities matter more than old backlog. Retryable old rows still
         # get processed when the stream is quiet, but new listings are checked first.
         .order_by(Listing.detected_at.desc(), Listing.created_at.desc(), Listing.id.desc())
     )
 
 
+def fetch_pending_listing_batch(limit: int | None = None) -> list[Listing]:
+    batch_limit = max(1, int(limit or PRICING_WORKER_BATCH_LIMIT))
+    fresh_listings = _pending_listing_query(recent_only=True).limit(batch_limit).all()
+    remaining = batch_limit - len(fresh_listings)
+    if remaining <= 0:
+        return fresh_listings
+
+    older_backfill = _pending_listing_query(recent_only=False).limit(remaining).all()
+    return fresh_listings + older_backfill
+
+
 def fetch_next_pending_listing() -> Listing | None:
-    return _pending_listing_query().first()
+    batch = fetch_pending_listing_batch(limit=1)
+    return batch[0] if batch else None
+
+
+def _mark_analyzing(listing: Listing) -> None:
+    listing.pricing_status = "analyzing"
+    listing.pricing_checked_at = utcnow()
+    db.session.commit()
+
+
+def _invalidate_feed_cache() -> None:
+    try:
+        invalidate("feed:")
+    except Exception as error:
+        print(f"[pricing_worker] cache invalidation skipped: {error}", flush=True)
+
+
+def _log_processed_status(listing: Listing, result) -> None:
+    final_status = (listing.pricing_status or result.status or "").strip().lower()
+    if final_status in {"analyzed", "priced", "deal"}:
+        print(
+            f"[pricing] analyzed listing_id={listing.id} status={final_status} "
+            f"score={listing.pricing_score} level={listing.score_level}",
+            flush=True,
+        )
+        return
+
+    print(
+        f"[pricing] skipped listing_id={listing.id} status={final_status or 'unknown'} "
+        f"reason={result.reason or listing.pricing_error or 'n/a'}",
+        flush=True,
+    )
 
 
 def _mark_processed(listing: Listing, result) -> None:
@@ -391,6 +447,13 @@ def _log_queue_snapshot() -> None:
 
 def process_listing(listing: Listing) -> str:
     try:
+        previous_status = (listing.pricing_status or "pending").strip().lower() or "pending"
+        print(
+            f"[pricing_worker] queue_picked listing_id={listing.id} "
+            f"previous_status={previous_status} detected_at={listing.detected_at}",
+            flush=True,
+        )
+        _mark_analyzing(listing)
         result = evaluate_listing(listing)
         print(
             f"[pricing_worker] listing_id={listing.id} "
@@ -442,23 +505,28 @@ def process_listing(listing: Listing) -> str:
             print(f"[pricing_worker] VIP app alert ready for listing_id={listing.id}")
 
         db.session.commit()
+        _invalidate_feed_cache()
+        _log_processed_status(listing, result)
         return result.status
     except EbaySoldRateLimitError as error:
         db.session.rollback()
         _mark_error(listing, "rate_limited", str(error))
         db.session.commit()
+        _invalidate_feed_cache()
         print(f"[pricing_worker] rate limited on listing {listing.id}: {error}")
         return "rate_limited"
     except EbaySoldError as error:
         db.session.rollback()
         _mark_error(listing, "api_error", str(error))
         db.session.commit()
+        _invalidate_feed_cache()
         print(f"[pricing_worker] pricing source error on listing {listing.id}: {error}")
         return "api_error"
     except Exception as error:
         db.session.rollback()
         _mark_error(listing, "worker_error", str(error))
         db.session.commit()
+        _invalidate_feed_cache()
         print(f"[pricing_worker] unexpected error on listing {listing.id}: {error}")
         return "worker_error"
 
@@ -542,35 +610,52 @@ def run_worker(*, once: bool = False, limit: int | None = None) -> None:
                     break
                 continue
 
-            listing = fetch_next_pending_listing()
-            if listing is not None:
+            cycle_limit = 1 if once else PRICING_WORKER_BATCH_LIMIT
+            if limit is not None:
+                remaining_limit = max(0, limit - processed)
+                if remaining_limit <= 0:
+                    break
+                cycle_limit = min(cycle_limit, remaining_limit)
+
+            listings = fetch_pending_listing_batch(limit=cycle_limit)
+            if listings:
                 idle_cycles = 0
-                previous_checked_at = listing.pricing_checked_at
-                previous_analyzed_at = listing.pricing_analyzed_at
-                status = process_listing(listing)
-                processed += 1
-                try:
-                    db.session.refresh(listing)
-                except Exception:
-                    pass
-                if (
-                    listing.pricing_checked_at != previous_checked_at
-                    or listing.pricing_analyzed_at != previous_analyzed_at
-                ):
-                    updated_in_db += 1
-                if _listing_has_pricing_data(listing):
-                    data_found += 1
-                if listing.is_deal:
-                    opportunities += 1
-                print(f"[pricing_worker] listing_id={listing.id} status={status}")
                 print(
-                    "[pricing_worker] analysis_summary "
-                    f"listings_analyzed={processed} "
-                    f"with_data={data_found} "
-                    f"opportunities={opportunities} "
-                    f"updated_in_db={updated_in_db}",
+                    f"[pricing_worker] batch_start size={len(listings)} "
+                    f"fresh_window_hours={PRICING_WORKER_FRESH_WINDOW_HOURS}",
                     flush=True,
                 )
+                for index, listing in enumerate(listings, start=1):
+                    previous_checked_at = listing.pricing_checked_at
+                    previous_analyzed_at = listing.pricing_analyzed_at
+                    status = process_listing(listing)
+                    processed += 1
+                    try:
+                        db.session.refresh(listing)
+                    except Exception:
+                        pass
+                    if (
+                        listing.pricing_checked_at != previous_checked_at
+                        or listing.pricing_analyzed_at != previous_analyzed_at
+                    ):
+                        updated_in_db += 1
+                    if _listing_has_pricing_data(listing):
+                        data_found += 1
+                    if listing.is_deal:
+                        opportunities += 1
+                    print(f"[pricing_worker] listing_id={listing.id} status={status}")
+                    print(
+                        "[pricing_worker] analysis_summary "
+                        f"listings_analyzed={processed} "
+                        f"with_data={data_found} "
+                        f"opportunities={opportunities} "
+                        f"updated_in_db={updated_in_db}",
+                        flush=True,
+                    )
+                    if once or (limit is not None and processed >= limit):
+                        break
+                    if index < len(listings):
+                        time.sleep(random.uniform(PRICING_WORKER_MIN_SLEEP, PRICING_WORKER_MAX_SLEEP))
             else:
                 print("[pricing_worker] idle - no pending listings")
                 idle_cycles += 1

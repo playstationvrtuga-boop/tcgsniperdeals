@@ -11,6 +11,8 @@
   data-detected-at="{{ listing.detected_at_iso }}"
 >
   {% set listing_type = (listing.listing_type or '')|lower %}
+  {% set pricing_status = (listing.pricing_status or '')|lower %}
+  {% set pending_pricing = pricing_status in ["", "pending", "analyzing"] %}
   {% set insufficient_raw = listing_type == 'raw_card' and listing.pricing_status == 'insufficient_comparables' %}
   {% if deal_tone == "premium" %}
     {% set deal_tone_label = "Sniper" %}
@@ -83,7 +85,11 @@
       {% if mode == "missed" %}
       <span class="badge badge-missed">{{ (listing.effective_status or "gone")|upper }}</span>
       {% elif mode == "smart" %}
+      {% if pending_pricing %}
+      <span class="badge badge-smart-level badge-pending-pricing">{% if pricing_status == "analyzing" %}Analyzing{% else %}Pending pricing{% endif %}</span>
+      {% else %}
       <span class="badge badge-smart-level badge-{{ (listing.score_level or listing.display_badge)|lower|replace(' ', '-') }}">{{ listing.score_level or listing.display_badge }}</span>
+      {% endif %}
       {% else %}
       <span class="badge badge-score badge-{{ listing.display_badge|lower|replace(' ', '-') }}">{{ listing.display_badge }}</span>
       {% endif %}
@@ -117,7 +123,7 @@
   <div class="listing-body">
     <p class="listing-kicker">
       {% if mode == "smart" %}
-        {{ listing.score_level or "Smart signal" }}
+        {% if pending_pricing %}{% if pricing_status == "analyzing" %}Pricing analysis running{% else %}Pending pricing analysis{% endif %}{% else %}{{ listing.score_level or "Smart signal" }}{% endif %}
       {% elif mode == "missed" %}
         Detected earlier by TCG Sniper Deals
       {% else %}

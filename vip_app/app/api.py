@@ -161,6 +161,39 @@ def check_debug_access():
     return check_api_key() or bool(getattr(current_user, "is_authenticated", False) and getattr(current_user, "is_admin", False))
 
 
+def _iso_datetime(value):
+    if not value:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.isoformat()
+
+
+def _listing_debug_payload(listing):
+    return {
+        "id": listing.id,
+        "external_id": listing.external_id,
+        "platform": listing.platform,
+        "pricing_status": listing.pricing_status,
+        "detected_at": _iso_datetime(listing.detected_at),
+        "pricing_checked_at": _iso_datetime(listing.pricing_checked_at),
+        "pricing_analyzed_at": _iso_datetime(listing.pricing_analyzed_at),
+        "score_level": listing.score_level,
+        "estimated_profit": listing.estimated_profit,
+        "discount_percent": listing.discount_percent,
+        "pricing_error": listing.pricing_error,
+        "title": listing.title,
+    }
+
+
+def _age_seconds(value):
+    if not value:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return max(0, int((datetime.now(timezone.utc) - value).total_seconds()))
+
+
 def build_listing_from_payload(payload):
     title = str(pick_first(payload, "title", default="")).strip()
     price_display = str(pick_first(payload, "price_display", "price", default="")).strip()
@@ -495,5 +528,45 @@ def debug_ebay_api():
             "results_count": result["results_count"],
             "sample_items": result["sample_items"],
             "error": result["error"],
+        }
+    )
+
+
+@api_bp.route("/debug/pricing", methods=["GET"])
+def debug_pricing():
+    if not check_debug_access():
+        return api_response("unauthorized", 401, message="Admin login or X-API-Key required.")
+
+    pricing_status = db.func.lower(db.func.coalesce(Listing.pricing_status, "pending"))
+    status_rows = (
+        db.session.query(pricing_status, db.func.count(Listing.id))
+        .group_by(pricing_status)
+        .order_by(db.func.count(Listing.id).desc())
+        .all()
+    )
+    latest_detected = Listing.query.order_by(Listing.detected_at.desc(), Listing.id.desc()).limit(10).all()
+    latest_analyzed = (
+        Listing.query.filter(Listing.pricing_analyzed_at.isnot(None))
+        .order_by(Listing.pricing_analyzed_at.desc(), Listing.id.desc())
+        .limit(10)
+        .all()
+    )
+    latest_checked_at = db.session.query(db.func.max(Listing.pricing_checked_at)).scalar()
+    latest_analyzed_activity_at = db.session.query(db.func.max(Listing.pricing_analyzed_at)).scalar()
+    latest_worker_activity_at = max(
+        [value for value in (latest_checked_at, latest_analyzed_activity_at) if value],
+        default=None,
+    )
+    latest_analyzed_at = latest_analyzed[0].pricing_analyzed_at if latest_analyzed else None
+
+    return jsonify(
+        {
+            "status": "ok",
+            "status_counts": {str(status or "pending"): int(count or 0) for status, count in status_rows},
+            "latest_detected": [_listing_debug_payload(listing) for listing in latest_detected],
+            "latest_analyzed": [_listing_debug_payload(listing) for listing in latest_analyzed],
+            "latest_analyzed_age_seconds": _age_seconds(latest_analyzed_at),
+            "latest_worker_activity_at": _iso_datetime(latest_worker_activity_at),
+            "latest_worker_activity_age_seconds": _age_seconds(latest_worker_activity_at),
         }
     )

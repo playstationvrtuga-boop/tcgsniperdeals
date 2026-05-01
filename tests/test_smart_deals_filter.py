@@ -1,13 +1,14 @@
 import os
 import tempfile
 import unittest
+from datetime import timedelta
 from pathlib import Path
 
 from vip_app.app import create_app
 from vip_app.app.config import Config
 from vip_app.app.extensions import db
-from vip_app.app.main import build_smart_deals_query
-from vip_app.app.models import Listing, utcnow
+from vip_app.app.main import build_smart_deals_query, smart_deal_order
+from vip_app.app.models import Listing, User, utcnow
 
 
 class SmartDealsFilterTests(unittest.TestCase):
@@ -26,6 +27,13 @@ class SmartDealsFilterTests(unittest.TestCase):
         self.ctx.push()
         db.drop_all()
         db.create_all()
+        self.client = self.app.test_client()
+        user = User(email="vip@example.com", is_vip=True)
+        user.set_password("password123")
+        user.apply_paid_plan("monthly")
+        db.session.add(user)
+        db.session.commit()
+        self.client.post("/login", data={"email": "vip@example.com", "password": "password123"})
 
     def tearDown(self):
         db.session.remove()
@@ -121,6 +129,94 @@ class SmartDealsFilterTests(unittest.TestCase):
         )
 
         self.assertEqual(build_smart_deals_query().count(), 0)
+
+    def test_recent_pending_pricing_listing_is_visible(self):
+        expected = self._listing(
+            pricing_status="pending",
+            pricing_basis=None,
+            listing_type=None,
+            estimated_fair_value=None,
+            reference_price=None,
+            confidence_score=None,
+            is_deal=False,
+            score_level=None,
+            estimated_profit=None,
+            discount_percent=None,
+            last_2_sales_json=None,
+            pricing_reason=None,
+            detected_at=utcnow(),
+        )
+
+        results = build_smart_deals_query().all()
+
+        self.assertEqual([listing.id for listing in results], [expected.id])
+
+    def test_old_pending_pricing_listing_is_not_visible(self):
+        old = utcnow() - timedelta(days=2)
+        self._listing(
+            pricing_status="pending",
+            pricing_basis=None,
+            listing_type=None,
+            estimated_fair_value=None,
+            reference_price=None,
+            confidence_score=None,
+            is_deal=False,
+            score_level=None,
+            estimated_profit=None,
+            discount_percent=None,
+            last_2_sales_json=None,
+            pricing_reason=None,
+            detected_at=old,
+            created_at=old,
+        )
+
+        self.assertEqual(build_smart_deals_query().count(), 0)
+
+    def test_smart_deals_order_prefers_recent_analysis(self):
+        old = utcnow() - timedelta(hours=20)
+        new = utcnow()
+        self._listing(
+            title="Old high score deal",
+            score_level="INSANE",
+            estimated_profit=100.0,
+            detected_at=old,
+            pricing_analyzed_at=old,
+        )
+        expected = self._listing(
+            title="Fresh medium deal",
+            score_level="MEDIUM",
+            estimated_profit=10.0,
+            detected_at=new,
+            pricing_analyzed_at=new,
+        )
+
+        results = build_smart_deals_query().order_by(*smart_deal_order()).all()
+
+        self.assertEqual(results[0].id, expected.id)
+
+    def test_smart_deals_page_cache_is_short_and_pending_badge_renders(self):
+        self._listing(
+            pricing_status="pending",
+            pricing_basis=None,
+            listing_type=None,
+            estimated_fair_value=None,
+            reference_price=None,
+            confidence_score=None,
+            is_deal=False,
+            score_level=None,
+            estimated_profit=None,
+            discount_percent=None,
+            last_2_sales_json=None,
+            pricing_reason=None,
+            detected_at=utcnow(),
+        )
+
+        response = self.client.get("/sniper-deals")
+        body = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("private, max-age=3", response.headers["Cache-Control"])
+        self.assertIn("Pending pricing", body)
 
 
 if __name__ == "__main__":

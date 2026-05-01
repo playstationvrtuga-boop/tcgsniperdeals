@@ -173,7 +173,7 @@ class Listing(TimestampMixin, db.Model):
 
     @property
     def is_pending_pricing(self):
-        return (self.pricing_status or "").strip().lower() in {"", "pending"}
+        return (self.pricing_status or "").strip().lower() in {"", "pending", "analyzing"}
 
     @property
     def display_badge(self):
