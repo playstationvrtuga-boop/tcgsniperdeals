@@ -394,16 +394,22 @@
       }
 
       function normalizeListing(item) {
-        return {
-          id: Number(item.id || 0),
+        const normalized = {
           title: String(item.title || "New listing detected"),
           price: String(item.price || "Price incoming"),
           platform: String(item.platform || "Marketplace"),
           image_url: String(item.image_url || ""),
           detected_at: String(item.detected_at || ""),
-          deal_level: String(item.deal_level || "").toUpperCase(),
-          is_hot: Boolean(item.is_hot)
+          score_label: String(item.score_label || "").toUpperCase()
         };
+        normalized.key = [
+          normalized.detected_at,
+          normalized.platform,
+          normalized.title,
+          normalized.price,
+          normalized.image_url
+        ].join("|");
+        return normalized;
       }
 
       function setImage(src, alt) {
@@ -435,7 +441,7 @@
           updateDetectedLabel();
           setImage(currentListing.image_url, currentListing.title);
 
-          const level = currentListing.deal_level;
+          const level = currentListing.score_label;
           imageShell.classList.toggle("is-hot", level === "HIGH");
           imageShell.classList.toggle("is-insane", level === "INSANE");
           badge.className = "deal-badge";
@@ -483,16 +489,14 @@
           if (!response.ok) return;
 
           const payload = await response.json();
-          const nextListings = Array.isArray(payload.listings) ? payload.listings.filter(function (item) {
-            return Number(item.id || 0) > 0;
-          }) : [];
+          const nextListings = Array.isArray(payload.listings) ? payload.listings.map(normalizeListing) : [];
           if (!nextListings.length) return;
 
-          const previousId = currentListing ? currentListing.id : 0;
-          const newestId = Number(nextListings[0].id || 0);
+          const previousKey = currentListing ? currentListing.key : "";
+          const newestKey = nextListings[0].key;
           listings = nextListings;
 
-          if (newestId && newestId !== previousId) {
+          if (newestKey && newestKey !== previousKey) {
             currentIndex = 0;
             renderListing(listings[0], true);
             scheduleRotation();
@@ -500,7 +504,7 @@
           }
 
           const previousIndex = listings.findIndex(function (item) {
-            return Number(item.id || 0) === previousId;
+            return item.key === previousKey;
           });
           currentIndex = previousIndex >= 0 ? previousIndex : 0;
         } catch (error) {
@@ -509,7 +513,7 @@
       }
 
       listings = listings.map(normalizeListing).filter(function (item) {
-        return item.id > 0;
+        return item.key;
       });
 
       if (!listings.length) return;

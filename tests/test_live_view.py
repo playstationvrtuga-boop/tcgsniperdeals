@@ -7,7 +7,7 @@ from pathlib import Path
 from vip_app.app import create_app
 from vip_app.app.config import Config
 from vip_app.app.extensions import db
-from vip_app.app.models import Listing, User, utcnow
+from vip_app.app.models import Listing, utcnow
 
 
 class LiveViewTests(unittest.TestCase):
@@ -28,19 +28,6 @@ class LiveViewTests(unittest.TestCase):
         db.create_all()
         self.client = self.app.test_client()
 
-        self.user = User(
-            email="vip@example.com",
-            is_vip=True,
-            vip_expires_at=utcnow() + timedelta(days=1),
-        )
-        self.user.set_password("password123")
-        db.session.add(self.user)
-        db.session.commit()
-
-        with self.client.session_transaction() as session:
-            session["_user_id"] = str(self.user.id)
-            session["_fresh"] = True
-
     def tearDown(self):
         db.session.remove()
         db.drop_all()
@@ -53,9 +40,9 @@ class LiveViewTests(unittest.TestCase):
         values = {
             "source": "vinted",
             "external_id": f"live-{now.timestamp()}-{len(overrides)}",
-            "external_url": "https://example.com/live",
-            "normalized_url": "https://example.com/live",
-            "image_url": "https://example.com/card.jpg",
+            "external_url": "https://seller.example/listing/live-buy-now",
+            "normalized_url": "https://seller.example/listing/live-buy-now",
+            "image_url": "https://cdn.example.com/card.jpg",
             "title": "Charizard ex live alert",
             "price_display": "49,00 EUR",
             "platform": "Vinted",
@@ -73,7 +60,7 @@ class LiveViewTests(unittest.TestCase):
         db.session.commit()
         return listing
 
-    def test_live_view_renders_standalone_stream_shell(self):
+    def test_live_view_returns_200_without_login_and_has_no_buy_links(self):
         self._listing()
 
         response = self.client.get("/live-view")
@@ -84,10 +71,16 @@ class LiveViewTests(unittest.TestCase):
         self.assertIn("Charizard ex live alert", body)
         self.assertIn("data-live-view-card", body)
         self.assertIn("grid-template-rows: 70svh 30svh", body)
+        self.assertIn("https://cdn.example.com/card.jpg", body)
+        self.assertNotIn("https://seller.example/listing/live-buy-now", body)
+        self.assertNotIn("external_url", body)
+        self.assertNotIn('"url"', body)
+        self.assertNotIn("href=", body)
+        self.assertNotIn("Buy", body)
         self.assertNotIn("topbar", body)
         self.assertNotIn("bottom-nav", body)
 
-    def test_live_view_json_returns_latest_available_listing(self):
+    def test_live_view_json_returns_safe_latest_available_listing_without_login(self):
         older = self._listing(title="Older live listing", detected_at=utcnow() - timedelta(minutes=3))
         newest = self._listing(title="Newest live listing", platform="eBay", score_level="INSANE")
         self._listing(title="Gone live listing", status="gone", available_status="gone")
@@ -97,11 +90,24 @@ class LiveViewTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload["count"], 2)
-        self.assertEqual(payload["listings"][0]["id"], newest.id)
+        self.assertEqual(payload["listings"][0]["title"], newest.title)
         self.assertEqual(payload["listings"][0]["platform"], "eBay")
-        self.assertEqual(payload["listings"][0]["deal_level"], "INSANE")
-        self.assertTrue(payload["listings"][0]["is_hot"])
-        self.assertEqual(payload["listings"][1]["id"], older.id)
+        self.assertEqual(payload["listings"][0]["score_label"], "INSANE")
+        self.assertEqual(payload["listings"][1]["title"], older.title)
+        self.assertEqual(
+            set(payload["listings"][0].keys()),
+            {"image_url", "title", "price", "platform", "detected_at", "score_label"},
+        )
+        self.assertNotIn("url", payload["listings"][0])
+        self.assertNotIn("external_url", payload["listings"][0])
+
+    def test_vip_routes_still_require_login(self):
+        for path in ("/feed", "/smart-deals", "/missed-deals", "/ai-market-intel"):
+            with self.subTest(path=path):
+                response = self.client.get(path, follow_redirects=False)
+
+                self.assertEqual(response.status_code, 302)
+                self.assertIn("/login", response.headers["Location"])
 
 
 if __name__ == "__main__":

@@ -858,17 +858,13 @@ def live_view_deal_level(listing):
 
 def serialize_live_view_listing(listing):
     platform_key = (listing.platform or "").strip().lower()
-    deal_level = live_view_deal_level(listing)
     return {
-        "id": listing.id,
+        "image_url": listing.image_url or "",
         "title": listing.title,
         "price": listing.price_display or "Price incoming",
         "platform": PLATFORM_LABELS.get(platform_key, (listing.platform or "Marketplace").strip() or "Marketplace"),
-        "image_url": listing.image_url or "",
         "detected_at": listing.detected_at_iso,
-        "deal_level": deal_level,
-        "is_hot": deal_level in {"HIGH", "INSANE"},
-        "url": listing.external_url,
+        "score_label": live_view_deal_level(listing),
     }
 
 
@@ -1180,7 +1176,6 @@ def ebay_deals():
 
 
 @main_bp.route("/live-view")
-@vip_required
 def live_view():
     listings = live_view_listing_query().all()
     return render_template(
@@ -1194,7 +1189,6 @@ def live_view():
 
 
 @main_bp.route("/live-view/listings")
-@vip_required
 def live_view_listings():
     listings = live_view_listing_query().all()
     return jsonify(
