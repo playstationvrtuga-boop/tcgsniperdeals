@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import os
+import re
 import time
 from decimal import Decimal
 from pathlib import Path
@@ -355,7 +356,7 @@ SEO_HOME_CONTENT = {
     ],
 }
 
-from .seo_content import SEO_HOME_CONTENT, SEO_PAGE_ALIASES, SEO_PAGES, SEO_PUBLIC_PATHS
+from .seo_content import DYNAMIC_SEO_PAGES, SEO_HOME_CONTENT, SEO_PAGE_ALIASES, SEO_PAGES, SEO_PUBLIC_PATHS
 
 
 def site_root_url():
@@ -367,8 +368,124 @@ def canonical_for_path(path):
     return f"{site_root_url()}{normalized_path}"
 
 
+def seo_page_catalog():
+    return {**SEO_PAGES, **DYNAMIC_SEO_PAGES}
+
+
+def seo_page_data(slug):
+    pages = seo_page_catalog()
+    return pages[slug]
+
+
+def _seo_related_pages(data):
+    pages = seo_page_catalog()
+    related_pages = [
+        {
+            "slug": related_slug,
+            "label": pages[related_slug]["h1"],
+            "url": f"/{related_slug}",
+        }
+        for related_slug in data.get("related", [])
+        if related_slug in pages
+    ]
+    if not any(related["url"] == "/" for related in related_pages):
+        related_pages.insert(0, {"slug": "", "label": "TCG Sniper Deals homepage", "url": "/"})
+    return related_pages
+
+
+def _parse_price_eur(price_display):
+    if not price_display:
+        return None
+    text = str(price_display).replace("\xa0", " ").strip()
+    match = re.search(r"(\d+(?:[.,]\d{3})*(?:[.,]\d{1,2})?|\d+)", text)
+    if not match:
+        return None
+    raw = match.group(1)
+    if "," in raw and "." in raw:
+        raw = raw.replace(".", "").replace(",", ".")
+    elif "," in raw:
+        raw = raw.replace(",", ".")
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
+def _base_dynamic_seo_query():
+    status_value = db.func.lower(db.func.coalesce(Listing.status, Listing.available_status, ""))
+    gone_values = gone_status_values() + ["gone_confirmed"]
+    return Listing.query.options(defer(Listing.raw_payload)).filter(
+        db.func.lower(db.func.coalesce(Listing.tcg_type, "pokemon")) == "pokemon",
+        or_(status_value == "", ~status_value.in_(gone_values)),
+    )
+
+
+def _dynamic_seo_query(filters):
+    query = _base_dynamic_seo_query()
+    keywords = [keyword for keyword in filters.get("keywords", []) if keyword.lower() != "pokemon"]
+    if keywords:
+        query = query.filter(or_(*[Listing.title.ilike(f"%{keyword}%") for keyword in keywords]))
+
+    if filters.get("region") == "eu":
+        query = query.filter(db.func.lower(Listing.platform).in_(REGION_PLATFORM_MAP["eu"]))
+
+    if filters.get("mode") == "best":
+        score_level = db.func.upper(db.func.coalesce(Listing.score_level, ""))
+        query = query.filter(
+            or_(
+                Listing.is_deal.is_(True),
+                score_level.in_(["MEDIUM", "HIGH", "INSANE"]),
+                db.func.coalesce(Listing.estimated_profit, Listing.profit_margin, Listing.gross_margin, 0) > 0,
+                db.func.coalesce(Listing.discount_percent, 0) > 0,
+            )
+        )
+        return query.order_by(
+            Listing.is_deal.desc(),
+            db.func.coalesce(Listing.discount_percent, 0).desc(),
+            db.func.coalesce(Listing.estimated_profit, Listing.profit_margin, Listing.gross_margin, 0).desc(),
+            Listing.detected_at.desc(),
+            Listing.id.desc(),
+        )
+
+    return query.order_by(Listing.detected_at.desc(), Listing.id.desc())
+
+
+def dynamic_seo_listings(data, limit=9):
+    filters = data.get("filters", {})
+    try:
+        max_price = filters.get("max_price_eur")
+        fetch_limit = max(limit * 8, 40) if max_price is not None else limit
+        candidates = _dynamic_seo_query(filters).limit(fetch_limit).all()
+    except Exception as error:
+        current_app.logger.info("[dynamic_seo] listing_query_failed slug=%s error=%s", data.get("slug", ""), error)
+        return []
+
+    listings = []
+    for listing in candidates:
+        max_price = filters.get("max_price_eur")
+        if max_price is not None:
+            parsed_price = _parse_price_eur(listing.price_display)
+            if parsed_price is None or parsed_price > float(max_price):
+                continue
+        listings.append(listing)
+        if len(listings) >= limit:
+            break
+    return listings
+
+
+def dynamic_seo_lastmod(slug, today):
+    data = dict(DYNAMIC_SEO_PAGES[slug], slug=slug)
+    listings = dynamic_seo_listings(data, limit=1)
+    if not listings or not listings[0].detected_at:
+        return today
+    detected_at = listings[0].detected_at
+    if detected_at.tzinfo is None:
+        detected_at = detected_at.replace(tzinfo=timezone.utc)
+    return detected_at.date().isoformat()
+
+
 def build_seo_page_context(slug):
-    data = SEO_PAGES[slug]
+    data = seo_page_data(slug)
     page = {
         "slug": slug,
         "title": data["title"],
@@ -376,16 +493,32 @@ def build_seo_page_context(slug):
         "h1": data["h1"],
         "intro": data["intro"],
         "sections": [dict(section) for section in data["sections"]],
-        "related_pages": [
-            {
-                "slug": related_slug,
-                "label": SEO_PAGES[related_slug]["h1"],
-                "url": f"/{related_slug}",
-            }
-            for related_slug in data.get("related", [])
-            if related_slug in SEO_PAGES
-        ],
+        "related_pages": _seo_related_pages(data),
+        "faqs": data.get(
+            "faqs",
+            [
+                {
+                    "question": "Where to find cheap Pokemon cards?",
+                    "answer": "Cheap Pokemon cards can appear on eBay, Vinted and EU marketplaces, especially in fresh listings, mixed lots and local-language posts. Always check condition, shipping, seller history and recent comparable prices before buying.",
+                },
+                {
+                    "question": "Are Pokemon deals worth it?",
+                    "answer": "Pokemon deals can be worth it when the item, condition, language, shipping and market value all make sense. Real-time alerts help you see listings earlier, but every purchase still needs manual review.",
+                },
+                {
+                    "question": "How often are these Pokemon deal pages updated?",
+                    "answer": "Dynamic pages read from the bot listing database at request time, so public deal previews and sitemap freshness can change as new listings are detected.",
+                },
+            ],
+        ),
+        "is_dynamic": slug in DYNAMIC_SEO_PAGES,
+        "deal_section_title": data.get("deal_section_title", "Live deals from the bot"),
+        "empty_state": data.get("empty_state", "No matching public deals are available right now."),
     }
+    if page["is_dynamic"]:
+        page["listings"] = dynamic_seo_listings(dict(data, slug=slug))
+    else:
+        page["listings"] = []
     return page
 
 
@@ -401,7 +534,7 @@ def render_seo_page(slug):
 
 
 def register_seo_page_routes():
-    for slug in SEO_PAGES:
+    for slug in seo_page_catalog():
         endpoint = f"seo_page_{slug.replace('-', '_')}"
 
         def view(page_slug=slug):
@@ -426,13 +559,16 @@ register_seo_page_routes()
 def build_sitemap_urls():
     site_root = site_root_url()
     today = datetime.now(timezone.utc).date().isoformat()
-    return [
-        {
-            "loc": f"{site_root}{path}",
-            "lastmod": today,
-        }
-        for path in SEO_PUBLIC_PATHS
-    ]
+    urls = []
+    for path in SEO_PUBLIC_PATHS:
+        slug = path.strip("/")
+        urls.append(
+            {
+                "loc": f"{site_root}{path}",
+                "lastmod": dynamic_seo_lastmod(slug, today) if slug in DYNAMIC_SEO_PAGES else today,
+            }
+        )
+    return urls
 
 
 def get_current_plan_key(user):

@@ -1,6 +1,11 @@
 SEO_PUBLIC_PATHS = [
     "/",
     "/download-app",
+    "/pokemon-deals-today",
+    "/best-pokemon-deals-today",
+    "/top-pokemon-deals-eu",
+    "/charizard-deals-under-100",
+    "/cheap-pokemon-cards-eu",
     "/pokemon-deals",
     "/pokemon-card-deals",
     "/charizard-deals",
@@ -18,6 +23,206 @@ SEO_PAGE_ALIASES = {
     "pokemon-booster-deals": "booster-box-deals",
     "pokemon-vinted-deals": "vinted-pokemon-deals",
     "pokemon-ebay-deals": "ebay-pokemon-deals",
+}
+
+
+DYNAMIC_SEO_PAGES = {
+    "pokemon-deals-today": {
+        "title": "Pokemon Deals Today | Live eBay and Vinted Listings",
+        "meta_description": "Find Pokemon deals today from live eBay, Vinted and EU marketplace listings updated from the TCG Sniper Deals bot.",
+        "h1": "Pokemon Deals Today (Updated Live)",
+        "intro": (
+            "Pokemon deals today can appear and disappear quickly across marketplaces like Vinted, eBay and other EU platforms. "
+            "This page uses real listing data from the TCG Sniper Deals bot to show a focused public snapshot of fresh Pokemon TCG opportunities. "
+            "The goal is to help collectors and resellers understand what is currently moving in the market while keeping the full real-time feed inside the VIP app."
+        ),
+        "sections": [
+            {
+                "title": "What counts as a Pokemon deal today?",
+                "text": (
+                    "A Pokemon deal is usually a listing that deserves a faster look because the price, product type, photos or seller context may be interesting compared with normal market demand. "
+                    "That can include raw Pokemon cards, Charizard singles, graded PSA slabs, booster boxes, ETBs, sealed products, mixed lots and cheap Pokemon cards from casual sellers. "
+                    "Today's deals are especially time-sensitive because a useful listing can sell before a manual searcher refreshes eBay or Vinted. Real-time discovery does not guarantee profit, but it shortens the delay between a seller posting an item and a buyer seeing it."
+                ),
+            },
+            {
+                "title": "How to use the live snapshot",
+                "text": (
+                    "Use the dynamic deal section as a starting point, not as automatic buying advice. Check the marketplace, price, image, language, card condition, seller feedback, shipping cost and whether the item is still available. "
+                    "EU listings may have different languages, local prices and shipping options, while eBay listings may include stronger historical data but more competition. "
+                    "The bot helps collect the signal; the final decision still belongs to the buyer."
+                ),
+            },
+            {
+                "title": "Why real-time updates matter",
+                "text": (
+                    "Cheap Pokemon cards and underpriced sealed products are rarely available for long. TCG Sniper Deals keeps these SEO pages connected to the listing database, so the content changes as the bot finds new listings. "
+                    "That makes the page useful for Google and for humans: search engines see current marketplace context, while visitors get a realistic preview of the kind of opportunities the VIP app tracks in real time."
+                ),
+            },
+        ],
+        "filters": {"keywords": ["pokemon"], "mode": "recent"},
+        "deal_section_title": "Live Pokemon deals from the bot",
+        "empty_state": "No public Pokemon deals are available in the live snapshot right now. The page updates automatically as new listings arrive.",
+        "related": ["best-pokemon-deals-today", "top-pokemon-deals-eu", "cheap-pokemon-cards-eu", "pokemon-deals"],
+    },
+    "best-pokemon-deals-today": {
+        "title": "Best Pokemon Deals Today (Updated Live) | TCG Sniper Deals",
+        "meta_description": "See the best Pokemon deals today with live marketplace signals from eBay, Vinted and EU Pokemon TCG listings.",
+        "h1": "Best Pokemon Deals Today (Updated Live)",
+        "intro": (
+            "The best Pokemon deals today are the listings that deserve attention before the wider market notices them. "
+            "This dynamic page is powered by the same listing database that feeds the TCG Sniper Deals bot, with a public preview of real-time opportunities from marketplaces such as eBay and Vinted. "
+            "It focuses on practical signals: freshness, price, marketplace, possible discount, product type and whether the item looks like a card, slab, sealed product or bundle."
+        ),
+        "sections": [
+            {
+                "title": "How good Pokemon deals are spotted",
+                "text": (
+                    "A strong Pokemon TCG opportunity often combines timing with context. A seller may list a Charizard card cheaply, price a sealed Elite Trainer Box below recent market levels, or upload a bundle without naming every valuable card. "
+                    "The bot watches for those listing signals and stores them as structured data. When pricing data is available, the app can also highlight estimated profit, discount percentage, confidence and comparable marketplace signals. "
+                    "This page shows a curated public slice rather than every listing, keeping the SEO footprint useful instead of creating thousands of thin pages."
+                ),
+            },
+            {
+                "title": "eBay, Vinted and EU marketplace differences",
+                "text": (
+                    "eBay is broad and competitive, with many Pokemon card buyers watching Buy It Now listings and auctions. Vinted and other EU marketplaces can be more uneven, with casual sellers, local-language titles and mixed lots that need careful inspection. "
+                    "Cheap does not always mean valuable, and a listing may have shipping costs, condition issues or language differences. "
+                    "Real-time alerts help you arrive earlier, but the strongest buyers still verify the details before committing."
+                ),
+            },
+            {
+                "title": "Why this page updates automatically",
+                "text": (
+                    "The content is generated from live listings, so when the bot detects new Pokemon deals, the visible deal section and sitemap freshness can change without manually editing a page. "
+                    "That gives Google a stable, canonical URL with current data, while users get a simple preview of how the VIP app turns marketplace noise into a faster review workflow. "
+                    "The full app remains the primary product for direct links, alerts and the fastest view."
+                ),
+            },
+        ],
+        "filters": {"mode": "best"},
+        "deal_section_title": "Best live Pokemon deals from the bot",
+        "empty_state": "No best-deal signals are available in the public snapshot right now. The bot will refresh this section when new opportunities qualify.",
+        "related": ["pokemon-deals-today", "top-pokemon-deals-eu", "charizard-deals-under-100", "pokemon-card-deals"],
+    },
+    "top-pokemon-deals-eu": {
+        "title": "Top Pokemon Deals EU | Live Vinted and Wallapop Listings",
+        "meta_description": "Track top Pokemon deals in the EU from live Vinted, Wallapop and European marketplace listings.",
+        "h1": "Top Pokemon Deals EU",
+        "intro": (
+            "Top Pokemon deals in the EU often come from marketplaces where casual sellers list cards, sealed products and bundles quickly. "
+            "This page focuses on European marketplace data from the bot, especially listings from Vinted and Wallapop when available. "
+            "It is built for collectors and resellers who want a clearer public view of cheap Pokemon cards, fresh EU listings and real-time marketplace movement."
+        ),
+        "sections": [
+            {
+                "title": "Why EU Pokemon deals are different",
+                "text": (
+                    "EU marketplaces can contain listings in English, Portuguese, Spanish, French, German and other languages. That creates opportunities because a useful card or sealed product may not be described with the exact English keyword a buyer normally searches. "
+                    "A Charizard listing, an ETB, a booster box or a binder lot can be missed by people who only search one marketplace or one language. "
+                    "The bot helps centralize that discovery so users can review real listings faster."
+                ),
+            },
+            {
+                "title": "What to check on EU listings",
+                "text": (
+                    "Before buying, check language, condition, seller feedback, payment protection, shipping region, photos and whether the marketplace listing is still active. "
+                    "A cheap Pokemon card can become less attractive if shipping is high or the card condition is poor. "
+                    "Real-time EU monitoring is powerful because it gives you an earlier look, but careful inspection is still the difference between a good find and a bad purchase."
+                ),
+            },
+            {
+                "title": "Dynamic content from the bot",
+                "text": (
+                    "The listings below come from the same database that powers live alerts. As the bot detects new EU deals, this page can update its public snapshot and sitemap lastmod automatically. "
+                    "That keeps the URL useful for SEO without creating endless near-duplicate pages. The focus stays on a small number of high-intent keywords that match how Pokemon buyers search."
+                ),
+            },
+        ],
+        "filters": {"region": "eu", "mode": "recent"},
+        "deal_section_title": "Live EU Pokemon deals",
+        "empty_state": "No EU Pokemon deals are available in the public snapshot right now. New Vinted and Wallapop listings will appear when detected.",
+        "related": ["pokemon-deals-today", "cheap-pokemon-cards-eu", "vinted-pokemon-deals", "pokemon-deals"],
+    },
+    "charizard-deals-under-100": {
+        "title": "Charizard Deals Under 100 | Live Pokemon Card Listings",
+        "meta_description": "Find Charizard deals under 100 EUR from live Pokemon card listings across eBay, Vinted and EU marketplaces.",
+        "h1": "Charizard Deals Under 100",
+        "intro": (
+            "Charizard deals under 100 are high-intent searches because collectors know that affordable Charizard cards can move quickly. "
+            "This page uses live listing data from the bot to show public examples of Charizard-related Pokemon listings with prices that appear below 100 EUR when the price can be parsed. "
+            "It is designed as a focused SEO page, not a guarantee that every listing is still available or profitable."
+        ),
+        "sections": [
+            {
+                "title": "Why Charizard under 100 gets attention",
+                "text": (
+                    "Charizard is one of the most recognizable Pokemon cards, and many buyers watch for raw singles, modern ex cards, vintage copies, promo cards and lower-grade slabs at accessible prices. "
+                    "A listing under 100 EUR can be interesting for a collector filling a binder or for a reseller checking whether the card version is under market value. "
+                    "The challenge is speed: affordable Charizard listings on eBay, Vinted and EU marketplaces can disappear fast."
+                ),
+            },
+            {
+                "title": "How to review these listings",
+                "text": (
+                    "Always verify the exact card, set, language, condition, photos, seller history and shipping. A cheap Charizard can be damaged, non-English, misidentified, fake or simply priced fairly for its condition. "
+                    "The bot can help surface the listing and the app can provide deal signals, but buyers still need to compare the item with recent market data. "
+                    "That is especially important for Charizard because small differences in version and condition can change value dramatically."
+                ),
+            },
+            {
+                "title": "Automatic SEO with real marketplace data",
+                "text": (
+                    "Instead of writing a static article and letting it go stale, this page connects to the live listing table. When the bot finds new Charizard listings that match the page intent, the public deal section can refresh and the sitemap can expose a newer lastmod date. "
+                    "That gives the page useful freshness while keeping the route fixed, canonical and focused."
+                ),
+            },
+        ],
+        "filters": {"keywords": ["charizard"], "max_price_eur": 100, "mode": "recent"},
+        "deal_section_title": "Live Charizard listings under 100 EUR",
+        "empty_state": "No Charizard listings under 100 EUR are available in the public snapshot right now. The section updates as new matching listings arrive.",
+        "related": ["best-pokemon-deals-today", "pokemon-card-deals", "charizard-deals", "cheap-pokemon-cards-eu"],
+    },
+    "cheap-pokemon-cards-eu": {
+        "title": "Cheap Pokemon Cards EU | Live Deals from Vinted and eBay",
+        "meta_description": "Find cheap Pokemon cards in the EU with live listing data from Vinted, eBay and European marketplace monitoring.",
+        "h1": "Cheap Pokemon Cards EU",
+        "intro": (
+            "Cheap Pokemon cards in the EU can come from casual sellers, local-language listings, mixed lots and fast-moving marketplace posts. "
+            "This dynamic page uses the bot's listing data to show a public preview of affordable Pokemon card opportunities from European sources when available. "
+            "It is built for people searching for cheap, real-time and EU-focused Pokemon TCG deals without creating thousands of low-value pages."
+        ),
+        "sections": [
+            {
+                "title": "Where to find cheap Pokemon cards in Europe",
+                "text": (
+                    "Vinted, eBay and regional marketplaces can all contain cheap Pokemon cards, but the listings are not always easy to compare. Titles may be incomplete, photos may show several cards, and sellers may use local terms instead of exact English card names. "
+                    "The bot scans and stores fresh listings so the app can surface cards, lots, sealed products and graded slabs faster than manual searching. "
+                    "This page turns that stream into a small public SEO snapshot."
+                ),
+            },
+            {
+                "title": "Cheap is not always a deal",
+                "text": (
+                    "A low price is only useful when the item, condition and shipping still make sense. Some cheap cards are damaged, common, heavily played or expensive to ship. Others are genuinely underpriced because the seller wants a quick sale or does not know the market. "
+                    "Real-time discovery helps you inspect more opportunities earlier, but the final decision should include condition, language, authenticity, seller feedback and recent comparable prices."
+                ),
+            },
+            {
+                "title": "Built for high-value SEO pages",
+                "text": (
+                    "This route is intentionally broad but still focused: cheap Pokemon cards, EU marketplaces and live deal discovery. "
+                    "The content is updated from real bot data, the canonical URL stays on tcgsniperdeals.com, and the sitemap can refresh when matching listings appear. "
+                    "That gives the page a stronger reason to exist than a generic article with no live marketplace context."
+                ),
+            },
+        ],
+        "filters": {"region": "eu", "max_price_eur": 35, "mode": "recent"},
+        "deal_section_title": "Live cheap Pokemon card deals in the EU",
+        "empty_state": "No cheap EU Pokemon card listings are available in the public snapshot right now. The page updates automatically when the bot finds matching deals.",
+        "related": ["top-pokemon-deals-eu", "pokemon-deals-today", "cheap-pokemon-cards", "vinted-pokemon-deals"],
+    },
 }
 
 

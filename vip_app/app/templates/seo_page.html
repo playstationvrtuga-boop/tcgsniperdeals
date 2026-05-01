@@ -60,6 +60,45 @@
     {% endfor %}
   </section>
 
+  {% if page.is_dynamic %}
+  <section class="seo-live-deals" aria-labelledby="seo-live-deals-title">
+    <div class="seo-live-deals-header">
+      <div>
+        <span class="pill">Updated from listings</span>
+        <h2 id="seo-live-deals-title">{{ page.deal_section_title }}</h2>
+      </div>
+      <a class="ghost-button" href="{{ app_url }}">Homepage</a>
+    </div>
+    {% if page.listings %}
+    <div class="listing-grid seo-listing-grid">
+      {% set public_preview = true %}
+      {% set page_mode = "smart" %}
+      {% set favorite_ids = [] %}
+      {% for listing in page.listings %}
+        {% include "partials/listing_card.html" %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <h2>No matching live deals yet</h2>
+      <p>{{ page.empty_state }}</p>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="seo-faq" aria-labelledby="seo-faq-title">
+    <h2 id="seo-faq-title">FAQs</h2>
+    <div class="seo-faq-grid">
+      {% for faq in page.faqs %}
+      <article class="seo-faq-item">
+        <h3>{{ faq.question }}</h3>
+        <p>{{ faq.answer }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
   <section class="seo-related">
     <h2>Explore more pages</h2>
     <div class="seo-related-grid">
