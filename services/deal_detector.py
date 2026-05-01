@@ -376,6 +376,9 @@ def _same_card_identity(original_title: str, candidate_title: str) -> bool:
     candidate_numbers = _identity_card_numbers(candidate_title, candidate)
     if original_numbers and candidate_numbers and original_numbers.isdisjoint(candidate_numbers):
         return False
+    shared_numbers = original_numbers & candidate_numbers
+    if original_name and candidate_name and any("/" in number for number in shared_numbers):
+        return True
     original_set = original.set_code or original.set_name
     candidate_set = candidate.set_code or candidate.set_name
     if original_set and candidate_set and original_set != candidate_set:

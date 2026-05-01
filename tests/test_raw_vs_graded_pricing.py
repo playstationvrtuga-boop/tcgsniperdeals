@@ -77,6 +77,15 @@ class RawVsGradedPricingTests(unittest.TestCase):
                     deal_detector.is_comparable_ebay_result("graded_card", 10.0, ebay_title)
                 )
 
+    def test_raw_comparable_accepts_same_full_number_with_localized_set_text(self):
+        result = deal_detector.is_comparable_listing(
+            "Rayquaza Vmax - EB7 217/203 - Evolution Celeste - Carte Pokemon",
+            "RAYQUAZA VMAX RAINBOW - POKEMON 217/203 EB7 CELESTIAL EVOLUTION NEW FR",
+            "raw_card",
+        )
+
+        self.assertEqual(result, (True, "accepted"))
+
     def test_psa_10_leading_grade_does_not_become_card_number(self):
         listing_type = deal_detector.detect_listing_market_type("Charizard BRS 174 PSA 10")
 
