@@ -105,6 +105,8 @@ def env_int(name, default, minimum=1):
 ENABLE_ONE_PIECE = False
 MAX_VINTED_PER_CYCLE = 8
 MAX_EBAY_CANDIDATES_PER_CYCLE = 6
+EBAY_SEEN_TTL_HOURS = env_int("EBAY_SEEN_TTL_HOURS", 12)
+MAX_EBAY_SEEN_ITEMS = env_int("MAX_EBAY_SEEN_ITEMS", 2000, minimum=100)
 MAX_OLX = 0 if not OLX_ENABLED else 8
 MAX_EBAY = MAX_EBAY_CANDIDATES_PER_CYCLE
 EBAY_MAX_CANDIDATES_PER_QUERY = MAX_EBAY_CANDIDATES_PER_CYCLE
@@ -807,14 +809,96 @@ def enviar_status_anuncio_app(anuncio, status):
 # ---------------- UTIL ----------------
 
 def extrair_id(link):
+    ebay_item_id = extrair_ebay_item_id(link)
+    if ebay_item_id:
+        return ebay_item_id
+
     match = re.search(r"/items/(\d+)|/ID([A-Za-z0-9]+)|/itm/(\d+)", link)
     if match:
         return match.group(1) or match.group(2) or match.group(3)
     return link
 
 
+def extrair_ebay_item_id(link):
+    if not link:
+        return None
+
+    try:
+        parts = urlsplit(link)
+    except Exception:
+        parts = None
+
+    path = parts.path if parts else str(link)
+    patterns = [
+        r"/itm/(?:[^/?#]+/)?(\d{9,20})(?:[/?#]|$)",
+        r"/itm/(\d{9,20})(?:[/?#]|$)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, path)
+        if match:
+            return match.group(1)
+
+    if parts:
+        query_item_ids = parse_qs(parts.query).get("item")
+        if query_item_ids and re.fullmatch(r"\d{9,20}", query_item_ids[0] or ""):
+            return query_item_ids[0]
+
+    return None
+
+
+def ebay_seen_id_from_link(link):
+    item_id = extrair_ebay_item_id(link)
+    return f"ebay_{item_id}" if item_id else None
+
+
 def limpar_link(link):
     return link.split("?")[0].strip()
+
+
+def _parse_seen_timestamp(value):
+    if not value:
+        return None
+    try:
+        cleaned = value.strip().replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(cleaned)
+    except Exception:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _parse_seen_line(line):
+    raw = (line or "").strip()
+    if not raw:
+        return None, None, raw
+
+    if "\t" in raw:
+        item_id, timestamp = raw.split("\t", 1)
+    elif raw.startswith("ebay_") and "|" in raw:
+        item_id, timestamp = raw.split("|", 1)
+    else:
+        item_id, timestamp = raw, None
+
+    return item_id.strip(), _parse_seen_timestamp(timestamp), raw
+
+
+def _seen_line_is_active(item_id, seen_at):
+    if not item_id:
+        return False
+    if not item_id.startswith("ebay_"):
+        return True
+    if seen_at is None:
+        return False
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=EBAY_SEEN_TTL_HOURS)
+    return seen_at >= cutoff
+
+
+def _format_seen_line(id_item):
+    if (id_item or "").startswith("ebay_"):
+        timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        return f"{id_item}\t{timestamp}"
+    return id_item
 
 
 def write_json_atomically(path, data):
@@ -824,21 +908,31 @@ def write_json_atomically(path, data):
     os.replace(temp_path, path)
 
 
-def compactar_ficheiro_linhas(path, max_lines, drop_prefixes=None):
+def compactar_ficheiro_linhas(path, max_lines, drop_prefixes=None, expire_ebay_seen=False):
     if not os.path.exists(path):
         return
 
     try:
         drop_prefixes = tuple(drop_prefixes or [])
+        kept_lines = []
+        ebay_lines = deque(maxlen=MAX_EBAY_SEEN_ITEMS)
         with open(path, "r", encoding="utf-8") as f:
-            ultimas = deque(
-                (
-                    linha.strip()
-                    for linha in f
-                    if linha.strip() and not any(linha.strip().startswith(prefix) for prefix in drop_prefixes)
-                ),
-                maxlen=max_lines,
-            )
+            for linha in f:
+                raw = linha.strip()
+                if not raw:
+                    continue
+                item_id, seen_at, raw = _parse_seen_line(raw)
+                if not item_id or any(item_id.startswith(prefix) for prefix in drop_prefixes):
+                    continue
+                if expire_ebay_seen and not _seen_line_is_active(item_id, seen_at):
+                    continue
+                if expire_ebay_seen and item_id.startswith("ebay_"):
+                    ebay_lines.append(raw)
+                else:
+                    kept_lines.append(raw)
+
+        linhas_ativas = kept_lines + list(ebay_lines)
+        ultimas = deque(linhas_ativas, maxlen=max_lines)
 
         with open(path, "w", encoding="utf-8") as f:
             for linha in ultimas:
@@ -867,23 +961,27 @@ def carregar_vistos():
     if EBAY_DEBUG_IGNORE_MAIN_VISTOS:
         drop_prefixes.append("ebay_")
 
+    ultimos = deque(maxlen=MAX_VISTOS_ITEMS)
     with open(FICHEIRO_VISTOS, "r", encoding="utf-8") as f:
-        ultimos = deque(
-            (
-                l.strip()
-                for l in f
-                if l.strip() and not any(l.strip().startswith(prefix) for prefix in drop_prefixes)
-            ),
-            maxlen=MAX_VISTOS_ITEMS,
-        )
-        return set(ultimos)
+        for line in f:
+            item_id, seen_at, _raw = _parse_seen_line(line)
+            if not item_id or any(item_id.startswith(prefix) for prefix in drop_prefixes):
+                continue
+            if not _seen_line_is_active(item_id, seen_at):
+                if item_id.startswith("ebay_"):
+                    print(f"[SEEN_CACHE_EXPIRED] item_id={item_id} ttl_hours={EBAY_SEEN_TTL_HOURS}")
+                continue
+            ultimos.append(item_id)
+    return set(ultimos)
 
 
 def guardar_visto(id_item):
     if not OLX_ENABLED and (id_item or "").startswith("olx_"):
         return
+    if (id_item or "").startswith("ebay_"):
+        print(f"[SEEN_CACHE_WRITE] item_id={id_item} ttl_hours={EBAY_SEEN_TTL_HOURS}")
     with open(FICHEIRO_VISTOS, "a", encoding="utf-8") as f:
-        f.write(id_item + "\n")
+        f.write(_format_seen_line(id_item) + "\n")
 
 
 def carregar_vistos_ebay_debug():
@@ -903,13 +1001,15 @@ def guardar_visto_ebay_debug(id_item):
 def mark_seen_after_app_delivery(anuncio, app_result):
     item_id = anuncio.get("id") if isinstance(anuncio, dict) else None
     app_status = (app_result or {}).get("status")
-    if not item_id or app_status not in {"inserted", "duplicate"}:
+    source = (anuncio.get("source") or "").lower() if isinstance(anuncio, dict) else ""
+    successful_statuses = {"inserted"} if source == "ebay" else {"inserted", "duplicate"}
+    if not item_id or app_status not in successful_statuses:
         print(f"[SEEN_SKIPPED] id={item_id} app_status={app_status}")
         return False
 
     guardar_visto(item_id)
     if (
-        (anuncio.get("source") or "").lower() == "ebay"
+        source == "ebay"
         and EBAY_DEBUG_MODE
         and EBAY_DEBUG_IGNORE_MAIN_VISTOS
     ):
@@ -5236,7 +5336,7 @@ def obter_ebay_links(page, vistos=None, diag=None):
 
     print(ebay_allocation_log_line())
     candidatos_por_categoria = {category: [] for category in EBAY_ALLOCATION_ORDER}
-    seen_candidate_links = set()
+    seen_candidate_item_ids = set()
     vistos = vistos or set()
     seletores = [
         'a[href*="/itm/"]',
@@ -5315,7 +5415,18 @@ def obter_ebay_links(page, vistos=None, diag=None):
                         )
                         continue
 
-                    id_item = f"ebay_{extrair_id(href)}"
+                    id_item = ebay_seen_id_from_link(href)
+                    if not id_item:
+                        diag_count(query_diag, "rejected")
+                        diag_record_ebay_rejection(
+                            query_diag,
+                            "parse_error",
+                            title=texto_card,
+                            stage="search_result",
+                            detail="missing_ebay_item_id",
+                        )
+                        continue
+
                     auction_signals = ebay_search_auction_signals(texto_card)
                     if auction_signals:
                         diag_count(query_diag, "excluded")
@@ -5336,6 +5447,10 @@ def obter_ebay_links(page, vistos=None, diag=None):
                     diag_count(query_diag, "parsed")
                     if id_item in vistos:
                         diag_count(query_diag, "skipped_seen")
+                        print(
+                            f"[EBAY_SEEN_SKIP] item_id={id_item} stage=search_result "
+                            f"title=\"{texto_card[:LOG_TITLE_MAX_CHARS]}\""
+                        )
                         diag_record_ebay_rejection(
                             query_diag,
                             "already_seen",
@@ -5359,8 +5474,8 @@ def obter_ebay_links(page, vistos=None, diag=None):
                         )
                         continue
 
-                    if href not in seen_candidate_links:
-                        seen_candidate_links.add(href)
+                    if id_item not in seen_candidate_item_ids:
+                        seen_candidate_item_ids.add(id_item)
                         candidate = {
                             "link": href,
                             "search_title": texto_card.strip(),
@@ -5899,7 +6014,23 @@ def procurar_anuncios(processar_ebay=True, diag=None):
                     })
                     continue
 
-                id_item = f"ebay_{extrair_id(link)}"
+                id_item = ebay_seen_id_from_link(link)
+                if not id_item:
+                    diag_count(query_diag, "rejected")
+                    diag_record_ebay_rejection(
+                        query_diag,
+                        "parse_error",
+                        title=ebay_candidate.get("search_title"),
+                        stage="candidate",
+                        detail="missing_ebay_item_id",
+                    )
+                    log_ebay_debug({
+                        "final_status": "EBAY_INVALID_ITEM_ID",
+                        "url": link,
+                        "title": ebay_candidate.get("search_title"),
+                    })
+                    continue
+
                 debug_data = {
                     "item_id": id_item,
                     "title": ebay_candidate.get("search_title"),
@@ -5930,6 +6061,10 @@ def procurar_anuncios(processar_ebay=True, diag=None):
                 duplicate_in_main = id_item in vistos
                 if duplicate_in_main:
                     diag_count(query_diag, "skipped_seen")
+                    print(
+                        f"[EBAY_SEEN_SKIP] item_id={id_item} stage=candidate "
+                        f"title=\"{(debug_data.get('title') or '')[:LOG_TITLE_MAX_CHARS]}\""
+                    )
                     diag_record_ebay_rejection(
                         query_diag,
                         "already_seen",
@@ -6244,7 +6379,12 @@ def main():
     vistos_drop_prefixes = ["olx_"] if not OLX_ENABLED else []
     if EBAY_DEBUG_IGNORE_MAIN_VISTOS:
         vistos_drop_prefixes.append("ebay_")
-    compactar_ficheiro_linhas(FICHEIRO_VISTOS, MAX_VISTOS_ITEMS, drop_prefixes=vistos_drop_prefixes)
+    compactar_ficheiro_linhas(
+        FICHEIRO_VISTOS,
+        MAX_VISTOS_ITEMS,
+        drop_prefixes=vistos_drop_prefixes,
+        expire_ebay_seen=True,
+    )
     compactar_ficheiro_linhas(FICHEIRO_VISTOS_EBAY_DEBUG, MAX_VISTOS_EBAY_DEBUG_ITEMS)
     if FREE_LANDING_ONLY:
         guardar_fila_free([])
