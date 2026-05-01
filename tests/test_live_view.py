@@ -10,6 +10,25 @@ from vip_app.app.extensions import db
 from vip_app.app.models import Listing, utcnow
 
 
+SAFE_MARKET_STATUS_MESSAGES = (
+    "New listing detected",
+    "Market watch active",
+    "Tracking live listings",
+    "Price movement spotted",
+    "Fresh item in the feed",
+)
+
+FORBIDDEN_TEMPLATE_WORDS = (
+    "buy",
+    "deal",
+    "profit",
+    "cheap",
+    "under market",
+    "flip",
+    "snipe",
+)
+
+
 class LiveViewTests(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -71,14 +90,32 @@ class LiveViewTests(unittest.TestCase):
         self.assertIn("Charizard ex live alert", body)
         self.assertIn("data-live-view-card", body)
         self.assertIn("grid-template-rows: 70svh 30svh", body)
+        self.assertIn("image-slow-drift", body)
+        self.assertIn("price-soft-pulse", body)
+        self.assertIn("live-indicator", body)
+        self.assertIn("data-market-status", body)
+        self.assertIn("compactAgo", body)
         self.assertIn("https://cdn.example.com/card.jpg", body)
         self.assertNotIn("https://seller.example/listing/live-buy-now", body)
         self.assertNotIn("external_url", body)
         self.assertNotIn('"url"', body)
         self.assertNotIn("href=", body)
-        self.assertNotIn("Buy", body)
         self.assertNotIn("topbar", body)
         self.assertNotIn("bottom-nav", body)
+
+    def test_live_view_template_contains_safe_motion_copy_only(self):
+        self._listing()
+
+        response = self.client.get("/live-view")
+        body = response.get_data(as_text=True)
+        normalized_body = body.lower()
+
+        self.assertEqual(response.status_code, 200)
+        for message in SAFE_MARKET_STATUS_MESSAGES:
+            self.assertIn(message, body)
+
+        for word in FORBIDDEN_TEMPLATE_WORDS:
+            self.assertNotIn(word, normalized_body)
 
     def test_live_view_json_returns_safe_latest_available_listing_without_login(self):
         older = self._listing(title="Older live listing", detected_at=utcnow() - timedelta(minutes=3))

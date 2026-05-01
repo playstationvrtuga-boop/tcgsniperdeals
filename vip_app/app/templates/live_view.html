@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#02040a">
-  <title>Live View - TCG Sniper Deals</title>
+  <title>Live Market Watch</title>
   <style>
     :root {
       color-scheme: dark;
@@ -61,6 +61,36 @@
       filter: blur(7px);
     }
 
+    .live-indicator {
+      position: absolute;
+      z-index: 4;
+      top: max(22px, env(safe-area-inset-top));
+      right: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 17px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      background: rgba(2, 4, 10, 0.72);
+      color: #ffffff;
+      font-size: 22px;
+      line-height: 1;
+      font-weight: 950;
+      letter-spacing: 0;
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(16px);
+    }
+
+    .live-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: #ff3b64;
+      box-shadow: 0 0 18px rgba(255, 59, 100, 0.72);
+      animation: live-dot-breathe 2.2s ease-in-out infinite;
+    }
+
     .image-stage {
       height: 70svh;
       padding: 34px 46px 18px;
@@ -115,6 +145,12 @@
       object-fit: contain;
       display: block;
       filter: drop-shadow(0 24px 42px rgba(0, 0, 0, 0.55));
+      transform-origin: center;
+      animation: image-slow-drift 11s ease-out both;
+    }
+
+    .listing-image.is-resetting {
+      animation: none;
     }
 
     .image-fallback {
@@ -132,7 +168,7 @@
       background: linear-gradient(135deg, rgba(49, 245, 255, 0.14), rgba(255, 228, 92, 0.1));
     }
 
-    .deal-badge {
+    .signal-badge {
       position: absolute;
       top: 28px;
       left: 28px;
@@ -150,17 +186,17 @@
       text-shadow: 0 0 22px rgba(255, 255, 255, 0.24);
     }
 
-    .deal-badge.is-visible {
+    .signal-badge.is-visible {
       display: inline-flex;
     }
 
-    .deal-badge.is-high {
+    .signal-badge.is-high {
       color: var(--hot);
       border-color: rgba(55, 255, 155, 0.72);
       box-shadow: 0 0 28px rgba(55, 255, 155, 0.32);
     }
 
-    .deal-badge.is-insane {
+    .signal-badge.is-insane {
       color: #ffffff;
       border-color: rgba(255, 79, 216, 0.82);
       box-shadow: 0 0 36px rgba(255, 79, 216, 0.42);
@@ -204,6 +240,11 @@
       text-shadow:
         0 0 22px rgba(255, 228, 92, 0.42),
         0 8px 34px rgba(0, 0, 0, 0.78);
+      animation: price-soft-pulse 2.8s ease-in-out infinite;
+    }
+
+    .listing-price.is-resetting {
+      animation: none;
     }
 
     .listing-meta {
@@ -215,7 +256,6 @@
       font-size: 34px;
       line-height: 1.18;
       font-weight: 800;
-      text-transform: uppercase;
       letter-spacing: 0;
     }
 
@@ -231,6 +271,21 @@
       background: var(--price);
       box-shadow: 0 0 18px rgba(255, 228, 92, 0.5);
       flex: 0 0 auto;
+    }
+
+    .status-line {
+      min-height: 40px;
+      color: rgba(255, 255, 255, 0.82);
+      font-size: 30px;
+      line-height: 1.15;
+      font-weight: 850;
+      letter-spacing: 0;
+      transition: opacity 260ms ease, transform 260ms ease;
+    }
+
+    .status-line.is-changing {
+      opacity: 0;
+      transform: translateY(8px);
     }
 
     .empty-state {
@@ -283,11 +338,23 @@
         font-size: 20px;
       }
 
-      .deal-badge {
+      .signal-badge {
         top: 16px;
         left: 16px;
         padding: 10px 15px;
         font-size: 20px;
+      }
+
+      .live-indicator {
+        top: max(14px, env(safe-area-inset-top));
+        right: 16px;
+        padding: 9px 13px;
+        font-size: 15px;
+      }
+
+      .status-line {
+        min-height: 26px;
+        font-size: 16px;
       }
 
       .image-fallback {
@@ -307,11 +374,61 @@
       .listing-meta {
         font-size: 24px;
       }
+
+      .status-line {
+        font-size: 22px;
+      }
+    }
+
+    @keyframes image-slow-drift {
+      from {
+        transform: scale(1) translate3d(0, 0, 0);
+      }
+
+      to {
+        transform: scale(1.055) translate3d(0, -1.2%, 0);
+      }
+    }
+
+    @keyframes price-soft-pulse {
+      0%,
+      100% {
+        text-shadow:
+          0 0 18px rgba(255, 228, 92, 0.34),
+          0 8px 34px rgba(0, 0, 0, 0.78);
+      }
+
+      50% {
+        text-shadow:
+          0 0 30px rgba(255, 228, 92, 0.6),
+          0 0 58px rgba(255, 228, 92, 0.22),
+          0 8px 34px rgba(0, 0, 0, 0.78);
+      }
+    }
+
+    @keyframes live-dot-breathe {
+      0%,
+      100% {
+        opacity: 0.62;
+        transform: scale(0.82);
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1.12);
+      }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .live-view-card {
+      .live-view-card,
+      .status-line {
         transition: none;
+      }
+
+      .listing-image,
+      .listing-price,
+      .live-dot {
+        animation: none;
       }
     }
   </style>
@@ -320,11 +437,15 @@
   {% if listings_payload %}
   <main class="live-view-stage" aria-label="TikTok live listing view">
     <article class="live-view-card" data-live-view-card>
+      <div class="live-indicator" aria-label="Live status">
+        <span class="live-dot" aria-hidden="true"></span>
+        <span>LIVE</span>
+      </div>
       <section class="image-stage" aria-label="Listing image">
         <div class="image-shell" data-image-shell>
           <img class="listing-image" data-listing-image alt="">
           <div class="image-fallback" data-image-fallback>Image incoming</div>
-          <div class="deal-badge" data-deal-badge></div>
+          <div class="signal-badge" data-signal-badge></div>
         </div>
       </section>
       <section class="listing-info" aria-label="Listing details">
@@ -335,6 +456,7 @@
           <span class="meta-dot" aria-hidden="true"></span>
           <span data-listing-detected></span>
         </div>
+        <div class="status-line" data-market-status>New listing detected</div>
       </section>
     </article>
   </main>
@@ -366,13 +488,22 @@
       const imageShell = document.querySelector("[data-image-shell]");
       const image = document.querySelector("[data-listing-image]");
       const imageFallback = document.querySelector("[data-image-fallback]");
-      const badge = document.querySelector("[data-deal-badge]");
+      const badge = document.querySelector("[data-signal-badge]");
       const title = document.querySelector("[data-listing-title]");
       const price = document.querySelector("[data-listing-price]");
       const platform = document.querySelector("[data-listing-platform]");
       const detected = document.querySelector("[data-listing-detected]");
+      const marketStatus = document.querySelector("[data-market-status]");
+      const marketMessages = [
+        "New listing detected",
+        "Market watch active",
+        "Tracking live listings",
+        "Price movement spotted",
+        "Fresh item in the feed"
+      ];
 
       let currentIndex = 0;
+      let marketMessageIndex = 0;
       let rotationTimer = null;
       let currentListing = null;
 
@@ -388,9 +519,38 @@
         return Math.max(Math.floor((Date.now() - detectedAt) / 1000), 0);
       }
 
+      function compactAgo(input) {
+        const seconds = secondsAgo(input);
+        if (seconds < 60) return seconds + "s ago";
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return minutes + "m ago";
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return hours + "h ago";
+        return Math.floor(hours / 24) + "d ago";
+      }
+
       function updateDetectedLabel() {
         if (!currentListing || !detected) return;
-        detected.textContent = "detected " + secondsAgo(currentListing.detected_at).toLocaleString() + " seconds ago";
+        detected.textContent = compactAgo(currentListing.detected_at);
+      }
+
+      function resetMotion() {
+        image.classList.add("is-resetting");
+        price.classList.add("is-resetting");
+        void image.offsetWidth;
+        void price.offsetWidth;
+        image.classList.remove("is-resetting");
+        price.classList.remove("is-resetting");
+      }
+
+      function rotateMarketMessage() {
+        if (!marketStatus) return;
+        marketMessageIndex = (marketMessageIndex + 1) % marketMessages.length;
+        marketStatus.classList.add("is-changing");
+        window.setTimeout(function () {
+          marketStatus.textContent = marketMessages[marketMessageIndex];
+          marketStatus.classList.remove("is-changing");
+        }, 260);
       }
 
       function normalizeListing(item) {
@@ -440,11 +600,12 @@
           platform.textContent = currentListing.platform;
           updateDetectedLabel();
           setImage(currentListing.image_url, currentListing.title);
+          resetMotion();
 
           const level = currentListing.score_label;
           imageShell.classList.toggle("is-hot", level === "HIGH");
           imageShell.classList.toggle("is-insane", level === "INSANE");
-          badge.className = "deal-badge";
+          badge.className = "signal-badge";
           badge.textContent = "";
           if (level === "HIGH" || level === "INSANE") {
             badge.textContent = level;
@@ -519,6 +680,7 @@
       if (!listings.length) return;
       renderListing(listings[0], false);
       scheduleRotation();
+      window.setInterval(rotateMarketMessage, 5000 + Math.floor(Math.random() * 2000));
       window.setInterval(updateDetectedLabel, 1000);
       window.setInterval(refreshListings, Math.max(Number(config.refreshIntervalMs || 10000), 5000));
     })();
