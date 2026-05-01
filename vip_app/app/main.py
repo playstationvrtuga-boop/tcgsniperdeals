@@ -1043,9 +1043,20 @@ def render_deals_board(
     )
 
 
-def get_android_apk_path():
+def get_android_apk_candidates():
     project_root = Path(__file__).resolve().parents[2]
-    return project_root / "vip_app_mobile" / "android" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
+    return [
+        project_root / "release" / "TCG-Sniper-Deals-Android.apk",
+        project_root / "vip_app_mobile" / "android" / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk",
+    ]
+
+
+def get_android_apk_path():
+    candidates = get_android_apk_candidates()
+    for apk_path in candidates:
+        if apk_path.exists():
+            return apk_path
+    return candidates[0]
 
 
 def get_android_apk_download():
