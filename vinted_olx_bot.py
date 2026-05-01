@@ -27,6 +27,7 @@ from services.ebay_affiliate import build_ebay_affiliate_url
 from services.ebay_sold_client import EbaySoldError, EbaySoldRateLimitError
 from services.free_cta import build_free_cta_block, record_free_cta_sent, should_attach_free_cta
 from services.free_promos import schedule_free_promos_every_hour
+from services.image_urls import high_resolution_ebay_image_url
 from services.public_links import build_free_public_listing_url
 from services.wallapop_scraper import (
     fetch_wallapop_listings,
@@ -4316,7 +4317,7 @@ def ebay_search_title_from_card(texto):
 
 def obter_imagem_card_ebay(el):
     try:
-        return el.evaluate(
+        image_url = el.evaluate(
             """element => {
                 const card = element.closest('article, li, div[data-testid], div');
                 const img = card ? card.querySelector('img') : element.querySelector('img');
@@ -4324,6 +4325,7 @@ def obter_imagem_card_ebay(el):
                 return img.currentSrc || img.src || img.getAttribute('data-src') || '';
             }"""
         ) or None
+        return high_resolution_ebay_image_url(image_url)
     except Exception:
         return None
 
@@ -5653,7 +5655,7 @@ def ebay_api_candidate_from_item(item, query, query_category, position):
         "link": link,
         "search_title": title,
         "search_price": price,
-        "image_url": str(getattr(item, "image_url", "") or ""),
+        "image_url": high_resolution_ebay_image_url(str(getattr(item, "image_url", "") or "")),
         "query_url": ebay_api_detection_query_url(query),
         "query_page_url": ebay_api_detection_query_url(query),
         "allocation_category": allocation_category,

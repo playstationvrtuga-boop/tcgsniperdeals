@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from services.image_urls import high_resolution_listing_image_url
+
 
 def _coerce_datetime(value):
     if not value:
@@ -78,6 +80,7 @@ def urgency_hint(value):
 def register_template_filters(app):
     filters = {
         "datetime_format": datetime_format,
+        "high_res_listing_image": high_resolution_listing_image_url,
         "relative_time": relative_time,
         "urgency_hint": urgency_hint,
     }

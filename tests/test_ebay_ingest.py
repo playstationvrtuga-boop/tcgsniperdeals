@@ -83,6 +83,16 @@ class EbayIngestTests(unittest.TestCase):
         self.assertEqual(listing.price_display, "US $149.99")
         self.assertEqual(Listing.query.count(), 1)
 
+    def test_ebay_ingest_upgrades_thumbnail_image_url(self):
+        response = self._post_listing(
+            "2026-05-01T18:00:00+00:00",
+            image_url="https://i.ebayimg.com/images/g/example/s-l225.jpg",
+        )
+        listing = Listing.query.filter_by(external_id="ebay_123456789012").one()
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(listing.image_url, "https://i.ebayimg.com/images/g/example/s-l1600.jpg")
+
 
 if __name__ == "__main__":
     unittest.main()

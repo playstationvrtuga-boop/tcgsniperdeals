@@ -8,6 +8,7 @@ from flask_login import current_user
 
 from services.pokemon_title_parser import detect_card_language, detect_pokemon_set
 from services.ebay_api_client import ebay_api_client
+from services.image_urls import high_resolution_listing_image_url
 from .extensions import db
 from .feed_cache import invalidate
 from .models import Listing
@@ -251,12 +252,14 @@ def build_listing_from_payload(payload):
         set_info.get("confidence") or "unknown",
     )
 
+    image_url = high_resolution_listing_image_url(str(payload.get("image_url") or "").strip())
+
     listing = Listing(
         source=source,
         external_id=external_id,
         external_url=external_url,
         normalized_url=normalized_url or external_url,
-        image_url=str(payload.get("image_url") or "").strip() or None,
+        image_url=image_url or None,
         title=title,
         price_display=price_display,
         platform=platform,
@@ -340,7 +343,7 @@ def refresh_existing_ebay_listing(existing, payload):
     title = str(pick_first(payload, "title", default=existing.title or "")).strip()
     price_display = str(pick_first(payload, "price_display", "price", default=existing.price_display or "")).strip()
     external_url = str(pick_first(payload, "external_url", "url", default=existing.external_url or "")).strip()
-    image_url = str(payload.get("image_url") or "").strip()
+    image_url = high_resolution_listing_image_url(str(payload.get("image_url") or "").strip())
 
     existing.source = "ebay"
     existing.platform = "ebay"

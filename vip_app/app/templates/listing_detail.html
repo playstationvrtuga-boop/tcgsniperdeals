@@ -28,7 +28,7 @@
 <section class="detail-card">
   <div class="detail-image-wrap">
     {% if listing.image_url %}
-    <img src="{{ listing.image_url }}" alt="{{ listing.title }}" class="detail-image">
+    <img src="{{ listing.image_url|high_res_listing_image }}" alt="{{ listing.title }}" class="detail-image">
     {% else %}
     <div class="listing-image placeholder detail-image-placeholder">No image</div>
     {% endif %}
