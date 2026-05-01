@@ -986,6 +986,20 @@ def _has_ebay_market_data_anchor(
         return False
     if listing_type == "sealed_product":
         return bool(_sealed_subtype(title) or _has_set_anchor(signals, identity, title))
+    name = _signal_name(signals, identity, title)
+    has_set = _has_set_anchor(signals, identity, title)
+    if listing_type == "graded_card":
+        return bool(
+            _has_buy_now_identity_anchor(signals)
+            or _has_number_anchor(signals, identity, title)
+            or (name and has_set and _extract_grade(title) is not None and _has_graded_signal(title))
+        )
+    if listing_type == "raw_card":
+        return bool(
+            _has_buy_now_identity_anchor(signals)
+            or _has_number_anchor(signals, identity, title)
+            or (name and has_set and getattr(signals, "variant", None))
+        )
     return bool(_has_buy_now_identity_anchor(signals) or _has_number_anchor(signals, identity, title))
 
 
@@ -1026,7 +1040,7 @@ def _ebay_buy_now_market_data_block_reason(
         return "false_positive_risk"
     if not _has_ebay_market_data_anchor(title, listing_type, identity, signals):
         return "no_market_anchor"
-    if any(_is_generic_buy_now_query(query) for query in pricing_queries):
+    if pricing_queries and all(_is_generic_buy_now_query(query) for query in pricing_queries):
         return "generic_query"
     return None
 
@@ -1040,9 +1054,7 @@ def _buy_now_skip_reason(
     allow_low_confidence_market_data: bool = False,
 ) -> str | None:
     if allow_low_confidence_market_data:
-        if not _has_buy_now_identity_anchor(signals):
-            return "generic_or_low_confidence"
-        if any(_is_generic_buy_now_query(query) for query in pricing_queries):
+        if pricing_queries and all(_is_generic_buy_now_query(query) for query in pricing_queries):
             return "generic_or_low_confidence"
         return None
     if _confidence_rank(identity.confidence) < _confidence_rank("MEDIUM"):
@@ -1471,7 +1483,11 @@ def evaluate_listing(listing) -> DealResult:
     if not title:
         return DealResult(status="skipped", reason="missing_title")
 
-    print(f"[PRICING_TYPE] listing_id={listing_id} type={listing_type} title={title[:160]}", flush=True)
+    print(
+        f"[PRICING_TYPE] listing_id={listing_id} type={listing_type} "
+        f"marketplace={_listing_marketplace(listing) or 'unknown'} title={title[:160]}",
+        flush=True,
+    )
     if strong_identity:
         print(
             f"[PRICING_STRONG_ID] listing_id={listing_id} type={listing_type} "

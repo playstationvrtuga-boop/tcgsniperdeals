@@ -155,6 +155,33 @@ class BuyNowReferenceTests(unittest.TestCase):
         self.assertEqual(result.buy_now_count, 3)
         self.assertLess(result.confidence_score, 60)
 
+    def test_ebay_graded_name_set_grade_can_fetch_buy_now_without_number(self):
+        sold_calls = []
+        buy_now_calls = []
+
+        def sold_zero(*_args, **_kwargs):
+            sold_calls.append("sold")
+            return []
+
+        def buy_now_refs(*_args, **_kwargs):
+            buy_now_calls.append("buy_now")
+            return [
+                EbaySoldListing("Lance's Charizard Celebrations PSA 8", 30.0),
+                EbaySoldListing("Pokemon Celebrations Lance's Charizard PSA 8", 32.0),
+            ]
+
+        deal_detector.fetch_recent_comparables = sold_zero
+        deal_detector.fetch_active_buy_now_comparables = buy_now_refs
+
+        result = deal_detector.evaluate_listing(
+            self.listing("Pokemon Lance's Charizard Celebrations PSA 8", "US $12.00", platform="ebay")
+        )
+
+        self.assertTrue(sold_calls)
+        self.assertTrue(buy_now_calls)
+        self.assertEqual(result.pricing_basis, "buy_now")
+        self.assertEqual(result.buy_now_count, 2)
+
     def test_limited_buy_now_comparables_still_price_with_lower_confidence(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
         deal_detector.fetch_active_buy_now_comparables = lambda *_args, **_kwargs: [
