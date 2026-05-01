@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#02040a">
+  <title>Live View - TCG Sniper Deals</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #02040a;
+      --text: #ffffff;
+      --muted: #c9d3e6;
+      --price: #ffe45c;
+      --accent: #31f5ff;
+      --hot: #37ff9b;
+      --insane: #ff4fd8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, #07101e 0%, var(--bg) 52%, #03060d 100%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100svh;
+    }
+
+    .live-view-stage {
+      width: 100%;
+      min-height: 100svh;
+      display: flex;
+      justify-content: center;
+      background: rgba(2, 4, 10, 0.42);
+    }
+
+    .live-view-card {
+      position: relative;
+      width: min(100%, 1080px);
+      height: 100svh;
+      display: grid;
+      grid-template-rows: 70svh 30svh;
+      isolation: isolate;
+      opacity: 1;
+      transition: opacity 360ms ease, transform 360ms ease, filter 360ms ease;
+    }
+
+    .live-view-card.is-fading {
+      opacity: 0;
+      transform: translateY(16px) scale(0.992);
+      filter: blur(7px);
+    }
+
+    .image-stage {
+      height: 70svh;
+      padding: 34px 46px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .image-shell {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(255, 255, 255, 0.14);
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.035);
+      box-shadow: 0 34px 110px rgba(0, 0, 0, 0.68);
+      overflow: hidden;
+    }
+
+    .image-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      pointer-events: none;
+    }
+
+    .image-shell.is-hot {
+      border-color: rgba(55, 255, 155, 0.58);
+      box-shadow:
+        0 0 42px rgba(55, 255, 155, 0.34),
+        0 34px 110px rgba(0, 0, 0, 0.7);
+    }
+
+    .image-shell.is-insane {
+      border-color: rgba(255, 79, 216, 0.7);
+      box-shadow:
+        0 0 54px rgba(255, 79, 216, 0.45),
+        0 0 90px rgba(49, 245, 255, 0.22),
+        0 34px 110px rgba(0, 0, 0, 0.72);
+    }
+
+    .listing-image {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      display: block;
+      filter: drop-shadow(0 24px 42px rgba(0, 0, 0, 0.55));
+    }
+
+    .image-fallback {
+      width: 100%;
+      height: 100%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 50px;
+      color: #ffffff;
+      font-size: 60px;
+      font-weight: 900;
+      text-align: center;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, rgba(49, 245, 255, 0.14), rgba(255, 228, 92, 0.1));
+    }
+
+    .deal-badge {
+      position: absolute;
+      top: 28px;
+      left: 28px;
+      display: none;
+      padding: 16px 24px;
+      border: 2px solid rgba(255, 255, 255, 0.34);
+      border-radius: 999px;
+      background: rgba(2, 4, 10, 0.8);
+      color: #ffffff;
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 1000;
+      letter-spacing: 0;
+      text-transform: uppercase;
+      text-shadow: 0 0 22px rgba(255, 255, 255, 0.24);
+    }
+
+    .deal-badge.is-visible {
+      display: inline-flex;
+    }
+
+    .deal-badge.is-high {
+      color: var(--hot);
+      border-color: rgba(55, 255, 155, 0.72);
+      box-shadow: 0 0 28px rgba(55, 255, 155, 0.32);
+    }
+
+    .deal-badge.is-insane {
+      color: #ffffff;
+      border-color: rgba(255, 79, 216, 0.82);
+      box-shadow: 0 0 36px rgba(255, 79, 216, 0.42);
+      background: rgba(84, 14, 78, 0.82);
+    }
+
+    .listing-info {
+      min-height: 0;
+      padding: 0 58px 52px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+      text-align: center;
+    }
+
+    .listing-title {
+      margin: 0;
+      color: #ffffff;
+      font-size: 64px;
+      line-height: 1.04;
+      font-weight: 950;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+      text-wrap: balance;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-shadow: 0 4px 24px rgba(0, 0, 0, 0.58);
+    }
+
+    .listing-price {
+      margin: 0;
+      color: var(--price);
+      font-size: 132px;
+      line-height: 0.92;
+      font-weight: 1000;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+      text-shadow:
+        0 0 22px rgba(255, 228, 92, 0.42),
+        0 8px 34px rgba(0, 0, 0, 0.78);
+    }
+
+    .listing-meta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      color: var(--muted);
+      font-size: 34px;
+      line-height: 1.18;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .listing-meta strong {
+      color: var(--accent);
+      font-weight: 950;
+    }
+
+    .meta-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--price);
+      box-shadow: 0 0 18px rgba(255, 228, 92, 0.5);
+      flex: 0 0 auto;
+    }
+
+    .empty-state {
+      width: min(100%, 1080px);
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      padding: 70px;
+      text-align: center;
+    }
+
+    .empty-state h1 {
+      margin: 0 0 20px;
+      font-size: 76px;
+      line-height: 1;
+    }
+
+    .empty-state p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 36px;
+      line-height: 1.25;
+      font-weight: 800;
+    }
+
+    @media (max-width: 700px) {
+      .image-stage {
+        padding: 20px 18px 10px;
+      }
+
+      .image-shell {
+        border-radius: 20px;
+      }
+
+      .listing-info {
+        padding: 0 22px 30px;
+        gap: 12px;
+      }
+
+      .listing-title {
+        font-size: 40px;
+      }
+
+      .listing-price {
+        font-size: 76px;
+      }
+
+      .listing-meta {
+        gap: 10px;
+        font-size: 20px;
+      }
+
+      .deal-badge {
+        top: 16px;
+        left: 16px;
+        padding: 10px 15px;
+        font-size: 20px;
+      }
+
+      .image-fallback {
+        font-size: 36px;
+      }
+    }
+
+    @media (max-height: 900px) {
+      .listing-title {
+        font-size: 44px;
+      }
+
+      .listing-price {
+        font-size: 86px;
+      }
+
+      .listing-meta {
+        font-size: 24px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .live-view-card {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  {% if listings_payload %}
+  <main class="live-view-stage" aria-label="TikTok live listing view">
+    <article class="live-view-card" data-live-view-card>
+      <section class="image-stage" aria-label="Listing image">
+        <div class="image-shell" data-image-shell>
+          <img class="listing-image" data-listing-image alt="">
+          <div class="image-fallback" data-image-fallback>Image incoming</div>
+          <div class="deal-badge" data-deal-badge></div>
+        </div>
+      </section>
+      <section class="listing-info" aria-label="Listing details">
+        <h1 class="listing-title" data-listing-title></h1>
+        <p class="listing-price" data-listing-price></p>
+        <div class="listing-meta">
+          <strong data-listing-platform></strong>
+          <span class="meta-dot" aria-hidden="true"></span>
+          <span data-listing-detected></span>
+        </div>
+      </section>
+    </article>
+  </main>
+  {% else %}
+  <main class="empty-state">
+    <div>
+      <h1>Live feed warming up</h1>
+      <p>New listings will appear here as soon as the bot detects them.</p>
+    </div>
+  </main>
+  {% endif %}
+
+  <script>
+    window.__LIVE_VIEW_LISTINGS__ = {{ listings_payload|tojson }};
+    window.__LIVE_VIEW_CONFIG__ = {
+      refreshUrl: {{ refresh_url|tojson }},
+      rotationMinMs: {{ rotation_min_ms|tojson }},
+      rotationMaxMs: {{ rotation_max_ms|tojson }},
+      refreshIntervalMs: {{ refresh_interval_ms|tojson }}
+    };
+  </script>
+  <script>
+    (function () {
+      const config = window.__LIVE_VIEW_CONFIG__ || {};
+      let listings = Array.isArray(window.__LIVE_VIEW_LISTINGS__) ? window.__LIVE_VIEW_LISTINGS__ : [];
+      const card = document.querySelector("[data-live-view-card]");
+      if (!card || !listings.length) return;
+
+      const imageShell = document.querySelector("[data-image-shell]");
+      const image = document.querySelector("[data-listing-image]");
+      const imageFallback = document.querySelector("[data-image-fallback]");
+      const badge = document.querySelector("[data-deal-badge]");
+      const title = document.querySelector("[data-listing-title]");
+      const price = document.querySelector("[data-listing-price]");
+      const platform = document.querySelector("[data-listing-platform]");
+      const detected = document.querySelector("[data-listing-detected]");
+
+      let currentIndex = 0;
+      let rotationTimer = null;
+      let currentListing = null;
+
+      function randomDelay() {
+        const min = Number(config.rotationMinMs || 5000);
+        const max = Number(config.rotationMaxMs || 8000);
+        return Math.floor(min + Math.random() * Math.max(max - min, 1));
+      }
+
+      function secondsAgo(input) {
+        const detectedAt = Date.parse(input || "");
+        if (!Number.isFinite(detectedAt)) return 0;
+        return Math.max(Math.floor((Date.now() - detectedAt) / 1000), 0);
+      }
+
+      function updateDetectedLabel() {
+        if (!currentListing || !detected) return;
+        detected.textContent = "detected " + secondsAgo(currentListing.detected_at).toLocaleString() + " seconds ago";
+      }
+
+      function normalizeListing(item) {
+        const normalized = {
+          title: String(item.title || "New listing detected"),
+          price: String(item.price || "Price incoming"),
+          platform: String(item.platform || "Marketplace"),
+          image_url: String(item.image_url || ""),
+          detected_at: String(item.detected_at || ""),
+          score_label: String(item.score_label || "").toUpperCase()
+        };
+        normalized.key = [
+          normalized.detected_at,
+          normalized.platform,
+          normalized.title,
+          normalized.price,
+          normalized.image_url
+        ].join("|");
+        return normalized;
+      }
+
+      function setImage(src, alt) {
+        imageFallback.style.display = "none";
+        image.style.display = "block";
+        image.removeAttribute("src");
+        image.alt = alt;
+
+        if (!src) {
+          image.style.display = "none";
+          imageFallback.style.display = "flex";
+          return;
+        }
+
+        image.onerror = function () {
+          image.style.display = "none";
+          imageFallback.style.display = "flex";
+        };
+        image.src = src;
+      }
+
+      function renderListing(item, withTransition) {
+        currentListing = normalizeListing(item);
+
+        const apply = function () {
+          title.textContent = currentListing.title;
+          price.textContent = currentListing.price;
+          platform.textContent = currentListing.platform;
+          updateDetectedLabel();
+          setImage(currentListing.image_url, currentListing.title);
+
+          const level = currentListing.score_label;
+          imageShell.classList.toggle("is-hot", level === "HIGH");
+          imageShell.classList.toggle("is-insane", level === "INSANE");
+          badge.className = "deal-badge";
+          badge.textContent = "";
+          if (level === "HIGH" || level === "INSANE") {
+            badge.textContent = level;
+            badge.classList.add("is-visible", level === "HIGH" ? "is-high" : "is-insane");
+          }
+        };
+
+        if (!withTransition) {
+          apply();
+          return;
+        }
+
+        card.classList.add("is-fading");
+        window.setTimeout(function () {
+          apply();
+          window.requestAnimationFrame(function () {
+            card.classList.remove("is-fading");
+          });
+        }, 260);
+      }
+
+      function rotate() {
+        if (listings.length > 1) {
+          currentIndex = (currentIndex + 1) % listings.length;
+          renderListing(listings[currentIndex], true);
+        }
+        scheduleRotation();
+      }
+
+      function scheduleRotation() {
+        if (rotationTimer) window.clearTimeout(rotationTimer);
+        rotationTimer = window.setTimeout(rotate, randomDelay());
+      }
+
+      async function refreshListings() {
+        if (!config.refreshUrl) return;
+        try {
+          const response = await fetch(config.refreshUrl, {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" }
+          });
+          if (!response.ok) return;
+
+          const payload = await response.json();
+          const nextListings = Array.isArray(payload.listings) ? payload.listings.map(normalizeListing) : [];
+          if (!nextListings.length) return;
+
+          const previousKey = currentListing ? currentListing.key : "";
+          const newestKey = nextListings[0].key;
+          listings = nextListings;
+
+          if (newestKey && newestKey !== previousKey) {
+            currentIndex = 0;
+            renderListing(listings[0], true);
+            scheduleRotation();
+            return;
+          }
+
+          const previousIndex = listings.findIndex(function (item) {
+            return item.key === previousKey;
+          });
+          currentIndex = previousIndex >= 0 ? previousIndex : 0;
+        } catch (error) {
+          console.debug("Live view refresh skipped:", error);
+        }
+      }
+
+      listings = listings.map(normalizeListing).filter(function (item) {
+        return item.key;
+      });
+
+      if (!listings.length) return;
+      renderListing(listings[0], false);
+      scheduleRotation();
+      window.setInterval(updateDetectedLabel, 1000);
+      window.setInterval(refreshListings, Math.max(Number(config.refreshIntervalMs || 10000), 5000));
+    })();
+  </script>
+</body>
+</html>
