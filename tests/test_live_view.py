@@ -11,11 +11,20 @@ from vip_app.app.models import Listing, utcnow
 
 
 SAFE_MARKET_STATUS_MESSAGES = (
-    "New listing detected",
+    "This just appeared \U0001f440",
+    "Noticed this one",
+    "Watching this listing",
+    "Seen similar before",
+    "Let's see the next one",
+    "Feed is moving",
+    "New activity detected",
+)
+
+SAFE_ACTIVITY_MESSAGES = (
+    "Feed updating...",
+    "Monitoring listings",
+    "New activity detected",
     "Market watch active",
-    "Tracking live listings",
-    "Price movement spotted",
-    "Fresh item in the feed",
 )
 
 FORBIDDEN_TEMPLATE_WORDS = (
@@ -94,6 +103,7 @@ class LiveViewTests(unittest.TestCase):
         self.assertIn("price-soft-pulse", body)
         self.assertIn("live-indicator", body)
         self.assertIn("data-market-status", body)
+        self.assertIn("data-activity-overlay", body)
         self.assertIn("compactAgo", body)
         self.assertIn("https://cdn.example.com/card.jpg", body)
         self.assertNotIn("https://seller.example/listing/live-buy-now", body)
@@ -112,6 +122,9 @@ class LiveViewTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         for message in SAFE_MARKET_STATUS_MESSAGES:
+            self.assertIn(message, body)
+
+        for message in SAFE_ACTIVITY_MESSAGES:
             self.assertIn(message, body)
 
         for word in FORBIDDEN_TEMPLATE_WORDS:
