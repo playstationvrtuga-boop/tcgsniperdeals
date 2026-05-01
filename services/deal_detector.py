@@ -824,6 +824,18 @@ def _has_buy_now_identity_anchor(signals) -> bool:
     )
 
 
+def _listing_marketplace(listing) -> str:
+    return str(
+        getattr(listing, "platform", None)
+        or getattr(listing, "source", None)
+        or ""
+    ).strip().lower()
+
+
+def _is_ebay_pricing_listing(listing) -> bool:
+    return _listing_marketplace(listing) == "ebay"
+
+
 def _signal_name(signals, identity: ParsedListingIdentity, title: str) -> str | None:
     return (
         getattr(signals, "pokemon_name", None)
@@ -964,13 +976,54 @@ def _is_generic_buy_now_query(query: str) -> bool:
     return False
 
 
+def _has_ebay_market_data_anchor(
+    title: str,
+    listing_type: str | None,
+    identity: ParsedListingIdentity,
+    signals,
+) -> bool:
+    if listing_type in {"unknown", "lot_bundle"}:
+        return False
+    if listing_type == "sealed_product":
+        return bool(_sealed_subtype(title) or _has_set_anchor(signals, identity, title))
+    return bool(_has_buy_now_identity_anchor(signals) or _has_number_anchor(signals, identity, title))
+
+
+def _allow_ebay_buy_now_market_data(
+    *,
+    listing,
+    title: str,
+    listing_type: str | None,
+    identity: ParsedListingIdentity,
+    signals,
+    pricing_queries: list[str],
+    false_positive_risk: bool,
+) -> bool:
+    if not _is_ebay_pricing_listing(listing):
+        return False
+    if false_positive_risk:
+        return False
+    if not _has_ebay_market_data_anchor(title, listing_type, identity, signals):
+        return False
+    if any(_is_generic_buy_now_query(query) for query in pricing_queries):
+        return False
+    return True
+
+
 def _buy_now_skip_reason(
     *,
     identity: ParsedListingIdentity,
     signals,
     listing_price: float,
     pricing_queries: list[str],
+    allow_low_confidence_market_data: bool = False,
 ) -> str | None:
+    if allow_low_confidence_market_data:
+        if not _has_buy_now_identity_anchor(signals):
+            return "generic_or_low_confidence"
+        if any(_is_generic_buy_now_query(query) for query in pricing_queries):
+            return "generic_or_low_confidence"
+        return None
     if _confidence_rank(identity.confidence) < _confidence_rank("MEDIUM"):
         return "generic_or_low_confidence"
     if not _has_buy_now_identity_anchor(signals):
@@ -1454,7 +1507,17 @@ def evaluate_listing(listing) -> DealResult:
             parser_name=identity.extracted_name,
         )
 
-    if not strong_identity:
+    allow_ebay_market_data = _allow_ebay_buy_now_market_data(
+        listing=listing,
+        title=title,
+        listing_type=listing_type,
+        identity=identity,
+        signals=signals,
+        pricing_queries=pricing_queries,
+        false_positive_risk=false_positive_risk,
+    )
+
+    if not strong_identity and not allow_ebay_market_data:
         weak_reason = "PRICING_WEAK_ID_NEEDS_REVIEW"
         if false_positive_risk:
             weak_reason = f"{weak_reason}; PRICING_SKIPPED_SNIPER_FALSE_POSITIVE_RISK"
@@ -1475,6 +1538,12 @@ def evaluate_listing(listing) -> DealResult:
             parser_query=pricing_query,
             parser_queries=pricing_queries,
             parser_name=identity.extracted_name,
+        )
+    if not strong_identity and allow_ebay_market_data:
+        print(
+            f"[PRICING_WEAK_ID_MARKET_DATA_ALLOWED] listing_id={listing_id} "
+            f"type={listing_type} confidence={identity.confidence} source=ebay",
+            flush=True,
         )
 
     pause_remaining = _ebay_pause_remaining()
@@ -1543,6 +1612,7 @@ def evaluate_listing(listing) -> DealResult:
             signals=signals,
             listing_price=listing_price,
             pricing_queries=pricing_queries,
+            allow_low_confidence_market_data=allow_ebay_market_data,
         )
         if buy_now_skipped_reason:
             print(

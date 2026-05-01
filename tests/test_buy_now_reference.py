@@ -22,8 +22,8 @@ class BuyNowReferenceTests(unittest.TestCase):
         deal_detector._EBAY_RATE_LIMIT_STRIKES = self.original_rate_limit_strikes
         price_cache.clear()
 
-    def listing(self, title="Charizard PFL 125/094", price="70,00 EUR"):
-        return SimpleNamespace(title=title, price_display=price)
+    def listing(self, title="Charizard PFL 125/094", price="70,00 EUR", platform=None):
+        return SimpleNamespace(title=title, price_display=price, platform=platform, source=platform)
 
     def test_sold_reference_has_priority_over_lower_buy_now(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: [
@@ -125,6 +125,35 @@ class BuyNowReferenceTests(unittest.TestCase):
         )
 
         self.assertEqual(reason, "generic_or_low_confidence")
+
+    def test_ebay_low_confidence_listing_can_fetch_buy_now_market_data(self):
+        sold_calls = []
+        buy_now_calls = []
+
+        def sold_zero(*_args, **_kwargs):
+            sold_calls.append("sold")
+            return []
+
+        def buy_now_refs(*_args, **_kwargs):
+            buy_now_calls.append("buy_now")
+            return [
+                EbaySoldListing("Pokemon Mega Evolution #84", 5.0),
+                EbaySoldListing("Pokemon Mega Evolution 84", 6.0),
+                EbaySoldListing("Pokemon Mega Evolution card 84", 7.0),
+            ]
+
+        deal_detector.fetch_recent_comparables = sold_zero
+        deal_detector.fetch_active_buy_now_comparables = buy_now_refs
+
+        result = deal_detector.evaluate_listing(
+            self.listing("Pokémon Mega Evolution #84", "US $1.00", platform="ebay")
+        )
+
+        self.assertTrue(sold_calls)
+        self.assertTrue(buy_now_calls)
+        self.assertEqual(result.pricing_basis, "buy_now")
+        self.assertEqual(result.buy_now_count, 3)
+        self.assertLess(result.confidence_score, 60)
 
     def test_limited_buy_now_comparables_still_price_with_lower_confidence(self):
         deal_detector.fetch_recent_comparables = lambda *_args, **_kwargs: []
