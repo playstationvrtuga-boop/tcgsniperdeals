@@ -2916,6 +2916,36 @@ select { font: inherit; }
   line-height: 1.7;
 }
 
+.seo-freshness {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 10px;
+  margin: 16px 0 0;
+}
+
+.seo-freshness div {
+  min-width: 0;
+  padding: 12px;
+  background: rgba(6, 11, 18, 0.44);
+  border: 1px solid rgba(53, 224, 255, 0.12);
+  border-radius: var(--radius-md);
+}
+
+.seo-freshness dt {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.seo-freshness dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .seo-cta-row {
   display: flex;
   flex-wrap: wrap;

@@ -228,7 +228,7 @@ DYNAMIC_SEO_PAGES = {
 
 SEO_HOME_CONTENT = {
     "eyebrow": "Pokemon TCG deal tracking",
-    "title": "Real-time Pokemon TCG deals from eBay and Vinted",
+    "title": "Explore Live Pok\u00e9mon Deals",
     "text": (
         "TCG Sniper Deals tracks fresh Pokemon TCG listings from marketplaces like eBay and Vinted, then turns the stream into a faster way to spot cards, sealed products and underpriced opportunities. "
         "The public website shows how the system works, while VIP access unlocks the live app experience with real-time alerts, direct listing links and a cleaner view of the strongest opportunities. "
@@ -261,57 +261,127 @@ SEO_HOME_CONTENT = {
         },
     ],
     "links": [
-        ("Pokemon deals today", "main.seo_page_pokemon_deals_today"),
-        ("Charizard deals under 100", "main.seo_page_charizard_deals_under_100"),
-        ("Cheap Pokemon cards EU", "main.seo_page_cheap_pokemon_cards_eu"),
-        ("Pokemon deals", "main.seo_page_pokemon_deals"),
-        ("Pokemon card deals", "main.seo_page_pokemon_card_deals"),
-        ("Charizard deals", "main.seo_page_charizard_deals"),
-        ("ETB deals", "main.seo_page_etb_deals"),
-        ("Booster box deals", "main.seo_page_booster_box_deals"),
-        ("Vinted Pokemon deals", "main.seo_page_vinted_pokemon_deals"),
-        ("eBay Pokemon deals", "main.seo_page_ebay_pokemon_deals"),
+        ("Pok\u00e9mon Deals EU", "main.seo_page_pokemon_deals"),
+        ("Pok\u00e9mon Deals Today", "main.seo_page_pokemon_deals_today"),
+        ("Best Pok\u00e9mon Deals Today", "main.seo_page_best_pokemon_deals_today"),
+        ("Top Pok\u00e9mon Deals EU", "main.seo_page_top_pokemon_deals_eu"),
+        ("Charizard Deals Under \u20ac100", "main.seo_page_charizard_deals_under_100"),
+        ("Cheap Pok\u00e9mon Cards EU", "main.seo_page_cheap_pokemon_cards_eu"),
+        ("Pok\u00e9mon ETB Deals", "main.seo_page_etb_deals"),
+        ("Pok\u00e9mon Booster Box Deals", "main.seo_page_booster_box_deals"),
     ],
 }
 
 
 SEO_PAGES = {
     "pokemon-deals": {
-        "title": "Real-Time Pokemon TCG Deals | TCG Sniper Deals",
-        "meta_description": "Find real-time Pokemon TCG deals, Charizard cards, ETBs, booster boxes, slabs and sealed products from eBay and Vinted.",
-        "h1": "Real-Time Pokemon TCG Deals",
+        "title": "Pok\u00e9mon Deals EU \u2013 Live Cheap Pok\u00e9mon Cards, Booster Boxes & Charizard Deals",
+        "meta_description": "Track live Pok\u00e9mon deals across Europe. Find cheap cards, Charizard deals, ETBs and booster boxes from Vinted and eBay in real time.",
+        "h1": "Pok\u00e9mon Deals EU \u2013 Live Pok\u00e9mon Card Deals, Booster Boxes & Charizard Finds",
         "intro": (
-            "TCG Sniper Deals helps collectors and resellers discover Pokemon TCG opportunities faster. "
-            "The app monitors listings from marketplaces like eBay and Vinted, then surfaces new Pokemon cards, booster boxes, Elite Trainer Boxes, sealed products, graded slabs and collection bundles in a live stream. "
-            "The goal is not to replace research. It is to reduce the time between a listing appearing and a serious buyer seeing it."
+            "Finding strong Pokemon deals in Europe is mostly a timing problem. Good listings on Vinted, eBay, Wallapop and other marketplaces can appear with incomplete titles, local-language descriptions, mixed photos or prices that are only attractive for a few minutes. "
+            "This page is the main TCG Sniper Deals guide for European Pokemon TCG buyers who want a clearer way to monitor cheap cards, Charizard finds, booster boxes, ETBs, graded slabs and collection lots. "
+            "It combines evergreen buying guidance with a live public snapshot from the bot, so the page is useful for search visitors and still reflects what the marketplace is doing right now."
         ),
         "sections": [
             {
-                "title": "Why speed matters in Pokemon deals",
+                "title": "Finding Pokemon deals in Europe",
                 "text": (
-                    "The strongest Pokemon TCG deals usually do not stay available for long. Charizard cards, vintage singles, booster boxes, ETBs and sealed Pokemon products can sell within minutes when a seller lists them below normal market value. "
-                    "A slow manual search means checking the same marketplace pages again and again, often after someone else has already bought the listing. "
-                    "TCG Sniper Deals focuses on real-time detection, clear source labels, images, prices and direct listing access so VIP users can react while the opportunity is still live."
+                    "European Pokemon deals are spread across several marketplaces, languages and seller habits. One seller may describe a card in English, another may use Portuguese, French or Spanish, and another may upload a binder photo with almost no product detail. "
+                    "That makes manual searching slow and uneven. A buyer looking only for exact English keywords can miss a cheap card, while another buyer refreshing too late may only see sold or reserved listings. "
+                    "The best starting point is to watch broad marketplace signals, then review the item carefully: title, photos, price, shipping, condition, language and seller history. A deal is not just the lowest price. It is the right item, at the right condition, with enough trust and timing to make the purchase worth considering."
                 ),
             },
             {
-                "title": "What the system tracks",
+                "title": "Vinted Pokemon deals",
                 "text": (
-                    "The live feed is built around practical Pokemon TCG searches: single cards, graded PSA slabs, Beckett and CGC cards, booster packs, booster boxes, Elite Trainer Boxes, tins, collection boxes, lots and sealed products. "
-                    "It can surface listings from eBay and Vinted when the bot detects titles, images and marketplace signals that look relevant to Pokemon collectors or resellers. "
-                    "Deals are never guaranteed, and marketplace availability can change quickly, but faster discovery gives users a better chance to inspect and act."
+                    "Vinted is one of the most interesting places to find cheap Pokemon cards in the EU because many sellers are casual collectors rather than specialist card shops. "
+                    "That can create useful opportunities, especially in mixed lots, binder clear-outs, older cards, modern hits and sealed products listed without perfect market research. "
+                    "The challenge is that Vinted listings can be messy. Titles may be short, photos may show several cards, and sellers may not mention the exact set, language or condition. "
+                    "A fast alert is only the first step. Before buying, check every photo, ask for extra details when needed, confirm shipping, and remember that a cheap card can still be a poor buy if the condition or language is not what you expected."
                 ),
             },
             {
-                "title": "VIP alerts and free previews",
+                "title": "eBay Pokemon deals",
                 "text": (
-                    "The paid VIP app is where the full real-time stream lives. VIP users get direct links, live cards, saved opportunities and stronger pricing signals when available. "
-                    "The free Telegram channel is intentionally limited and works as a public preview, not a replacement for the app. "
-                    "If you collect, resell or flip Pokemon cards, this difference matters because the value is often in seeing the listing before the wider market catches up."
+                    "eBay has more volume, more competition and often better comparable data than smaller marketplaces. That makes it useful for Pokemon card deals, booster boxes, graded slabs and sealed products, but it also means good Buy It Now listings can be found quickly by other buyers. "
+                    "For eBay, the important signals are price, seller feedback, shipping region, photos, listing format and whether the title matches the actual item. "
+                    "A listing may look cheap until shipping is included, or it may look expensive until you notice the set, grade or language. "
+                    "TCG Sniper Deals helps by keeping fresh eBay listings in the same review flow as EU marketplace listings, so buyers can compare opportunities without constantly jumping between searches."
+                ),
+            },
+            {
+                "title": "Charizard deals and high-demand cards",
+                "text": (
+                    "Charizard deals deserve their own attention because demand is high and small details change value quickly. A modern Charizard ex, a vintage base-era card, a promo, a PSA slab and a damaged binder copy are all different markets. "
+                    "Searchers often want Charizard deals under 100 EUR, but the price alone is not enough. You still need to confirm the exact version, set, language, grade, condition and authenticity. "
+                    "Fast discovery matters because affordable Charizard listings can disappear quickly, especially when a casual seller lists below the usual market level. "
+                    "The role of the bot is to surface the candidate listing early; the role of the buyer is to verify whether it is actually the right card at the right price."
+                ),
+            },
+            {
+                "title": "Cheap Pokemon cards without chasing bad deals",
+                "text": (
+                    "Cheap Pokemon cards are attractive, but cheap is not the same as undervalued. Some low-price cards are common, damaged, heavily played, non-English, reprints or simply not in demand. "
+                    "The better opportunities often come from listings where the seller has under-described a card, bundled several cards together, or priced a product for a quick sale without checking the broader market. "
+                    "A good workflow is to use real-time discovery to see listings earlier, then compare condition, recent sale prices, shipping and seller trust before deciding. "
+                    "This is especially important in Europe, where language and local shipping can make two similar listings very different in practical value."
+                ),
+            },
+            {
+                "title": "Booster boxes, ETBs and sealed products",
+                "text": (
+                    "Sealed Pokemon products such as booster boxes, Elite Trainer Boxes, collection boxes, tins and blister packs can move quickly when the price is below the expected range. "
+                    "Collectors may want sealed items for display or long-term storage, while resellers may look for a spread between local listing price and broader demand. "
+                    "The main checks are box condition, seal quality, set, language, included contents and shipping cost. "
+                    "ETBs and booster boxes are easier to compare than random card lots, but they also attract more watchers. A live feed helps buyers spot new sealed listings quickly, then inspect whether the product is genuine, complete and priced well enough to justify action."
+                ),
+            },
+            {
+                "title": "How TCG Sniper Deals uses real-time data",
+                "text": (
+                    "TCG Sniper Deals is built around live marketplace monitoring rather than static product pages. The bot stores fresh listings with details such as title, platform, detected time, image, price display, listing type and pricing signals when available. "
+                    "Public SEO pages use a small curated slice of that data so Google and visitors can see that the site is connected to real marketplace movement. "
+                    "VIP users get the faster, fuller app experience with direct listing access and a cleaner stream of opportunities. "
+                    "The public page remains useful as a research hub: it explains how to think about Pokemon deals in Europe, links to focused pages for today, Charizard and cheap EU cards, and shows a limited live preview without exposing the whole paid feed."
                 ),
             },
         ],
-        "related": ["pokemon-card-deals", "charizard-deals", "etb-deals", "booster-box-deals", "vinted-pokemon-deals", "ebay-pokemon-deals"],
+        "faqs": [
+            {
+                "question": "Where can I find Pokemon deals in Europe?",
+                "answer": "The most useful sources are usually Vinted, eBay, Wallapop and other regional marketplaces. Good opportunities can appear in fresh listings, mixed lots, casual seller posts and sealed product listings that are priced below normal market expectations.",
+            },
+            {
+                "question": "Are cheap Pokemon cards always worth buying?",
+                "answer": "No. Cheap cards can be damaged, common, misidentified, expensive to ship or priced fairly for their condition. A good deal needs the right card, condition, language, seller trust and total cost.",
+            },
+            {
+                "question": "How do I check a Charizard deal under 100 EUR?",
+                "answer": "Confirm the exact card version, set, language, condition, photos, seller feedback and shipping cost. Charizard prices vary heavily by version and condition, so a low price needs careful verification.",
+            },
+            {
+                "question": "Are booster boxes and ETBs good Pokemon deals?",
+                "answer": "They can be, especially when sealed products are listed below market value. Check the set, seal, box condition, language, contents and shipping before treating a sealed product as a strong opportunity.",
+            },
+            {
+                "question": "How does TCG Sniper Deals keep this page fresh?",
+                "answer": "The page reads a limited public snapshot from the same listing database used by the bot. New detected listings can update the live preview, freshness signals and sitemap lastmod without manual page edits.",
+            },
+        ],
+        "filters": {"mode": "best"},
+        "show_live_listings": True,
+        "deal_section_title": "Live Pokemon deals from the bot",
+        "empty_state": "No public Pokemon deals are available right now. The live preview updates as the bot detects new listings.",
+        "related": [
+            "pokemon-deals-today",
+            "best-pokemon-deals-today",
+            "top-pokemon-deals-eu",
+            "charizard-deals-under-100",
+            "cheap-pokemon-cards-eu",
+            "ebay-pokemon-deals",
+            "vinted-pokemon-deals",
+        ],
     },
     "pokemon-card-deals": {
         "title": "Pokemon Card Deals | Real-Time Card Alerts",

@@ -1,7 +1,9 @@
 import os
+import re
 import tempfile
 import unittest
 from datetime import datetime, timezone
+from html import escape
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -9,7 +11,7 @@ from vip_app.app import create_app
 from vip_app.app.config import Config
 from vip_app.app.extensions import db
 from vip_app.app.models import Listing
-from vip_app.app.seo_content import DYNAMIC_SEO_PAGES
+from vip_app.app.seo_content import DYNAMIC_SEO_PAGES, SEO_PAGES
 
 
 OFFICIAL_URL = "https://tcgsniperdeals.com"
@@ -85,6 +87,10 @@ class DynamicSeoPagesTests(unittest.TestCase):
         self.assertIn("<h1>Charizard Deals Under 100</h1>", body)
         self.assertIn(f'<link rel="canonical" href="{OFFICIAL_URL}/charizard-deals-under-100">', body)
         self.assertIn(f'<meta property="og:url" content="{OFFICIAL_URL}/charizard-deals-under-100">', body)
+        self.assertIn("Last updated", body)
+        self.assertIn("Live deals tracked", body)
+        self.assertIn("Platforms tracked", body)
+        self.assertIn("Related Pok&eacute;mon Deal Pages", body)
         self.assertIn("Charizard ex Pokemon card under 100", body)
         self.assertNotIn("Charizard PSA 10 premium listing", body)
         self.assertIn("Where to find cheap Pokemon cards?", body)
@@ -117,20 +123,55 @@ class DynamicSeoPagesTests(unittest.TestCase):
         body = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
+        self.assertIn("Explore Live Pok\u00e9mon Deals", body)
+        self.assertIn('href="/pokemon-deals"', body)
         self.assertIn('href="/pokemon-deals-today"', body)
+        self.assertIn('href="/best-pokemon-deals-today"', body)
+        self.assertIn('href="/top-pokemon-deals-eu"', body)
         self.assertIn('href="/charizard-deals-under-100"', body)
         self.assertIn('href="/cheap-pokemon-cards-eu"', body)
+        self.assertIn('href="/etb-deals"', body)
+        self.assertIn('href="/booster-box-deals"', body)
 
     def test_seo_pages_include_related_internal_links(self):
         response = self.client.get("/top-pokemon-deals-eu")
         body = response.get_data(as_text=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Related Pokemon Deals", body)
+        self.assertIn("Related Pok&eacute;mon Deal Pages", body)
         self.assertIn('href="/"', body)
         self.assertIn('href="/pokemon-deals"', body)
-        self.assertIn('href="/charizard-deals"', body)
+        self.assertIn('href="/pokemon-deals-today"', body)
+        self.assertIn('href="/charizard-deals-under-100"', body)
         self.assertIn('href="/cheap-pokemon-cards-eu"', body)
+        self.assertIn('href="/top-pokemon-deals-eu"', body)
+
+    def test_pokemon_deals_anchor_page_is_strong_and_dynamic(self):
+        self._listing(title="Pokemon booster box deal", price_display="75,00 EUR", listing_type="sealed_product")
+
+        response = self.client.get("/pokemon-deals")
+        body = response.get_data(as_text=True)
+        visible_text = re.sub(r"<[^>]+>", " ", body)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Pok\u00e9mon Deals EU \u2013 Live Pok\u00e9mon Card Deals, Booster Boxes &amp; Charizard Finds", body)
+        self.assertIn(f'<link rel="canonical" href="{OFFICIAL_URL}/pokemon-deals">', body)
+        self.assertIn(escape(SEO_PAGES["pokemon-deals"]["title"]), body)
+        self.assertIn(escape(SEO_PAGES["pokemon-deals"]["meta_description"]), body)
+        self.assertGreaterEqual(len(re.findall(r"\b\w+\b", visible_text)), 800)
+        for path in (
+            "/pokemon-deals-today",
+            "/best-pokemon-deals-today",
+            "/top-pokemon-deals-eu",
+            "/charizard-deals-under-100",
+            "/cheap-pokemon-cards-eu",
+            "/ebay-pokemon-deals",
+            "/vinted-pokemon-deals",
+        ):
+            self.assertIn(f'href="{path}"', body)
+        self.assertIn("Pokemon booster box deal", body)
+        self.assertIn("Last updated", body)
+        self.assertIn("Live deals tracked", body)
 
     def test_dynamic_seo_titles_and_meta_descriptions_are_ctr_ready(self):
         titles = [page["title"] for page in DYNAMIC_SEO_PAGES.values()]

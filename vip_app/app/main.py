@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import datetime, timezone
 import os
 import re
@@ -379,6 +380,26 @@ def seo_page_data(slug):
 
 def _seo_related_pages(data, slug):
     pages = seo_page_catalog()
+    if slug in DYNAMIC_SEO_PAGES:
+        fixed_slugs = [
+            "pokemon-deals",
+            "pokemon-deals-today",
+            "charizard-deals-under-100",
+            "cheap-pokemon-cards-eu",
+            "top-pokemon-deals-eu",
+        ]
+        related_pages = [{"slug": "", "label": "TCG Sniper Deals homepage", "url": "/"}]
+        related_pages.extend(
+            {
+                "slug": related_slug,
+                "label": pages[related_slug]["h1"],
+                "url": f"/{related_slug}",
+            }
+            for related_slug in fixed_slugs
+            if related_slug in pages
+        )
+        return related_pages[:10]
+
     related_pages = []
     seen_urls = set()
 
@@ -456,11 +477,11 @@ def _dynamic_seo_query(filters):
     return query.order_by(Listing.detected_at.desc(), Listing.id.desc())
 
 
-def dynamic_seo_listings(data, limit=9):
+def _seo_listing_candidates(data, limit=40):
     filters = data.get("filters", {})
     try:
         max_price = filters.get("max_price_eur")
-        fetch_limit = max(limit * 8, 40) if max_price is not None else limit
+        fetch_limit = max(limit * 3, 40) if max_price is not None else limit
         candidates = _dynamic_seo_query(filters).limit(fetch_limit).all()
     except Exception as error:
         current_app.logger.info("[dynamic_seo] listing_query_failed slug=%s error=%s", data.get("slug", ""), error)
@@ -479,8 +500,62 @@ def dynamic_seo_listings(data, limit=9):
     return listings
 
 
+def dynamic_seo_listings(data, limit=9):
+    return _seo_listing_candidates(data, limit=limit)
+
+
+def _platforms_for_filters(filters):
+    if filters.get("region") == "eu":
+        return ["Vinted", "Wallapop"]
+    return ["Vinted", "eBay", "Wallapop"]
+
+
+def _featured_category_for_listings(listings):
+    category_labels = {
+        "raw_card": "Pokemon cards",
+        "graded_card": "Graded cards",
+        "sealed_product": "Booster boxes and ETBs",
+        "lot_bundle": "Card lots",
+    }
+    values = [
+        (listing.listing_type or listing.category or "").strip().lower()
+        for listing in listings
+        if (listing.listing_type or listing.category or "").strip()
+    ]
+    if not values:
+        return "Pokemon deals"
+    key = Counter(values).most_common(1)[0][0]
+    return category_labels.get(key, key.replace("_", " ").title())
+
+
+def dynamic_seo_snapshot(data, *, listing_limit=9, stats_limit=40):
+    candidates = _seo_listing_candidates(data, limit=max(listing_limit, stats_limit))
+    newest_detected_at = next((listing.detected_at for listing in candidates if listing.detected_at), None)
+    platform_names = sorted(
+        {
+            PLATFORM_LABELS.get((listing.platform or "").strip().lower(), (listing.platform or "").strip())
+            for listing in candidates
+            if (listing.platform or "").strip()
+        }
+    )
+    if not platform_names:
+        platform_names = _platforms_for_filters(data.get("filters", {}))
+
+    count_label = f"{len(candidates)}+" if len(candidates) >= stats_limit else str(len(candidates))
+    return {
+        "listings": candidates[:listing_limit],
+        "stats": {
+            "live_deals_count": count_label,
+            "newest_detected_at": newest_detected_at,
+            "platforms": platform_names,
+            "platforms_label": ", ".join(platform_names),
+            "featured_category": _featured_category_for_listings(candidates),
+        },
+    }
+
+
 def dynamic_seo_lastmod(slug, today):
-    data = dict(DYNAMIC_SEO_PAGES[slug], slug=slug)
+    data = dict(seo_page_data(slug), slug=slug)
     listings = dynamic_seo_listings(data, limit=1)
     if not listings or not listings[0].detected_at:
         return today
@@ -492,6 +567,8 @@ def dynamic_seo_lastmod(slug, today):
 
 def build_seo_page_context(slug):
     data = seo_page_data(slug)
+    snapshot = dynamic_seo_snapshot(dict(data, slug=slug))
+    show_live_listings = bool(data.get("show_live_listings") or slug in DYNAMIC_SEO_PAGES)
     page = {
         "slug": slug,
         "title": data["title"],
@@ -518,13 +595,12 @@ def build_seo_page_context(slug):
             ],
         ),
         "is_dynamic": slug in DYNAMIC_SEO_PAGES,
+        "show_live_listings": show_live_listings,
         "deal_section_title": data.get("deal_section_title", "Live deals from the bot"),
         "empty_state": data.get("empty_state", "No matching public deals are available right now."),
+        "stats": snapshot["stats"],
     }
-    if page["is_dynamic"]:
-        page["listings"] = dynamic_seo_listings(dict(data, slug=slug))
-    else:
-        page["listings"] = []
+    page["listings"] = snapshot["listings"] if show_live_listings else []
     return page
 
 
@@ -571,7 +647,7 @@ def build_sitemap_urls():
         urls.append(
             {
                 "loc": f"{site_root}{path}",
-                "lastmod": dynamic_seo_lastmod(slug, today) if slug in DYNAMIC_SEO_PAGES else today,
+                "lastmod": dynamic_seo_lastmod(slug, today) if slug in seo_page_catalog() else today,
             }
         )
     return urls

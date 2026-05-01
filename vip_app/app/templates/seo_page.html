@@ -21,6 +21,24 @@
     <div class="seo-hero-copy">
       <span class="pill">VIP access</span>
       <h1>{{ page.h1 }}</h1>
+      <dl class="seo-freshness">
+        <div>
+          <dt>Last updated</dt>
+          <dd>{% if page.stats.newest_detected_at %}{{ page.stats.newest_detected_at|relative_time }}{% else %}Updated recently{% endif %}</dd>
+        </div>
+        <div>
+          <dt>Live deals tracked</dt>
+          <dd>{{ page.stats.live_deals_count }}</dd>
+        </div>
+        <div>
+          <dt>Platforms tracked</dt>
+          <dd>{{ page.stats.platforms_label }}</dd>
+        </div>
+        <div>
+          <dt>Featured category</dt>
+          <dd>{{ page.stats.featured_category }}</dd>
+        </div>
+      </dl>
       <p class="seo-intro">{{ page.intro }}</p>
       <p class="seo-intro seo-intro-secondary">
         This public page is designed to help users understand {{ page.h1|lower }} before opening the paid VIP app. Use it as a guide to the types of listings the system watches, then review every live marketplace listing carefully before buying. Prices, seller feedback, shipping, condition, language and marketplace availability can change quickly, so the app focuses on faster discovery while leaving the final buying decision with the user.
@@ -60,7 +78,7 @@
     {% endfor %}
   </section>
 
-  {% if page.is_dynamic %}
+  {% if page.show_live_listings %}
   <section class="seo-live-deals" aria-labelledby="seo-live-deals-title">
     <div class="seo-live-deals-header">
       <div>
@@ -100,7 +118,7 @@
   </section>
 
   <section class="seo-related">
-    <h2>Related Pokemon Deals</h2>
+    <h2>Related Pok&eacute;mon Deal Pages</h2>
     <div class="seo-related-grid">
       {% for related in page.related_pages %}
       <a class="seo-related-card" href="{{ related.url }}">
