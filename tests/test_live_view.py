@@ -27,6 +27,8 @@ SAFE_ACTIVITY_MESSAGES = (
     "Market watch active",
 )
 
+SAFE_SCAN_LABEL = "Live scan active"
+
 FORBIDDEN_TEMPLATE_WORDS = (
     "buy",
     "deal",
@@ -104,6 +106,10 @@ class LiveViewTests(unittest.TestCase):
         self.assertIn("live-indicator", body)
         self.assertIn("data-market-status", body)
         self.assertIn("data-activity-overlay", body)
+        self.assertIn("data-radar-field", body)
+        self.assertIn("scan-pulse", body)
+        self.assertIn("radar-rotate", body)
+        self.assertIn(SAFE_SCAN_LABEL, body)
         self.assertIn("compactAgo", body)
         self.assertIn("https://cdn.example.com/card.jpg", body)
         self.assertNotIn("https://seller.example/listing/live-buy-now", body)
