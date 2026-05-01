@@ -1060,6 +1060,17 @@ def get_android_apk_path():
 
 
 def get_android_apk_download():
+    apk_path = get_android_apk_path()
+    if apk_path.exists():
+        stat = apk_path.stat()
+        return {
+            "available": True,
+            "url": url_for("main.download_android_apk"),
+            "is_external": False,
+            "size_mb": round(stat.st_size / (1024 * 1024), 1),
+            "updated_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+        }
+
     external_url = (current_app.config.get("ANDROID_APK_URL") or "").strip()
     if external_url:
         return {
@@ -1070,23 +1081,12 @@ def get_android_apk_download():
             "updated_at": None,
         }
 
-    apk_path = get_android_apk_path()
-    if not apk_path.exists():
-        return {
-            "available": False,
-            "url": None,
-            "is_external": False,
-            "size_mb": None,
-            "updated_at": None,
-        }
-
-    stat = apk_path.stat()
     return {
-        "available": True,
-        "url": url_for("main.download_android_apk"),
+        "available": False,
+        "url": None,
         "is_external": False,
-        "size_mb": round(stat.st_size / (1024 * 1024), 1),
-        "updated_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc),
+        "size_mb": None,
+        "updated_at": None,
     }
 
 
@@ -1157,19 +1157,20 @@ def download_app():
 
 @main_bp.route("/download-app/android")
 def download_android_apk():
+    apk_path = get_android_apk_path()
+    if apk_path.exists():
+        return send_file(
+            apk_path,
+            as_attachment=True,
+            download_name="TCG-Sniper-Deals-Android.apk",
+            mimetype="application/vnd.android.package-archive",
+        )
+
     external_url = (current_app.config.get("ANDROID_APK_URL") or "").strip()
     if external_url:
         return redirect(external_url)
 
-    apk_path = get_android_apk_path()
-    if not apk_path.exists():
-        return redirect(url_for("main.download_app"))
-    return send_file(
-        apk_path,
-        as_attachment=True,
-        download_name="TCG-Sniper-Deals-Android.apk",
-        mimetype="application/vnd.android.package-archive",
-    )
+    return redirect(url_for("main.download_app"))
 
 
 @main_bp.route("/feed")
