@@ -1043,6 +1043,7 @@ def log_smart_deals_diagnostics(query) -> None:
 @vip_required
 def missed_deals():
     query = build_missed_deals_query()
+    log_missed_deals_diagnostics(query)
     return render_deals_board(
         query=query,
         order_by=missed_deal_order(),
@@ -1062,6 +1063,29 @@ def build_missed_deals_query():
         status_value.in_(gone_status_values()),
         confirmation_value == "gone_confirmed",
     )
+
+
+def log_missed_deals_diagnostics(query) -> None:
+    try:
+        status_value = db.func.lower(db.func.coalesce(Listing.status, Listing.available_status, ""))
+        confirmation_value = db.func.lower(db.func.coalesce(Listing.available_status, ""))
+        total_candidates = Listing.query.filter(status_value.in_(gone_status_values())).count()
+        confirmed = Listing.query.filter(
+            status_value.in_(gone_status_values()),
+            confirmation_value == "gone_confirmed",
+        ).count()
+        shown = query.count()
+        current_app.logger.info(
+            "[MISSED_DEALS_QUERY] total_candidates=%s confirmed=%s shown=%s",
+            total_candidates,
+            confirmed,
+            shown,
+        )
+    except Exception as error:
+        current_app.logger.warning(
+            "[MISSED_DEALS_QUERY] diagnostics_failed error=%s",
+            error,
+        )
 
 
 @main_bp.route("/ai-market-intel")
