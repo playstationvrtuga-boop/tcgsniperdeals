@@ -999,15 +999,36 @@ def _allow_ebay_buy_now_market_data(
     pricing_queries: list[str],
     false_positive_risk: bool,
 ) -> bool:
+    return _ebay_buy_now_market_data_block_reason(
+        listing=listing,
+        title=title,
+        listing_type=listing_type,
+        identity=identity,
+        signals=signals,
+        pricing_queries=pricing_queries,
+        false_positive_risk=false_positive_risk,
+    ) is None
+
+
+def _ebay_buy_now_market_data_block_reason(
+    *,
+    listing,
+    title: str,
+    listing_type: str | None,
+    identity: ParsedListingIdentity,
+    signals,
+    pricing_queries: list[str],
+    false_positive_risk: bool,
+) -> str | None:
     if not _is_ebay_pricing_listing(listing):
-        return False
+        return "not_ebay"
     if false_positive_risk:
-        return False
+        return "false_positive_risk"
     if not _has_ebay_market_data_anchor(title, listing_type, identity, signals):
-        return False
+        return "no_market_anchor"
     if any(_is_generic_buy_now_query(query) for query in pricing_queries):
-        return False
-    return True
+        return "generic_query"
+    return None
 
 
 def _buy_now_skip_reason(
@@ -1507,7 +1528,7 @@ def evaluate_listing(listing) -> DealResult:
             parser_name=identity.extracted_name,
         )
 
-    allow_ebay_market_data = _allow_ebay_buy_now_market_data(
+    ebay_market_data_block_reason = _ebay_buy_now_market_data_block_reason(
         listing=listing,
         title=title,
         listing_type=listing_type,
@@ -1516,6 +1537,14 @@ def evaluate_listing(listing) -> DealResult:
         pricing_queries=pricing_queries,
         false_positive_risk=false_positive_risk,
     )
+    allow_ebay_market_data = ebay_market_data_block_reason is None
+    if _is_ebay_pricing_listing(listing) and ebay_market_data_block_reason:
+        print(
+            f"[PRICING_EBAY_MARKET_DATA_BLOCKED] listing_id={listing_id} "
+            f"reason={ebay_market_data_block_reason} type={listing_type} "
+            f"confidence={identity.confidence} query={pricing_query}",
+            flush=True,
+        )
 
     if not strong_identity and not allow_ebay_market_data:
         weak_reason = "PRICING_WEAK_ID_NEEDS_REVIEW"
