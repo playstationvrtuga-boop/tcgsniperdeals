@@ -76,6 +76,11 @@ class EbayApiClientTests(unittest.TestCase):
                         "price": {"value": "40.00", "currency": "USD"},
                     },
                     {
+                        "title": "Charizard PFL 125/094 Pokemon Blister Pack",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "50.00", "currency": "USD"},
+                    },
+                    {
                         "title": "Charizard PFL 125/094 Pokemon Card EU",
                         "buyingOptions": ["FIXED_PRICE"],
                         "price": {"value": "95.00", "currency": "EUR"},
@@ -93,6 +98,35 @@ class EbayApiClientTests(unittest.TestCase):
         self.assertEqual(session.last_params["filter"], "buyingOptions:{FIXED_PRICE}")
         self.assertEqual(session.last_params["limit"], "20")
         self.assertEqual(session.last_params["sort"], "price")
+
+    def test_sealed_buy_now_accepts_blister_pack_references(self):
+        session = FakeSession(
+            {
+                "itemSummaries": [
+                    {
+                        "title": "BRAND NEW-x20 Pokemon TCG Perfect Order Single Blister Packs",
+                        "buyingOptions": ["FIXED_PRICE", "BEST_OFFER"],
+                        "price": {"value": "220.99", "currency": "USD"},
+                    },
+                    {
+                        "title": "Pokemon Perfect Order single card Lugia",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "8.00", "currency": "USD"},
+                    },
+                ]
+            }
+        )
+        client = EbayApiClient()
+        client.session = session
+        client._get_access_token = lambda **_kwargs: "token"
+
+        listings = client.fetch_active_buy_now(
+            "BRAND NEW-x20 Pokemon TCG Perfect Order Single Blister Packs",
+            max_results=5,
+            listing_kind="sealed_product",
+        )
+
+        self.assertEqual([listing.price_eur for listing in listings], [194.47])
 
     def test_search_active_buy_now_raw_uses_newly_listed_without_pricing_sort(self):
         session = FakeSession(

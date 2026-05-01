@@ -41,7 +41,18 @@ TYPE_KEYWORDS = {
         "psa", "bgs", "cgc", "beckett", "ace", "sgc", "tag", "aura", "rpa",
         "graded", "grade", "graad", "slab", "gem mint", "encapsulated", "cert",
     },
-    "sealed_product": {"sealed", "booster bundle", "tin", "collection box"},
+    "sealed_product": {
+        "sealed",
+        "booster bundle",
+        "tin",
+        "collection box",
+        "blister",
+        "blister pack",
+        "blister packs",
+        "single blister",
+        "pack",
+        "packs",
+    },
 }
 
 
@@ -150,7 +161,15 @@ def _matches_listing_kind(title: str, listing_kind: str | None) -> bool:
 
     normalized = _normalize_title(title)
     if listing_kind == "single_card":
-        return not any(keyword in normalized for keyword in TYPE_KEYWORDS["etb"] | TYPE_KEYWORDS["booster_box"] | TYPE_KEYWORDS["graded_card"])
+        return not any(
+            keyword in normalized
+            for keyword in (
+                TYPE_KEYWORDS["etb"]
+                | TYPE_KEYWORDS["booster_box"]
+                | TYPE_KEYWORDS["graded_card"]
+                | TYPE_KEYWORDS["sealed_product"]
+            )
+        )
     if listing_kind == "etb":
         return any(keyword in normalized for keyword in TYPE_KEYWORDS["etb"])
     if listing_kind == "booster_box":
