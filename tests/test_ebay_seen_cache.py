@@ -15,14 +15,20 @@ class EbaySeenCacheTests(unittest.TestCase):
             "FICHEIRO_VISTOS": bot.FICHEIRO_VISTOS,
             "FICHEIRO_VISTOS_EBAY_DEBUG": bot.FICHEIRO_VISTOS_EBAY_DEBUG,
             "EBAY_DEBUG_IGNORE_MAIN_VISTOS": bot.EBAY_DEBUG_IGNORE_MAIN_VISTOS,
+            "EBAY_DEBUG_MODE": bot.EBAY_DEBUG_MODE,
             "EBAY_SEEN_TTL_HOURS": bot.EBAY_SEEN_TTL_HOURS,
             "MAX_EBAY_SEEN_ITEMS": bot.MAX_EBAY_SEEN_ITEMS,
+            "MAX_VISTOS_EBAY_DEBUG_ITEMS": bot.MAX_VISTOS_EBAY_DEBUG_ITEMS,
+            "FICHEIRO_TRACKING": bot.FICHEIRO_TRACKING,
         }
         bot.FICHEIRO_VISTOS = str(self.seen_file)
         bot.FICHEIRO_VISTOS_EBAY_DEBUG = str(self.debug_seen_file)
+        bot.FICHEIRO_TRACKING = str(Path(self.temp_dir.name) / "tracked_listings.json")
         bot.EBAY_DEBUG_IGNORE_MAIN_VISTOS = False
+        bot.EBAY_DEBUG_MODE = False
         bot.EBAY_SEEN_TTL_HOURS = 6
         bot.MAX_EBAY_SEEN_ITEMS = 100
+        bot.MAX_VISTOS_EBAY_DEBUG_ITEMS = 100
 
     def tearDown(self):
         for key, value in self.originals.items():
@@ -64,6 +70,15 @@ class EbaySeenCacheTests(unittest.TestCase):
         self.assertIn("ebay_333333333333", vistos)
         self.assertIn("vinted_444444", vistos)
 
+    def test_expired_seen_item_can_be_processed_again(self):
+        old_seen_at = (datetime.now(timezone.utc) - timedelta(hours=7)).isoformat(timespec="seconds")
+        self.seen_file.write_text(f"ebay_121212121212\t{old_seen_at}\n", encoding="utf-8")
+
+        self.assertNotIn("ebay_121212121212", bot.carregar_vistos())
+
+    def test_fresh_ebay_item_is_not_seen_by_default(self):
+        self.assertNotIn("ebay_343434343434", bot.carregar_vistos())
+
     def test_guardar_visto_writes_timestamped_ebay_entry(self):
         bot.guardar_visto("ebay_555555555555")
 
@@ -80,6 +95,24 @@ class EbaySeenCacheTests(unittest.TestCase):
         self.assertFalse(marked)
         self.assertFalse(self.seen_file.exists())
 
+    def test_rejected_ebay_item_does_not_mark_seen(self):
+        marked = bot.mark_seen_after_app_delivery(
+            {"id": "ebay_686868686868", "source": "ebay"},
+            {"status": "invalid_payload"},
+        )
+
+        self.assertFalse(marked)
+        self.assertFalse(self.seen_file.exists())
+
+    def test_placeholder_ebay_item_does_not_mark_seen(self):
+        marked = bot.mark_seen_after_app_delivery(
+            {"id": "ebay_787878787878", "source": "ebay"},
+            {"status": "placeholder_item"},
+        )
+
+        self.assertFalse(marked)
+        self.assertFalse(self.seen_file.exists())
+
     def test_ebay_app_inserted_marks_seen(self):
         marked = bot.mark_seen_after_app_delivery(
             {"id": "ebay_777777777777", "source": "ebay"},
@@ -88,6 +121,85 @@ class EbaySeenCacheTests(unittest.TestCase):
 
         self.assertTrue(marked)
         self.assertIn("ebay_777777777777", bot.carregar_vistos())
+
+    def test_ebay_debug_seen_cache_expires_legacy_entries(self):
+        recent_seen_at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(timespec="seconds")
+        self.debug_seen_file.write_text(
+            "\n".join(
+                [
+                    "ebay_888888888888",
+                    f"ebay_999999999999\t{recent_seen_at}",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        vistos = bot.carregar_vistos_ebay_debug()
+
+        self.assertNotIn("ebay_888888888888", vistos)
+        self.assertIn("ebay_999999999999", vistos)
+
+    def test_inserted_ebay_debug_seen_is_timestamped(self):
+        bot.EBAY_DEBUG_MODE = True
+        bot.EBAY_DEBUG_IGNORE_MAIN_VISTOS = True
+
+        marked = bot.mark_seen_after_app_delivery(
+            {"id": "ebay_101010101010", "source": "ebay"},
+            {"status": "inserted"},
+        )
+
+        self.assertTrue(marked)
+        raw = self.debug_seen_file.read_text(encoding="utf-8").strip()
+        self.assertTrue(raw.startswith("ebay_101010101010\t"))
+        self.assertIn("ebay_101010101010", bot.carregar_vistos_ebay_debug())
+
+    def test_ebay_tracking_duplicate_does_not_block_seen(self):
+        now = bot.now_iso()
+        bot.guardar_tracking(
+            {
+                "items": {
+                    "ebay_202020202020": {
+                        "platform": "ebay",
+                        "app_sync_status": "duplicate",
+                        "last_seen": now,
+                    },
+                    "ebay_303030303030": {
+                        "platform": "ebay",
+                        "app_sync_status": "inserted",
+                        "last_seen": now,
+                    },
+                    "ebay_505050505050": {
+                        "app_sync_status": "duplicate",
+                        "last_seen": now,
+                    },
+                    "vinted_404040": {
+                        "platform": "vinted",
+                        "app_sync_status": "duplicate",
+                        "last_seen": now,
+                    },
+                }
+            }
+        )
+
+        synced = bot.carregar_ids_app_sincronizados()
+
+        self.assertNotIn("ebay_202020202020", synced)
+        self.assertNotIn("ebay_505050505050", synced)
+        self.assertIn("ebay_303030303030", synced)
+        self.assertIn("vinted_404040", synced)
+
+    def test_ebay_search_queries_are_broader_buy_it_now(self):
+        queries = [query for _category, query in bot.EBAY_SEARCH_QUERIES_POKEMON]
+
+        self.assertIn("pokemon card holo rare ex gx v vmax vstar full art", queries)
+        self.assertIn("pokemon psa cgc bgs graded card", queries)
+        self.assertIn("pokemon booster box etb elite trainer box sealed booster bundle", queries)
+        self.assertIn("charizard pokemon card", queries)
+        self.assertIn("pokemon 151 booster bundle", queries)
+        self.assertIn("pokemon elite trainer box", queries)
+        self.assertTrue(all("LH_BIN=1" in url and "_sop=10" in url and "_ipg=100" in url for url in bot.EBAY_SEARCH_URLS_POKEMON))
+        self.assertFalse(any(term in " ".join(bot.EBAY_SEARCH_EXCLUDE_TERMS) for term in ["-japanese", "-french", "-german", "-spanish"]))
 
 
 if __name__ == "__main__":

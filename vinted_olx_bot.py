@@ -106,7 +106,7 @@ ENABLE_ONE_PIECE = False
 MAX_VINTED_PER_CYCLE = 8
 MAX_EBAY_CANDIDATES_PER_CYCLE = 6
 EBAY_SEEN_TTL_HOURS = env_int("EBAY_SEEN_TTL_HOURS", 12)
-MAX_EBAY_SEEN_ITEMS = env_int("MAX_EBAY_SEEN_ITEMS", 2000, minimum=100)
+MAX_EBAY_SEEN_ITEMS = env_int("MAX_EBAY_SEEN_ITEMS", 7500, minimum=100)
 MAX_OLX = 0 if not OLX_ENABLED else 8
 MAX_EBAY = MAX_EBAY_CANDIDATES_PER_CYCLE
 EBAY_MAX_CANDIDATES_PER_QUERY = MAX_EBAY_CANDIDATES_PER_CYCLE
@@ -126,8 +126,6 @@ OLX_SEARCH_URLS = [
 ]
 EBAY_SEARCH_EXCLUDE_TERMS = [
     "-proxy", "-fake", "-reprint", "-\"read description\"",
-    "-japanese", "-french", "-german", "-italian", "-spanish",
-    "-portuguese", "-korean", "-chinese",
 ]
 
 
@@ -136,7 +134,7 @@ def build_ebay_search_url(query):
     return (
         "https://www.ebay.com/sch/i.html"
         f"?_nkw={quote_plus(full_query)}"
-        "&_sop=10&LH_BIN=1&LH_ItemCondition=1000%7C3000&_ipg=50"
+        "&_sop=10&LH_BIN=1&LH_ItemCondition=1000%7C3000&_ipg=100"
     )
 
 
@@ -147,9 +145,12 @@ EBAY_ALLOCATION = {
     "graded": 1,
 }
 EBAY_SEARCH_QUERIES_POKEMON = [
-    ("raw", "pokemon tcg card singles ex gx v vmax vstar full art holo rare"),
-    ("sealed", "pokemon booster box etb sealed booster bundle collection box"),
-    ("graded", "pokemon psa cgc bgs graded pokemon card"),
+    ("raw", "pokemon card holo rare ex gx v vmax vstar full art"),
+    ("graded", "pokemon psa cgc bgs graded card"),
+    ("sealed", "pokemon booster box etb elite trainer box sealed booster bundle"),
+    ("raw", "charizard pokemon card"),
+    ("sealed", "pokemon 151 booster bundle"),
+    ("sealed", "pokemon elite trainer box"),
 ]
 EBAY_SEARCH_URLS_POKEMON = [
     build_ebay_search_url(query) for _, query in EBAY_SEARCH_QUERIES_POKEMON
@@ -328,14 +329,16 @@ def diag_count_ebay_rejection(query, reason, amount=1):
     query["ebay_reject_reasons"][_clean_ebay_rejection_reason(reason)] += amount
 
 
-def diag_record_ebay_rejection(query, reason, item_id=None, title=None, stage=None, detail=None):
+def diag_record_ebay_rejection(query, reason, item_id=None, title=None, stage=None, detail=None, already_seen=None):
     clean_reason = _clean_ebay_rejection_reason(reason)
     diag_count_ebay_rejection(query, clean_reason)
     title_part = f" title=\"{str(title)[:120]}\"" if title else ""
     detail_part = f" detail=\"{str(detail)[:160]}\"" if detail else ""
+    seen_value = str(bool(already_seen or clean_reason == "already_seen")).lower()
     print(
         f"[EBAY_REJECT] reason={clean_reason} stage={stage or 'unknown'} "
-        f"id={item_id or 'unknown'} query=\"{_diag_query_label(query)}\""
+        f"item_id={item_id or 'unknown'} query=\"{_diag_query_label(query)}\" "
+        f"already_seen={seen_value}"
         f"{title_part}{detail_part}"
     )
 
@@ -412,6 +415,11 @@ def diag_record_delivery(diag, anuncio, app_result, free_result):
         f"status={app_status} http={(app_result or {}).get('http_status')} "
         f"query=\"{query.get('keyword') if query else 'unknown'}\""
     )
+    if platform == "ebay" and app_status == "inserted":
+        print(
+            f"[EBAY_APP_INSERTED] item_id={anuncio.get('id')} "
+            f"http={(app_result or {}).get('http_status')} source=ebay"
+        )
     print(
         f"[FREE_DECISION] id={anuncio.get('id')} platform={platform} "
         f"status={free_status} sample_percent={(free_result or {}).get('sample_percent')} "
@@ -430,11 +438,13 @@ def log_cycle_diag(diag):
         return
     totals = Counter()
     ebay_reject_reasons = Counter()
+    ebay_app_status = Counter()
     for query in diag["queries"].values():
         for key in DIAG_COUNTER_KEYS:
             totals[f"{query['platform']}_{key}"] += query.get(key, 0)
         if query["platform"] == "ebay":
             ebay_reject_reasons.update(query.get("ebay_reject_reasons") or {})
+            ebay_app_status.update(query.get("app_status") or {})
         prefix = {
             "vinted": "[VINTED_QUERY]",
             "ebay": "[EBAY_QUERY]",
@@ -472,6 +482,22 @@ def log_cycle_diag(diag):
         f"ebay_reject_reasons={_counter_summary(ebay_reject_reasons)} "
         f"app_status={_counter_summary(diag['app_status'])} "
         f"free_status={_counter_summary(diag['free_status'])}"
+    )
+    ebay_failed = sum(
+        count for status, count in ebay_app_status.items()
+        if status not in {"inserted", "duplicate"}
+    )
+    print(
+        "[EBAY_CYCLE_SUMMARY] "
+        f"raw={totals['ebay_raw']} "
+        f"parsed={totals['ebay_parsed']} "
+        f"placeholder={ebay_reject_reasons['placeholder_item']} "
+        f"already_seen={totals['ebay_skipped_seen']} "
+        f"rejected={totals['ebay_rejected']} "
+        f"accepted={totals['ebay_accepted']} "
+        f"sent_app={totals['ebay_sent_app']} "
+        f"inserted={ebay_app_status['inserted']} "
+        f"failed={ebay_failed}"
     )
 
 
@@ -916,6 +942,7 @@ def compactar_ficheiro_linhas(path, max_lines, drop_prefixes=None, expire_ebay_s
         drop_prefixes = tuple(drop_prefixes or [])
         kept_lines = []
         ebay_lines = deque(maxlen=MAX_EBAY_SEEN_ITEMS)
+        expired_ebay_count = 0
         with open(path, "r", encoding="utf-8") as f:
             for linha in f:
                 raw = linha.strip()
@@ -925,6 +952,8 @@ def compactar_ficheiro_linhas(path, max_lines, drop_prefixes=None, expire_ebay_s
                 if not item_id or any(item_id.startswith(prefix) for prefix in drop_prefixes):
                     continue
                 if expire_ebay_seen and not _seen_line_is_active(item_id, seen_at):
+                    if item_id.startswith("ebay_"):
+                        expired_ebay_count += 1
                     continue
                 if expire_ebay_seen and item_id.startswith("ebay_"):
                     ebay_lines.append(raw)
@@ -937,6 +966,11 @@ def compactar_ficheiro_linhas(path, max_lines, drop_prefixes=None, expire_ebay_s
         with open(path, "w", encoding="utf-8") as f:
             for linha in ultimas:
                 f.write(linha + "\n")
+        if expire_ebay_seen and expired_ebay_count:
+            print(
+                f"[EBAY_SEEN_EXPIRED] count={expired_ebay_count} "
+                f"file={os.path.basename(path)} ttl_hours={EBAY_SEEN_TTL_HOURS}"
+            )
     except Exception:
         pass
 
@@ -962,6 +996,7 @@ def carregar_vistos():
         drop_prefixes.append("ebay_")
 
     ultimos = deque(maxlen=MAX_VISTOS_ITEMS)
+    expired_ebay_count = 0
     with open(FICHEIRO_VISTOS, "r", encoding="utf-8") as f:
         for line in f:
             item_id, seen_at, _raw = _parse_seen_line(line)
@@ -969,17 +1004,20 @@ def carregar_vistos():
                 continue
             if not _seen_line_is_active(item_id, seen_at):
                 if item_id.startswith("ebay_"):
-                    print(f"[SEEN_CACHE_EXPIRED] item_id={item_id} ttl_hours={EBAY_SEEN_TTL_HOURS}")
+                    expired_ebay_count += 1
                 continue
             ultimos.append(item_id)
+    if expired_ebay_count:
+        print(
+            f"[EBAY_SEEN_EXPIRED] count={expired_ebay_count} "
+            f"file={os.path.basename(FICHEIRO_VISTOS)} ttl_hours={EBAY_SEEN_TTL_HOURS}"
+        )
     return set(ultimos)
 
 
 def guardar_visto(id_item):
     if not OLX_ENABLED and (id_item or "").startswith("olx_"):
         return
-    if (id_item or "").startswith("ebay_"):
-        print(f"[SEEN_CACHE_WRITE] item_id={id_item} ttl_hours={EBAY_SEEN_TTL_HOURS}")
     with open(FICHEIRO_VISTOS, "a", encoding="utf-8") as f:
         f.write(_format_seen_line(id_item) + "\n")
 
@@ -988,14 +1026,29 @@ def carregar_vistos_ebay_debug():
     if not os.path.exists(FICHEIRO_VISTOS_EBAY_DEBUG):
         return set()
 
+    expired_ebay_count = 0
+    ultimos = deque(maxlen=MAX_VISTOS_EBAY_DEBUG_ITEMS)
     with open(FICHEIRO_VISTOS_EBAY_DEBUG, "r", encoding="utf-8") as f:
-        ultimos = deque((l.strip() for l in f if l.strip()), maxlen=MAX_VISTOS_EBAY_DEBUG_ITEMS)
-        return set(ultimos)
+        for line in f:
+            item_id, seen_at, _raw = _parse_seen_line(line)
+            if not item_id:
+                continue
+            if not _seen_line_is_active(item_id, seen_at):
+                if item_id.startswith("ebay_"):
+                    expired_ebay_count += 1
+                continue
+            ultimos.append(item_id)
+    if expired_ebay_count:
+        print(
+            f"[EBAY_SEEN_EXPIRED] count={expired_ebay_count} "
+            f"file={os.path.basename(FICHEIRO_VISTOS_EBAY_DEBUG)} ttl_hours={EBAY_SEEN_TTL_HOURS}"
+        )
+    return set(ultimos)
 
 
 def guardar_visto_ebay_debug(id_item):
     with open(FICHEIRO_VISTOS_EBAY_DEBUG, "a", encoding="utf-8") as f:
-        f.write(id_item + "\n")
+        f.write(_format_seen_line(id_item) + "\n")
 
 
 def mark_seen_after_app_delivery(anuncio, app_result):
@@ -1004,7 +1057,10 @@ def mark_seen_after_app_delivery(anuncio, app_result):
     source = (anuncio.get("source") or "").lower() if isinstance(anuncio, dict) else ""
     successful_statuses = {"inserted"} if source == "ebay" else {"inserted", "duplicate"}
     if not item_id or app_status not in successful_statuses:
-        print(f"[SEEN_SKIPPED] id={item_id} app_status={app_status}")
+        if source == "ebay":
+            print(f"[EBAY_SEEN_NOT_MARKED] item_id={item_id} app_status={app_status}")
+        else:
+            print(f"[SEEN_SKIPPED] id={item_id} app_status={app_status}")
         return False
 
     guardar_visto(item_id)
@@ -1014,15 +1070,22 @@ def mark_seen_after_app_delivery(anuncio, app_result):
         and EBAY_DEBUG_IGNORE_MAIN_VISTOS
     ):
         guardar_visto_ebay_debug(item_id)
-    print(f"[SEEN_MARKED] id={item_id} app_status={app_status}")
+    if source == "ebay":
+        print(f"[EBAY_SEEN_MARKED] item_id={item_id} reason=inserted")
+    else:
+        print(f"[SEEN_MARKED] id={item_id} app_status={app_status}")
     return True
 
 
 def mark_seen_after_telegram_delivery(anuncio, free_result):
     item_id = anuncio.get("id") if isinstance(anuncio, dict) else None
     free_status = (free_result or {}).get("status")
+    source = (anuncio.get("source") or "").lower() if isinstance(anuncio, dict) else ""
     if not item_id or free_status != "sent":
         print(f"[SEEN_SKIPPED] id={item_id} free_status={free_status}")
+        return False
+    if source == "ebay":
+        print(f"[EBAY_SEEN_NOT_MARKED] item_id={item_id} reason=telegram_delivery_only")
         return False
 
     guardar_visto(item_id)
@@ -2338,11 +2401,19 @@ def carregar_ids_app_sincronizados():
     try:
         data = carregar_tracking()
         items = data.get("items", {}) if isinstance(data, dict) else {}
-        return {
-            item_id
-            for item_id, item in items.items()
-            if isinstance(item, dict) and item.get("app_sync_status") in {"inserted", "duplicate"}
-        }
+        synced_ids = set()
+        for item_id, item in items.items():
+            if not isinstance(item, dict):
+                continue
+            platform = (item.get("platform") or "").lower()
+            status = item.get("app_sync_status")
+            is_ebay_item = platform == "ebay" or str(item_id).startswith("ebay_")
+            if is_ebay_item:
+                if status == "inserted":
+                    synced_ids.add(item_id)
+            elif status in {"inserted", "duplicate"}:
+                synced_ids.add(item_id)
+        return synced_ids
     except Exception:
         return set()
 
@@ -5449,6 +5520,7 @@ def obter_ebay_links(page, vistos=None, diag=None):
                         diag_count(query_diag, "skipped_seen")
                         print(
                             f"[EBAY_SEEN_SKIP] item_id={id_item} stage=search_result "
+                            f"query=\"{_diag_query_label(query_diag)}\" "
                             f"title=\"{texto_card[:LOG_TITLE_MAX_CHARS]}\""
                         )
                         diag_record_ebay_rejection(
@@ -5810,6 +5882,8 @@ def processar_wallapop_inline(vistos, novos, diag=None, context=None):
 
 def procurar_anuncios(processar_ebay=True, diag=None):
     vistos = carregar_vistos()
+    if EBAY_DEBUG_IGNORE_MAIN_VISTOS:
+        vistos.update(carregar_vistos_ebay_debug())
     vistos.update(carregar_ids_app_sincronizados())
     cache_ebay_sold = carregar_cache_ebay_sold()
     novos = []
@@ -6063,6 +6137,7 @@ def procurar_anuncios(processar_ebay=True, diag=None):
                     diag_count(query_diag, "skipped_seen")
                     print(
                         f"[EBAY_SEEN_SKIP] item_id={id_item} stage=candidate "
+                        f"query=\"{_diag_query_label(query_diag)}\" "
                         f"title=\"{(debug_data.get('title') or '')[:LOG_TITLE_MAX_CHARS]}\""
                     )
                     diag_record_ebay_rejection(
@@ -6385,7 +6460,11 @@ def main():
         drop_prefixes=vistos_drop_prefixes,
         expire_ebay_seen=True,
     )
-    compactar_ficheiro_linhas(FICHEIRO_VISTOS_EBAY_DEBUG, MAX_VISTOS_EBAY_DEBUG_ITEMS)
+    compactar_ficheiro_linhas(
+        FICHEIRO_VISTOS_EBAY_DEBUG,
+        MAX_VISTOS_EBAY_DEBUG_ITEMS,
+        expire_ebay_seen=True,
+    )
     if FREE_LANDING_ONLY:
         guardar_fila_free([])
     schedule_free_promos_every_hour()
