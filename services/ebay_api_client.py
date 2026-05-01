@@ -84,6 +84,10 @@ class EbayApiRawItem:
     price_currency: str
     item_url: str
     buying_options: list[str]
+    item_id: str = ""
+    image_url: str = ""
+    item_creation_date: str = ""
+    seller_username: str = ""
 
 
 @dataclass
@@ -487,13 +491,23 @@ class EbayApiClient:
             return None
         return round(value * rate, 2)
 
-    def _search_active_raw(self, query: str, limit: int = 20, *, force_token_refresh: bool = False) -> list[dict[str, Any]]:
+    def _search_active_raw(
+        self,
+        query: str,
+        limit: int = 20,
+        *,
+        sort: str = "price",
+        offset: int | None = None,
+        force_token_refresh: bool = False,
+    ) -> list[dict[str, Any]]:
         params = {
             "q": query,
             "limit": str(limit),
             "filter": "buyingOptions:{FIXED_PRICE}",
-            "sort": "price",
+            "sort": sort,
         }
+        if offset is not None and offset > 0:
+            params["offset"] = str(offset)
         _log(
             f"buy_now search endpoint={_runtime_browse_search_url()} "
             f"marketplace={_runtime_marketplace()} query={query!r} params={params}"
@@ -526,6 +540,43 @@ class EbayApiClient:
             return []
         _log(f"buy_now raw_results={len(summaries)} query={query!r}")
         return [item for item in summaries if isinstance(item, dict)]
+
+    @staticmethod
+    def _raw_item_from_summary(item: dict[str, Any]) -> EbayApiRawItem:
+        price = item.get("price") or {}
+        image = item.get("image") or {}
+        seller = item.get("seller") or {}
+        return EbayApiRawItem(
+            title=str(item.get("title") or ""),
+            price_value=str(price.get("value") or ""),
+            price_currency=str(price.get("currency") or ""),
+            item_url=str(item.get("itemWebUrl") or item.get("itemHref") or ""),
+            buying_options=list(item.get("buyingOptions") or []),
+            item_id=str(item.get("itemId") or item.get("legacyItemId") or ""),
+            image_url=str(image.get("imageUrl") or ""),
+            item_creation_date=str(item.get("itemCreationDate") or ""),
+            seller_username=str(seller.get("username") or ""),
+        )
+
+    def search_active_buy_now_raw(
+        self,
+        query: str,
+        limit: int = 50,
+        *,
+        sort: str = "newlyListed",
+        offset: int = 0,
+    ) -> list[EbayApiRawItem]:
+        if not self.is_configured():
+            _log(f"buy_now detection skipped reason={self.config_status()}")
+            return []
+
+        items = self._search_active_raw(
+            query,
+            limit=max(1, min(int(limit or 50), 100)),
+            sort=sort,
+            offset=max(0, int(offset or 0)),
+        )
+        return [self._raw_item_from_summary(item) for item in items]
 
     def startup_check(self, query: str = "pokemon", limit: int = 20, *, log: bool = True) -> dict[str, Any]:
         def emit(message: str) -> None:
@@ -630,16 +681,7 @@ class EbayApiClient:
 
             raw_items = []
             for item in items:
-                price = item.get("price") or {}
-                raw_items.append(
-                    EbayApiRawItem(
-                        title=str(item.get("title") or ""),
-                        price_value=str(price.get("value") or ""),
-                        price_currency=str(price.get("currency") or ""),
-                        item_url=str(item.get("itemWebUrl") or item.get("itemHref") or ""),
-                        buying_options=list(item.get("buyingOptions") or []),
-                    )
-                )
+                raw_items.append(self._raw_item_from_summary(item))
             return raw_items
 
         return []

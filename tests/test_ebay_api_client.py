@@ -94,6 +94,34 @@ class EbayApiClientTests(unittest.TestCase):
         self.assertEqual(session.last_params["limit"], "20")
         self.assertEqual(session.last_params["sort"], "price")
 
+    def test_search_active_buy_now_raw_uses_newly_listed_without_pricing_sort(self):
+        session = FakeSession(
+            {
+                "itemSummaries": [
+                    {
+                        "itemId": "v1|123456789012|0",
+                        "title": "Pokemon Charizard ex TCG Card",
+                        "itemWebUrl": "https://www.ebay.com/itm/123456789012",
+                        "buyingOptions": ["FIXED_PRICE"],
+                        "price": {"value": "12.99", "currency": "USD"},
+                        "image": {"imageUrl": "https://example.com/card.jpg"},
+                        "itemCreationDate": "2026-05-01T18:30:00.000Z",
+                    },
+                ]
+            }
+        )
+        client = EbayApiClient()
+        client.session = session
+        client._get_access_token = lambda **_kwargs: "token"
+
+        items = client.search_active_buy_now_raw("pokemon charizard", limit=25, sort="newlyListed", offset=50)
+
+        self.assertEqual(session.last_params["sort"], "newlyListed")
+        self.assertEqual(session.last_params["offset"], "50")
+        self.assertEqual(session.last_params["limit"], "25")
+        self.assertEqual(items[0].item_id, "v1|123456789012|0")
+        self.assertEqual(items[0].image_url, "https://example.com/card.jpg")
+
     def test_graded_buy_now_requires_graded_same_grade_reference(self):
         session = FakeSession(
             {
