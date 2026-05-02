@@ -125,6 +125,61 @@ class GoneAvailabilityStateTests(unittest.TestCase):
         self.assertEqual(listing.available_status, GONE_CONFIRMED_STATUS)
         self.assertIsNotNone(listing.gone_detected_at)
 
+    def test_pending_confirmation_rechecks_on_recovery_interval(self):
+        base = datetime(2026, 4, 30, 20, 0, tzinfo=timezone.utc)
+        listing = self._listing(detected_at=base - timedelta(hours=1))
+        responses = [
+            AvailabilityResult(status="sold", is_gone=True, reason="text_marker:sold"),
+            AvailabilityResult(status="sold", is_gone=True, reason="text_marker:sold"),
+        ]
+        free_gone_alerts.check_listing_availability = lambda *_args, **_kwargs: responses.pop(0)
+
+        marked_first = mark_recent_gone_listings(now=base, limit=1)
+        db.session.refresh(listing)
+        self.assertEqual(marked_first, 0)
+        self.assertEqual(listing.status, "available")
+        self.assertEqual(listing.available_status, GONE_PENDING_CONFIRMATION_STATUS)
+
+        marked_second = mark_recent_gone_listings(now=base + timedelta(minutes=6), limit=1)
+        db.session.refresh(listing)
+        self.assertEqual(marked_second, 1)
+        self.assertEqual(listing.status, "sold")
+        self.assertEqual(listing.available_status, GONE_CONFIRMED_STATUS)
+        self.assertIsNotNone(listing.gone_detected_at)
+
+    def test_due_pending_confirmation_is_prioritized_over_new_candidates(self):
+        base = datetime(2026, 4, 30, 20, 0, tzinfo=timezone.utc)
+        pending = self._listing(detected_at=base - timedelta(hours=1))
+        pending.available_status = GONE_PENDING_CONFIRMATION_STATUS
+        pending.availability_checked_at = base - timedelta(minutes=6)
+        newer = Listing(
+            source="vinted",
+            external_id="gone-test-newer-available",
+            external_url="https://www.vinted.pt/items/2-test",
+            title="Pokemon Trainer Mysterious Fossil 109/110 newer",
+            price_display="8,00 EUR",
+            platform="Vinted",
+            status="available",
+            available_status="available",
+            detected_at=base - timedelta(minutes=10),
+            updated_at=base - timedelta(minutes=10),
+        )
+        db.session.add(newer)
+        db.session.commit()
+        free_gone_alerts.check_listing_availability = lambda *_args, **_kwargs: AvailabilityResult(
+            status="sold",
+            is_gone=True,
+            reason="text_marker:sold",
+        )
+
+        marked = mark_recent_gone_listings(now=base, limit=1)
+        db.session.refresh(pending)
+        db.session.refresh(newer)
+
+        self.assertEqual(marked, 1)
+        self.assertEqual(pending.available_status, GONE_CONFIRMED_STATUS)
+        self.assertIsNone(newer.availability_checked_at)
+
     def test_available_result_recovers_false_positive_sold_listing(self):
         base = datetime(2026, 4, 30, 20, 0, tzinfo=timezone.utc)
         listing = self._listing(status="sold", available_status="sold", detected_at=base - timedelta(hours=1))

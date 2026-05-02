@@ -709,6 +709,24 @@ def smart_deals_cache_version():
     return f"activity={latest_activity}:pending={latest_pending}"
 
 
+def missed_deals_cache_version():
+    status_value = db.func.lower(db.func.coalesce(Listing.status, Listing.available_status, ""))
+    confirmation_value = db.func.lower(db.func.coalesce(Listing.available_status, ""))
+    confirmed_query = Listing.query.filter(
+        status_value.in_(gone_status_values()),
+        confirmation_value == "gone_confirmed",
+    )
+    latest_activity = (
+        confirmed_query.with_entities(
+            db.func.max(db.func.coalesce(Listing.gone_detected_at, Listing.status_updated_at, Listing.updated_at))
+        )
+        .scalar()
+        or ""
+    )
+    confirmed_count = confirmed_query.count()
+    return f"confirmed={confirmed_count}:activity={latest_activity}"
+
+
 def missed_deal_order():
     return (
         db.func.coalesce(Listing.gone_detected_at, Listing.status_updated_at, Listing.updated_at).desc(),
@@ -926,6 +944,8 @@ def render_deals_board(
         feed_cache_ttl = min(feed_cache_ttl, 3)
         if feed_cache_key:
             feed_cache_key = f"{feed_cache_key}:{smart_deals_cache_version()}"
+    if page_mode == "missed" and feed_cache_key:
+        feed_cache_key = f"{feed_cache_key}:{missed_deals_cache_version()}"
     has_user_filters = bool(search or platform_arg or badge or region_arg or selected_languages or selected_sets or selected_market_types)
     if cache_key and not has_user_filters:
         def build_snapshot():
@@ -1014,6 +1034,14 @@ def render_deals_board(
         current_app.logger.info(
             "[EBAY_DEALS_PAGE_RENDER] count=%s ids=%s",
             len(listings),
+            ",".join(str(listing.external_id or listing.id) for listing in listings[:10]),
+        )
+    if page_mode == "missed":
+        current_app.logger.info(
+            "[MISSED_PAGE_RESULT_COUNT] count=%s cache=%s key=%s ids=%s",
+            len(listings),
+            "hit" if cache_hit else "miss",
+            feed_cache_key or "none",
             ",".join(str(listing.external_id or listing.id) for listing in listings[:10]),
         )
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from vip_app.app import create_app
 from vip_app.app.config import Config
 from vip_app.app.extensions import db
-from vip_app.app.main import build_missed_deals_query
+from vip_app.app.main import build_missed_deals_query, missed_deals_cache_version
 from vip_app.app.models import Listing, utcnow
 
 
@@ -60,6 +60,19 @@ class MissedDealsFilterTests(unittest.TestCase):
         results = build_missed_deals_query().all()
 
         self.assertEqual([listing.id for listing in results], [expected.id])
+
+    def test_cache_version_changes_when_listing_becomes_confirmed(self):
+        listing = self._listing(status="available", available_status="gone_pending_confirmation")
+        before = missed_deals_cache_version()
+
+        listing.status = "sold"
+        listing.available_status = "gone_confirmed"
+        listing.gone_detected_at = utcnow()
+        db.session.commit()
+
+        after = missed_deals_cache_version()
+        self.assertNotEqual(before, after)
+        self.assertEqual(build_missed_deals_query().count(), 1)
 
 
 if __name__ == "__main__":

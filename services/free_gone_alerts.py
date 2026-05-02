@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Iterable
 
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 
 from config import (
     APP_PUBLIC_URL,
@@ -24,6 +24,7 @@ from services.alert_formatter import format_free_gone_alert_text
 from services.listing_availability import UNKNOWN_CHECK_FAILED_STATUS, check_listing_availability
 from services.telegram_alerts import send_free_alert
 from vip_app.app.extensions import db
+from vip_app.app.feed_cache import invalidate
 from vip_app.app.models import FreeGoneAlertState, Listing
 
 GONE_AVAILABLE_STATUSES = [
@@ -251,6 +252,14 @@ def _current_listing_status(listing: Listing) -> str:
     return status or available_status
 
 
+def _current_listing_status_expression():
+    available_status = func.lower(func.coalesce(Listing.available_status, ""))
+    return case(
+        (available_status == GONE_PENDING_CONFIRMATION_STATUS, available_status),
+        else_=func.lower(func.coalesce(Listing.status, Listing.available_status, "")),
+    )
+
+
 def _mark_available(listing: Listing, current: datetime) -> None:
     listing.status = "available"
     listing.available_status = "available"
@@ -283,7 +292,7 @@ def _mark_confirmed_gone(listing: Listing, status: str, current: datetime) -> No
 
 
 def _candidate_query(cutoff: datetime, used_listing_ids: Iterable[int]):
-    status_value = func.lower(func.coalesce(Listing.status, Listing.available_status, ""))
+    status_value = _current_listing_status_expression()
     query = (
         Listing.query.filter(
             _is_pokemon_tcg_clause(),
@@ -309,7 +318,8 @@ def mark_recent_gone_listings(now: datetime | None = None, *, limit: int | None 
     min_age_cutoff = current - timedelta(minutes=FREE_GONE_AVAILABILITY_MIN_AGE_MINUTES)
     recheck_cutoff = current - timedelta(minutes=FREE_GONE_AVAILABILITY_RECHECK_MINUTES)
     gone_recheck_cutoff = current - timedelta(minutes=GONE_RECOVERY_RECHECK_MINUTES)
-    status_value = func.lower(func.coalesce(Listing.status, Listing.available_status, ""))
+    status_value = _current_listing_status_expression()
+    pending_priority = case((status_value == GONE_PENDING_CONFIRMATION_STATUS, 1), else_=0)
     check_limit = max(1, int(limit or FREE_GONE_AVAILABILITY_CHECK_LIMIT))
 
     candidates = (
@@ -325,14 +335,24 @@ def mark_recent_gone_listings(now: datetime | None = None, *, limit: int | None 
                     & (Listing.availability_checked_at <= gone_recheck_cutoff)
                 ),
                 (
+                    (status_value == GONE_PENDING_CONFIRMATION_STATUS)
+                    & (Listing.availability_checked_at <= gone_recheck_cutoff)
+                ),
+                (
                     ~status_value.in_(GONE_AVAILABLE_STATUSES)
                     & (Listing.availability_checked_at <= recheck_cutoff)
                 ),
             ),
         )
-        .order_by(Listing.detected_at.desc(), Listing.id.desc())
+        .order_by(pending_priority.desc(), Listing.detected_at.desc(), Listing.id.desc())
         .limit(check_limit)
         .all()
+    )
+
+    print(
+        f"[MISSED_CHECK_START] candidates={len(candidates)} limit={check_limit} "
+        f"max_age_hours={FREE_GONE_MAX_AGE_HOURS}",
+        flush=True,
     )
 
     marked = 0
@@ -345,6 +365,12 @@ def mark_recent_gone_listings(now: datetime | None = None, *, limit: int | None 
         was_pending_confirmation = previous_status == GONE_PENDING_CONFIRMATION_STATUS
         print(
             f"[GONE_CHECK_START] id={listing.id} platform={platform} previous_status={previous_status or 'none'}",
+            flush=True,
+        )
+        print(
+            f"[MISSED_CHECK_LISTING] id={listing.id} platform={platform} "
+            f"previous_status={previous_status or 'none'} detected_at={listing.detected_at} "
+            f"availability_checked_at={listing.availability_checked_at}",
             flush=True,
         )
         result = check_listing_availability(listing.external_url, platform=platform)
@@ -372,6 +398,10 @@ def mark_recent_gone_listings(now: datetime | None = None, *, limit: int | None 
                     f"[GONE_MARKED_CONFIRMED] id={listing.id} status={result.status} reason={result.reason}",
                     flush=True,
                 )
+                print(
+                    f"[MISSED_GONE_CONFIRMED] id={listing.id} status={result.status} reason={result.reason}",
+                    flush=True,
+                )
                 continue
 
             _mark_pending_gone_confirmation(listing, current)
@@ -383,9 +413,16 @@ def mark_recent_gone_listings(now: datetime | None = None, *, limit: int | None 
 
         _mark_unknown_check_failed(listing, current)
         print(f"[GONE_CHECK_WEAK_SIGNAL] id={listing.id} action=keep_available reason={result.reason}", flush=True)
+        print(
+            f"[MISSED_GONE_REJECTED_WEAK_SIGNAL] id={listing.id} reason={result.reason}",
+            flush=True,
+        )
 
     if checked:
         db.session.commit()
+    if marked:
+        invalidate("feed:missed:")
+        print(f"[MISSED_CACHE_INVALIDATED] prefix=feed:missed: marked={marked}", flush=True)
     print(f"[availability] scanned={checked} marked_gone={marked}", flush=True)
     return marked
 
