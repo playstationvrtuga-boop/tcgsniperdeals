@@ -212,6 +212,43 @@ class DynamicSeoPagesTests(unittest.TestCase):
             re.search(r"<h3>Where to find cheap Pok\u00e9mon cards in Europe\?</h3>\s*<p>(.*?)</p>", body, re.S).group(1),
         )
 
+    def test_priority_seo_pages_have_strategic_headings_and_single_h1(self):
+        target_paths = (
+            "/pokemon-deals",
+            "/pokemon-deals-today",
+            "/best-pokemon-deals-today",
+            "/top-pokemon-deals-eu",
+            "/charizard-deals-under-100",
+            "/cheap-pokemon-cards-eu",
+        )
+        required_h2s = (
+            "Best Pok\u00e9mon Deals in Europe",
+            "Cheap Pok\u00e9mon Cards Under \u20ac50",
+            "Live Charizard Deals",
+        )
+
+        for path in target_paths:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                body = response.get_data(as_text=True)
+                h2s = re.findall(r"<h2(?: [^>]*)?>(.*?)</h2>", body)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(len(re.findall(r"<h1(?: [^>]*)?>", body)), 1)
+                self.assertTrue(any("Pok\u00e9mon Deals" in h2 for h2 in h2s))
+                for heading in required_h2s:
+                    self.assertIn(f"<h2>{heading}</h2>", body)
+                    match = re.search(rf"<h2>{re.escape(heading)}</h2>\s*<p>(.*?)</p>", body, re.S)
+                    self.assertIsNotNone(match)
+                    paragraph = re.sub(r"<[^>]+>", " ", match.group(1))
+                    words = re.findall(r"\b\w+\b", paragraph)
+                    paragraph_lower = paragraph.lower()
+
+                    self.assertGreaterEqual(len(words), 80)
+                    self.assertLessEqual(len(words), 150)
+                    for term in ("pokemon cards", "deals", "eu", "cheap", "vinted", "ebay", "real-time"):
+                        self.assertIn(term, paragraph_lower)
+
     def test_new_dynamic_category_routes_render_canonical_and_seo_copy(self):
         new_routes = {
             "/pokemon-deals-europe": "Pokemon Deals Europe",

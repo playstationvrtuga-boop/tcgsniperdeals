@@ -358,7 +358,7 @@ SEO_HOME_CONTENT = {
     ],
 }
 
-from .seo_content import DYNAMIC_SEO_PAGES, SEO_DEFAULT_FAQS, SEO_HOME_CONTENT, SEO_PAGE_ALIASES, SEO_PAGES, SEO_PUBLIC_PATHS
+from .seo_content import DYNAMIC_SEO_PAGES, SEO_DEFAULT_FAQS, SEO_HOME_CONTENT, SEO_PAGE_ALIASES, SEO_PAGES, SEO_PUBLIC_PATHS, SEO_STRATEGIC_HEADING_SECTIONS
 
 
 def site_root_url():
@@ -597,13 +597,15 @@ def build_seo_page_context(slug):
     snapshot = dynamic_seo_snapshot(dict(data, slug=slug), listing_limit=listing_limit)
     show_live_listings = bool(data.get("show_live_listings") or slug in DYNAMIC_SEO_PAGES)
     faqs = [dict(faq) for faq in data.get("faqs", SEO_DEFAULT_FAQS)]
+    sections = [dict(section) for section in data["sections"]]
+    sections.extend(dict(section) for section in SEO_STRATEGIC_HEADING_SECTIONS.get(slug, []))
     page = {
         "slug": slug,
         "title": data["title"],
         "meta_description": data["meta_description"],
         "h1": data["h1"],
         "intro": data["intro"],
-        "sections": [dict(section) for section in data["sections"]],
+        "sections": sections,
         "related_pages": _seo_related_pages(data, slug),
         "faqs": faqs,
         "faq_schema": _seo_faq_schema(faqs),

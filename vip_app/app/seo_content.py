@@ -89,6 +89,202 @@ SEO_DEFAULT_FAQS = [
 ]
 
 
+SEO_STRATEGIC_HEADING_SECTIONS = {
+    "pokemon-deals": [
+        {
+            "title": "Best Pokémon Deals in Europe",
+            "text": (
+                "The best Pokémon deals in Europe usually come from a mix of speed and careful review. "
+                "Fresh pokemon cards can appear on Vinted, eBay and other EU marketplaces with incomplete titles, quick-sale prices or photos that need a closer look. "
+                "A cheap listing is only useful when the seller, condition, shipping and language all make sense. "
+                "This page helps buyers compare deals across platforms and understand which live opportunities deserve attention before moving into the real-time app feed. "
+                "That context helps collectors act faster without overlooking risk."
+            ),
+        },
+        {
+            "title": "Cheap Pokémon Cards Under €50",
+            "text": (
+                "Cheap pokemon cards under €50 are often where EU collectors find practical deals for binders, gifts and lower-risk flips. "
+                "Vinted can surface casual seller lots, while eBay gives broader comparison data and more structured listings. "
+                "The key is not just finding a low price; it is checking condition, language, shipping and recent market value. "
+                "Real-time monitoring helps because the best under-€50 opportunities can sell quickly when a card is clearly priced below normal demand. "
+                "It keeps budget hunting focused on verifiable value rather than impulse."
+            ),
+        },
+        {
+            "title": "Live Charizard Deals",
+            "text": (
+                "Live Charizard deals need fast attention because Charizard remains one of the most watched names in pokemon cards. "
+                "Across the EU, cheap listings can appear on Vinted or eBay with short titles, mixed photos or unclear set details. "
+                "A real-time view helps buyers see those deals earlier, but the final decision still depends on version, condition, language, authenticity and shipping. "
+                "For a card with high demand, arriving early is useful only when the listing can also be verified carefully. "
+                "That balance turns speed into a practical buying edge."
+            ),
+        },
+    ],
+    "pokemon-deals-today": [
+        {
+            "title": "Best Pokémon Deals in Europe",
+            "text": (
+                "For today's market, the best Pokémon deals in Europe are the listings that appear before most buyers have refreshed their searches. "
+                "Pokemon cards listed cheaply on Vinted or eBay can move fast, especially when the title is simple or the seller is clearing a collection. "
+                "EU prices also vary by country, language and shipping cost, so the strongest deals still need context. "
+                "This page keeps the focus on fresh, real-time signals rather than static examples that may already be gone. "
+                "It gives each visitor a clearer starting point for quick review."
+            ),
+        },
+        {
+            "title": "Cheap Pokémon Cards Under €50",
+            "text": (
+                "Many useful pokemon cards under €50 appear as singles, small bundles or binder pages from EU sellers. "
+                "Vinted often has cheap casual listings, while eBay can help confirm whether the price is actually below recent demand. "
+                "The best deals today are not always the rarest cards; sometimes they are clean, fairly priced cards with reasonable shipping and clear photos. "
+                "Real-time detection matters because affordable listings are easy for other buyers to grab quickly. "
+                "That speed is most useful when paired with calm price checking."
+            ),
+        },
+        {
+            "title": "Live Charizard Deals",
+            "text": (
+                "Live Charizard deals are especially time-sensitive because even lower-value versions attract attention from collectors. "
+                "A cheap Charizard among fresh EU pokemon cards on Vinted or eBay may sell before a manual search catches it. "
+                "Real-time updates help surface the listing earlier, but buyers should still check the exact set, number, language and condition. "
+                "Today's Charizard opportunities are strongest when the price, seller trust and shipping cost all support the deal. "
+                "That extra review helps prevent rushed buys on weak listings."
+            ),
+        },
+    ],
+    "best-pokemon-deals-today": [
+        {
+            "title": "Best Pokémon Deals in Europe",
+            "text": (
+                "The best Pokémon deals in Europe today combine fresh timing with enough information to make a confident decision. "
+                "Pokemon cards, sealed boxes and collections can appear cheap on Vinted or eBay, but EU buyers still need to compare shipping, language and seller history. "
+                "Real-time monitoring helps separate new deals from stale marketplace noise. "
+                "This page is built around those practical signals, showing why a listing may deserve attention before wider demand catches up. "
+                "That makes the page useful for research and quick action."
+            ),
+        },
+        {
+            "title": "Cheap Pokémon Cards Under €50",
+            "text": (
+                "Under €50, cheap pokemon cards can be attractive because the risk is lower and the pool of EU listings is broad. "
+                "Vinted may show casual sellers listing cards without detailed research, while eBay offers useful sold-price context for checking whether the deal is fair. "
+                "Good deals in this range still depend on condition, shipping and authenticity. "
+                "Real-time discovery is helpful because budget cards can disappear just as quickly as expensive chase cards when the price is right. "
+                "It also helps buyers avoid refreshing several searches at once."
+            ),
+        },
+        {
+            "title": "Live Charizard Deals",
+            "text": (
+                "Charizard listings can become some of the best deals when a seller uses a weak title or prices below EU demand. "
+                "A cheap Charizard card on Vinted or eBay may be raw, graded, modern, vintage or damaged, so pokemon cards in this category need careful checking. "
+                "Real-time alerts are useful because many collectors watch the same name. "
+                "The strongest opportunities are the ones where photos, condition, language and shipping all support the listed price. "
+                "That proof matters more than the name alone."
+            ),
+        },
+    ],
+    "top-pokemon-deals-eu": [
+        {
+            "title": "Best Pokémon Deals in Europe",
+            "text": (
+                "Top EU opportunities often come from sellers who list pokemon cards quickly without optimizing every title. "
+                "That is why the best Pokémon deals in Europe can be scattered across Vinted, eBay and regional marketplaces instead of one obvious search page. "
+                "Cheap deals still require judgment: shipping, seller feedback, language and photos can change the real value. "
+                "A real-time view helps buyers review fresh listings earlier while keeping the final decision grounded in marketplace context. "
+                "That context is especially important when listings cross languages."
+            ),
+        },
+        {
+            "title": "Cheap Pokémon Cards Under €50",
+            "text": (
+                "Cheap pokemon cards under €50 are common in EU marketplaces, but the good deals are the listings with enough upside after shipping and condition checks. "
+                "Vinted can show small collections or casual singles, while eBay helps compare recent prices and identify whether a card is truly under market. "
+                "Real-time updates make this price range easier to watch because new budget listings can be claimed quickly. "
+                "The best finds are clear, fairly shipped and easy to verify. "
+                "That makes the under-€50 range practical instead of purely speculative."
+            ),
+        },
+        {
+            "title": "Live Charizard Deals",
+            "text": (
+                "Live Charizard deals are a useful signal for EU demand because the card name attracts collectors across languages and platforms. "
+                "Cheap pokemon cards with Charizard in the title can appear on Vinted or eBay, but not every listing is worth buying. "
+                "Real-time tracking helps surface deals quickly, then the buyer needs to confirm the version, set, condition and seller reliability. "
+                "For top EU deal hunting, speed and verification work best together. "
+                "That combination helps separate real value from noisy listings."
+            ),
+        },
+    ],
+    "charizard-deals-under-100": [
+        {
+            "title": "Best Pokémon Deals in Europe",
+            "text": (
+                "For Charizard hunters, the best Pokémon deals in Europe are often affordable listings that appear briefly on Vinted, eBay or local EU marketplaces. "
+                "Pokemon cards with strong demand can look cheap at first, but the exact version matters more than the name alone. "
+                "Real-time updates help buyers spot deals under the wider market, especially when sellers use short titles or incomplete photos. "
+                "The safest approach is to compare price, condition, language and shipping before acting. "
+                "That process keeps fast deal hunting from becoming guesswork."
+            ),
+        },
+        {
+            "title": "Cheap Pokémon Cards Under €50",
+            "text": (
+                "Charizard searches under €100 often overlap with cheap pokemon cards under €50, especially for modern prints, promos and played copies. "
+                "Vinted may show EU sellers clearing binders, while eBay can provide price history for similar versions. "
+                "Some deals are genuinely useful for collectors, but others are cheap because the card is damaged, common or expensive to ship. "
+                "Real-time discovery helps buyers inspect these listings early while there is still time to ask questions. "
+                "That matters when photos or descriptions leave value unclear."
+            ),
+        },
+        {
+            "title": "Live Charizard Deals",
+            "text": (
+                "Live Charizard deals are the core of this page because under-€100 listings can disappear quickly when they look clean and fairly priced. "
+                "EU buyers watching pokemon cards on Vinted and eBay need real-time visibility, but also a disciplined review process. "
+                "A cheap Charizard deal should be checked for set, number, language, surface condition, seller trust and shipping cost. "
+                "The goal is to catch fresh deals without treating every low price as an automatic buy. "
+                "That discipline is especially useful on high-demand cards."
+            ),
+        },
+    ],
+    "cheap-pokemon-cards-eu": [
+        {
+            "title": "Best Pokémon Deals in Europe",
+            "text": (
+                "For buyers focused on value, the best Pokémon deals in Europe often start with cheap pokemon cards that are listed before sellers research the full market. "
+                "Vinted can provide casual EU listings and collection clear-outs, while eBay gives wider data for checking whether a price is realistic. "
+                "Real-time monitoring helps identify deals as they appear, but the best outcomes still come from reviewing photos, language, condition and shipping. "
+                "Good value is about total context, not only a low headline price. "
+                "That makes comparison across platforms part of the buying process."
+            ),
+        },
+        {
+            "title": "Cheap Pokémon Cards Under €50",
+            "text": (
+                "Cheap pokemon cards under €50 are the natural focus for this page because many EU collectors want affordable singles, binder upgrades and small lots. "
+                "Vinted often has low-friction listings from casual sellers, while eBay can make it easier to compare similar cards and avoid overpaying. "
+                "Real-time updates are useful in this range because the best deals may be simple, clean and priced to sell quickly. "
+                "Always include shipping and condition before calling a listing cheap. "
+                "That keeps affordable buying focused on real value."
+            ),
+        },
+        {
+            "title": "Live Charizard Deals",
+            "text": (
+                "Even on a cheap cards page, live Charizard deals matter because accessible Charizard versions can bring strong buyer interest. "
+                "Pokemon cards with that name may appear on Vinted or eBay across the EU as singles, binder cards, promos or played copies. "
+                "Real-time detection helps surface these deals early, but the buyer still needs to check authenticity, language, photos and shipping. "
+                "A low Charizard price is useful only when the card details support the opportunity. "
+                "That makes careful checking part of every fast find."
+            ),
+        },
+    ],
+}
+
+
 DYNAMIC_SEO_PAGES = {
     "pokemon-deals-today": {
         "title": "Pokemon Deals Today EU - Live Cheap Cards & Booster Boxes",
