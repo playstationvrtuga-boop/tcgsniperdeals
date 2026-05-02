@@ -14,6 +14,9 @@
 <meta name="twitter:url" content="{{ canonical_url }}">
 <meta name="twitter:image" content="{{ public_site_url }}/static/icons/app-icon-512.png">
 <meta name="robots" content="index,follow">
+{% if page.faqs and page.faq_schema %}
+<script type="application/ld+json">{{ page.faq_schema|tojson }}</script>
+{% endif %}
 {% endblock %}
 {% block content %}
 <section class="seo-page">

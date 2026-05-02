@@ -1,3 +1,5 @@
+import json
+import re
 import unittest
 from xml.etree import ElementTree
 
@@ -73,6 +75,23 @@ class PublicDomainTests(unittest.TestCase):
         self.assertIn(f'<meta property="og:url" content="{OFFICIAL_URL}/pokemon-deals">', body)
         self.assertIn(f'<meta name="twitter:url" content="{OFFICIAL_URL}/pokemon-deals">', body)
         self.assertNotIn(LEGACY_HOST, body)
+
+    def test_pokemon_deals_public_page_has_visible_faq_and_schema(self):
+        response = self.client.get("/pokemon-deals")
+        body = response.get_data(as_text=True)
+        match = re.search(r'<script type="application/ld\+json">(.*?)</script>', body, re.S)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("<h3>Where to find cheap Pok\u00e9mon cards in Europe?</h3>", body)
+        self.assertIn("<h3>Are Pok\u00e9mon deals worth it?</h3>", body)
+        self.assertIsNotNone(match)
+        schema = json.loads(match.group(1))
+        questions = [entry["name"] for entry in schema["mainEntity"]]
+
+        self.assertEqual(schema["@type"], "FAQPage")
+        self.assertIn("Where to find cheap Pok\u00e9mon cards in Europe?", questions)
+        self.assertEqual(len(schema["mainEntity"]), 6)
+        self.assertNotIn("login", response.request.path)
 
     def test_legacy_render_host_redirects_public_pages(self):
         response = self.client.get("/pokemon-deals?x=1", headers={"Host": LEGACY_HOST})

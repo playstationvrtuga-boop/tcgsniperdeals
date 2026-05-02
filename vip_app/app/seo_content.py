@@ -6,6 +6,11 @@ SEO_PUBLIC_PATHS = [
     "/top-pokemon-deals-eu",
     "/charizard-deals-under-100",
     "/cheap-pokemon-cards-eu",
+    "/pokemon-deals-europe",
+    "/pokemon-booster-box-deals-eu",
+    "/pokemon-etb-deals-eu",
+    "/pokemon-card-lot-deals",
+    "/pokemon-graded-card-deals",
     "/pokemon-deals",
     "/pokemon-card-deals",
     "/charizard-deals",
@@ -24,6 +29,64 @@ SEO_PAGE_ALIASES = {
     "pokemon-vinted-deals": "vinted-pokemon-deals",
     "pokemon-ebay-deals": "ebay-pokemon-deals",
 }
+
+
+SEO_DEFAULT_FAQS = [
+    {
+        "question": "Where to find cheap Pokémon cards in Europe?",
+        "answer": (
+            "Cheap Pokémon cards in Europe often appear on marketplaces such as Vinted, eBay, Wallapop and other local platforms. "
+            "The best finds are usually fresh listings, mixed lots, binder pages, sealed products or cards with incomplete titles. "
+            "Buyers should compare EU prices, check shipping, inspect photos and confirm seller feedback before acting. "
+            "TCG Sniper Deals helps by turning live deals into a faster review stream instead of relying only on manual searches."
+        ),
+    },
+    {
+        "question": "Are Pokémon deals worth it?",
+        "answer": (
+            "Pokémon deals can be worth it when the item, condition, language, shipping and market price all line up. "
+            "A cheap listing is not automatically a good buy, especially if photos are unclear or the seller has limited history. "
+            "For collectors, a deal may mean finding a wanted card at a fair EU price. "
+            "For resellers, it may mean enough margin after fees and delivery. "
+            "Live deal tracking simply helps you see opportunities earlier."
+        ),
+    },
+    {
+        "question": "Is Vinted good for Pokémon cards?",
+        "answer": (
+            "Vinted can be good for Pokémon cards because many EU sellers list casual collections, binder lots, singles, ETBs and sealed products there. "
+            "Titles are often less polished than eBay, which can create useful opportunities, but it also means buyers need to review listings carefully. "
+            "Check photos, condition, language, seller rating, shipping and buyer protection before purchasing. "
+            "Vinted is strongest when you can react quickly to fresh, cheap Pokémon card listings."
+        ),
+    },
+    {
+        "question": "Is eBay good for Pokémon card deals?",
+        "answer": (
+            "eBay is useful for Pokémon card deals because it has broad supply, sold-price history and many raw cards, graded slabs, booster boxes and collections. "
+            "The trade-off is competition: experienced buyers and sellers often watch the same searches. "
+            "Good eBay deals still appear, especially in fresh Buy It Now listings, auctions or poorly described items. "
+            "Always compare recent sold prices, shipping, seller feedback and authenticity before treating a listing as a real deal."
+        ),
+    },
+    {
+        "question": "How often are Pokémon deals updated?",
+        "answer": (
+            "The public SEO pages read from the bot listing database when the page is requested, so visible live deals can change as new listings are detected. "
+            "The public view is intentionally limited and lightweight, while the VIP app is built for faster real-time monitoring, alerts and direct marketplace links. "
+            "That setup keeps public pages useful for search visitors without exposing or slowing the full feed used by active buyers."
+        ),
+    },
+    {
+        "question": "What makes a Pokémon deal worth buying?",
+        "answer": (
+            "A Pokémon deal is worth buying when the total context supports the price. "
+            "Look at the exact card or product, language, condition, photos, seller history, shipping cost, platform protection and recent comparable prices. "
+            "Cheap Pokémon cards, Vinted lots or eBay slabs can be attractive, but small details can change value quickly. "
+            "The strongest live deals are not just low-priced; they are clear enough to verify before another buyer acts."
+        ),
+    },
+]
 
 
 DYNAMIC_SEO_PAGES = {
@@ -223,6 +286,211 @@ DYNAMIC_SEO_PAGES = {
         "empty_state": "No cheap EU Pokemon card listings are available in the public snapshot right now. The page updates automatically when the bot finds matching deals.",
         "related": ["top-pokemon-deals-eu", "pokemon-deals-today", "cheap-pokemon-cards", "vinted-pokemon-deals"],
     },
+    "pokemon-deals-europe": {
+        "title": "Pokemon Deals Europe Today - Cheap EU Cards & Sealed",
+        "meta_description": "Find Pokemon deals in Europe today with cheap EU cards, ETBs, booster boxes, prices and live Vinted, Wallapop and eBay listings from the bot.",
+        "h1": "Pokemon Deals Europe",
+        "intro": (
+            "Pokemon deals in Europe are shaped by local marketplaces, mixed languages, shipping costs and sellers who may not price every card against the wider global market. "
+            "This dynamic page uses real listings detected by the TCG Sniper Deals bot to show a focused public preview of European Pokemon TCG opportunities. "
+            "It is built for collectors and resellers who want to understand the current EU deal flow before opening the full VIP app."
+        ),
+        "sections": [
+            {
+                "title": "Why European Pokemon deals need fast tracking",
+                "text": (
+                    "European Pokemon listings can appear on Vinted, Wallapop, eBay and regional marketplaces with titles in Portuguese, Spanish, French, German, Italian or English. "
+                    "That creates both opportunity and friction. A seller might list a Charizard card, sealed ETB, booster box or binder collection with a short local-language title, a simple photo and a price that is hard to compare quickly. "
+                    "The best EU deals often move fast because buyers from several countries may be watching the same product type. TCG Sniper Deals helps reduce the delay between detection and review by bringing fresh listings into a structured stream."
+                ),
+            },
+            {
+                "title": "Prices, platforms and buyer checks",
+                "text": (
+                    "EU prices can look attractive at first glance, but the real value depends on shipping, seller protection, marketplace fees, card language, condition and whether the listing is still available. "
+                    "A cheap Pokemon card from Vinted may become less interesting if shipping is high, while an eBay listing may have stronger buyer protection but more competition. "
+                    "Use the live section as a discovery layer: open the marketplace, inspect photos, compare recent prices and confirm that the product is exactly what the title claims."
+                ),
+            },
+            {
+                "title": "How this page stays dynamic",
+                "text": (
+                    "The listings below are filtered from the bot database instead of being hand-written examples. "
+                    "That keeps the page useful for broad searches like Pokemon deals Europe, cheap Pokemon cards EU and live Pokemon TCG deals today without adding weight to the VIP feed. "
+                    "The public route is cached briefly for SEO and discovery, while the paid app remains the place for faster polling, direct links and full real-time alerts."
+                ),
+            },
+        ],
+        "filters": {"region": "eu", "keywords": ["pokemon"], "mode": "recent"},
+        "listing_limit": 20,
+        "deal_section_title": "Live Pokemon deals in Europe",
+        "empty_state": "No European Pokemon deals are available in the public snapshot right now. New EU listings will appear here when the bot detects them.",
+        "related": ["pokemon-deals", "top-pokemon-deals-eu", "cheap-pokemon-cards-eu", "pokemon-booster-box-deals-eu", "pokemon-etb-deals-eu"],
+    },
+    "pokemon-booster-box-deals-eu": {
+        "title": "Pokemon Booster Box Deals EU Today - Cheap Sealed",
+        "meta_description": "Track Pokemon booster box deals in the EU today with cheap sealed prices, live Vinted, Wallapop and eBay listings, and fresh bot updates daily.",
+        "h1": "Pokemon Booster Box Deals EU",
+        "intro": (
+            "Pokemon booster box deals in the EU are among the most competitive sealed-product searches because collectors, players and resellers all understand the value of sealed displays. "
+            "This page shows a dynamic public slice of booster-box and booster-display listings detected by the bot, filtered for European intent where possible. "
+            "It gives visitors useful context about price, platform and product type while keeping the fastest direct alerts inside the VIP app."
+        ),
+        "sections": [
+            {
+                "title": "What counts as a booster box deal",
+                "text": (
+                    "A booster box deal is not only a low price. It needs to match the right set, seal condition, language, shipping region and seller reliability. "
+                    "European listings may use terms like booster box, display, sealed box, booster display or local-language equivalents. "
+                    "Some sellers list a sealed Pokemon product casually, without the exact set name, which makes manual searching slower. The bot watches for those signals and stores the listing so buyers can inspect it before the market catches up."
+                ),
+            },
+            {
+                "title": "EU prices and marketplace differences",
+                "text": (
+                    "Booster box prices can vary across the EU because of supply, release timing, shipping distance and marketplace popularity. "
+                    "Vinted and Wallapop can occasionally show casual sellers or local deals, while eBay may offer more stock but also more competition and stronger price awareness. "
+                    "Before buying, compare recent sold prices, check whether the box is sealed, review seller feedback and include shipping in the total cost. A cheap sealed product is only a real deal if the full landed price still makes sense."
+                ),
+            },
+            {
+                "title": "Dynamic listings without slowing the app",
+                "text": (
+                    "The live cards below are limited to a small number of real bot listings, so the SEO page stays useful without loading the full VIP feed. "
+                    "The query is intentionally light: it filters by Pokemon, sealed-product intent and booster-box keywords, then returns recent matches. "
+                    "That creates a relevant page for Google and for buyers while preserving the main app experience for logged-in users who need real-time speed."
+                ),
+            },
+        ],
+        "filters": {"region": "eu", "keywords": ["booster box", "booster display", "display", "sealed booster"], "listing_types": ["sealed_product"], "mode": "recent"},
+        "listing_limit": 20,
+        "deal_section_title": "Live EU booster box deals from the bot",
+        "empty_state": "No EU booster box deals are available in the public snapshot right now. The page updates when matching sealed listings arrive.",
+        "related": ["pokemon-deals-europe", "booster-box-deals", "pokemon-etb-deals-eu", "top-pokemon-deals-eu", "pokemon-deals-today"],
+    },
+    "pokemon-etb-deals-eu": {
+        "title": "Pokemon ETB Deals EU Today - Cheap Elite Trainer Boxes",
+        "meta_description": "Find Pokemon ETB deals in the EU today with cheap Elite Trainer Box prices, sealed listings, live Vinted, Wallapop and eBay updates from the bot.",
+        "h1": "Pokemon ETB Deals EU",
+        "intro": (
+            "Pokemon ETB deals in the EU are popular because Elite Trainer Boxes are easy to recognize, easy to store and often compared by collectors across sets. "
+            "This page focuses on live ETB-style listings from the bot, including Elite Trainer Boxes and sealed products where the title or classification matches the page intent. "
+            "It helps search visitors understand what the app monitors before they move into the paid real-time feed."
+        ),
+        "sections": [
+            {
+                "title": "Why ETB prices move quickly",
+                "text": (
+                    "Elite Trainer Boxes can become attractive when a seller prices below recent EU market levels, includes multiple boxes in a bundle or lists an older sealed product without detailed keywords. "
+                    "Some listings use ETB, some use Elite Trainer Box, and others describe the product as a sealed Pokemon box or collection. "
+                    "That inconsistency makes it easy to miss a useful deal if you only search one exact phrase. The bot helps collect those signals and turns them into a cleaner review stream."
+                ),
+            },
+            {
+                "title": "What buyers should verify",
+                "text": (
+                    "For EU ETB deals, check the set, language, seal, box condition, photos, shipping cost and marketplace protection. "
+                    "A cheap ETB may be damaged, opened, missing contents or expensive to ship internationally. "
+                    "Vinted and Wallapop can show local bargains, while eBay may give broader availability and clearer price history. In all cases, the price only matters after the full context is verified."
+                ),
+            },
+            {
+                "title": "Live public snapshot",
+                "text": (
+                    "The dynamic listing section is capped at 20 real items and uses lightweight filters so the SEO page does not compete with the main feed. "
+                    "It is meant to give Google and human visitors a fresh view of ETB deal activity today, not to expose every VIP opportunity. "
+                    "For instant push alerts, direct marketplace links and faster polling, users should use the VIP app."
+                ),
+            },
+        ],
+        "filters": {"region": "eu", "keywords": ["etb", "elite trainer box", "trainer box"], "listing_types": ["sealed_product"], "mode": "recent"},
+        "listing_limit": 20,
+        "deal_section_title": "Live EU ETB deals from the bot",
+        "empty_state": "No EU ETB deals are available in the public snapshot right now. Matching Elite Trainer Box listings will appear when detected.",
+        "related": ["pokemon-deals-europe", "etb-deals", "pokemon-booster-box-deals-eu", "cheap-pokemon-cards-eu", "top-pokemon-deals-eu"],
+    },
+    "pokemon-card-lot-deals": {
+        "title": "Pokemon Card Lot Deals EU Today - Cheap Binder Lots",
+        "meta_description": "Find Pokemon card lot deals today with cheap EU binder lots, collections, prices and live listings from Vinted, Wallapop and eBay bot data now.",
+        "h1": "Pokemon Card Lot Deals",
+        "intro": (
+            "Pokemon card lot deals can be some of the most interesting listings because the value is often hidden inside a group photo, binder page or collection title. "
+            "This dynamic page uses bot listings to surface public examples of lots, bundles, collections and binder-style deals from EU and wider marketplace sources. "
+            "It is designed for buyers who know that a poorly described lot can sometimes contain better cards than the seller names in the title."
+        ),
+        "sections": [
+            {
+                "title": "Why lots are harder to evaluate",
+                "text": (
+                    "A single-card listing usually has a clear title and price, but a lot may include dozens of cards, several languages, mixed conditions and incomplete photos. "
+                    "Sellers might write Pokemon cards, binder, collection, bundle, lot or local-language equivalents without naming Charizard, Pikachu, vintage holos or valuable modern hits. "
+                    "That makes discovery difficult and review more manual. The bot helps by detecting lot-style terms and storing fresh listings for faster inspection."
+                ),
+            },
+            {
+                "title": "Prices and platform behavior",
+                "text": (
+                    "Cheap card lots in Europe often appear on Vinted and Wallapop, where casual sellers may want a quick sale. eBay lots can also be useful, but competition is higher and titles may be optimized by experienced sellers. "
+                    "Before buying, zoom into photos, check card condition, look for duplicates, estimate shipping and avoid assuming every visible card is valuable. "
+                    "A lot deal works when the visible upside, risk and total price are all acceptable."
+                ),
+            },
+            {
+                "title": "How the dynamic section is filtered",
+                "text": (
+                    "The listings below are filtered by lot and collection intent, then limited to 20 items for performance. "
+                    "This keeps the public SEO page fast while still showing real marketplace examples from the bot. "
+                    "The VIP app remains the faster workflow for users who want to react immediately, save opportunities and open direct marketplace links as new lots arrive."
+                ),
+            },
+        ],
+        "filters": {"keywords": ["lot", "bundle", "collection", "binder"], "listing_types": ["lot_bundle"], "mode": "recent"},
+        "listing_limit": 20,
+        "deal_section_title": "Live Pokemon card lot deals from the bot",
+        "empty_state": "No Pokemon card lot deals are available in the public snapshot right now. Binder and collection listings will appear when detected.",
+        "related": ["pokemon-card-deals", "cheap-pokemon-cards-eu", "pokemon-deals-europe", "vinted-pokemon-deals", "pokemon-graded-card-deals"],
+    },
+    "pokemon-graded-card-deals": {
+        "title": "Pokemon Graded Card Deals EU Today - Cheap PSA Slabs",
+        "meta_description": "Track Pokemon graded card deals today with cheap EU PSA, Beckett and CGC slab prices from Vinted, Wallapop and eBay listings in one place now.",
+        "h1": "Pokemon Graded Card Deals",
+        "intro": (
+            "Pokemon graded card deals are high-intent opportunities because small differences in grade, certification company and card version can create large price gaps. "
+            "This page focuses on real bot listings classified as graded cards or slab-style opportunities, with public examples capped for performance. "
+            "It helps collectors and resellers follow PSA, Beckett, BGS and CGC deal activity while keeping the full live workflow inside the VIP app."
+        ),
+        "sections": [
+            {
+                "title": "What makes a graded card deal",
+                "text": (
+                    "A graded card deal is not just any slab with a low price. The grade, certifier, card version, language, set, label and condition of the case all matter. "
+                    "A PSA 10 Charizard and a PSA 8 copy are different markets, while Beckett and CGC slabs may have different buyer demand. "
+                    "The bot watches for graded-card signals such as PSA, BGS, Beckett, CGC, slab and grade numbers so users can review fresh marketplace listings faster."
+                ),
+            },
+            {
+                "title": "EU platforms and price checks",
+                "text": (
+                    "Graded Pokemon cards in the EU may appear on eBay, Vinted, Wallapop and local seller channels. "
+                    "Some platforms have stronger buyer protection or clearer sold-price history; others may contain casual listings with less optimized titles. "
+                    "Before buying, confirm the certification number, compare recent sold prices, check shipping, verify photos and avoid treating raw-card comps as slab comps. A cheap slab only becomes a deal when the grade-specific market supports it."
+                ),
+            },
+            {
+                "title": "Fast public preview, full VIP workflow",
+                "text": (
+                    "The dynamic section lists up to 20 real graded-card matches from the bot database and avoids heavy payloads. "
+                    "That gives the SEO page fresh content for searches like Pokemon graded card deals, cheap PSA slabs EU and graded Pokemon deals today. "
+                    "VIP users still get the stronger experience: real-time polling, saved listings, direct marketplace actions and the fastest view of new slab opportunities."
+                ),
+            },
+        ],
+        "filters": {"keywords": ["psa", "bgs", "beckett", "cgc", "graded", "slab"], "listing_types": ["graded_card"], "mode": "recent"},
+        "listing_limit": 20,
+        "deal_section_title": "Live graded Pokemon card deals from the bot",
+        "empty_state": "No graded Pokemon card deals are available in the public snapshot right now. PSA, Beckett and CGC listings will appear when detected.",
+        "related": ["graded-pokemon-cards", "pokemon-card-deals", "pokemon-card-lot-deals", "pokemon-deals-europe", "ebay-pokemon-deals"],
+    },
 }
 
 
@@ -347,28 +615,7 @@ SEO_PAGES = {
                 ),
             },
         ],
-        "faqs": [
-            {
-                "question": "Where can I find Pokemon deals in Europe?",
-                "answer": "The most useful sources are usually Vinted, eBay, Wallapop and other regional marketplaces. Good opportunities can appear in fresh listings, mixed lots, casual seller posts and sealed product listings that are priced below normal market expectations.",
-            },
-            {
-                "question": "Are cheap Pokemon cards always worth buying?",
-                "answer": "No. Cheap cards can be damaged, common, misidentified, expensive to ship or priced fairly for their condition. A good deal needs the right card, condition, language, seller trust and total cost.",
-            },
-            {
-                "question": "How do I check a Charizard deal under 100 EUR?",
-                "answer": "Confirm the exact card version, set, language, condition, photos, seller feedback and shipping cost. Charizard prices vary heavily by version and condition, so a low price needs careful verification.",
-            },
-            {
-                "question": "Are booster boxes and ETBs good Pokemon deals?",
-                "answer": "They can be, especially when sealed products are listed below market value. Check the set, seal, box condition, language, contents and shipping before treating a sealed product as a strong opportunity.",
-            },
-            {
-                "question": "How does TCG Sniper Deals keep this page fresh?",
-                "answer": "The page reads a limited public snapshot from the same listing database used by the bot. New detected listings can update the live preview, freshness signals and sitemap lastmod without manual page edits.",
-            },
-        ],
+        "faqs": SEO_DEFAULT_FAQS,
         "filters": {"mode": "best"},
         "show_live_listings": True,
         "deal_section_title": "Live Pokemon deals from the bot",

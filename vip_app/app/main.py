@@ -358,7 +358,7 @@ SEO_HOME_CONTENT = {
     ],
 }
 
-from .seo_content import DYNAMIC_SEO_PAGES, SEO_HOME_CONTENT, SEO_PAGE_ALIASES, SEO_PAGES, SEO_PUBLIC_PATHS
+from .seo_content import DYNAMIC_SEO_PAGES, SEO_DEFAULT_FAQS, SEO_HOME_CONTENT, SEO_PAGE_ALIASES, SEO_PAGES, SEO_PUBLIC_PATHS
 
 
 def site_root_url():
@@ -388,8 +388,22 @@ def _seo_related_pages(data, slug):
             "charizard-deals-under-100",
             "cheap-pokemon-cards-eu",
             "top-pokemon-deals-eu",
+            "pokemon-deals-europe",
+            "pokemon-booster-box-deals-eu",
+            "pokemon-etb-deals-eu",
+            "pokemon-card-lot-deals",
+            "pokemon-graded-card-deals",
         ]
         related_pages = [{"slug": "", "label": "TCG Sniper Deals homepage", "url": "/"}]
+        related_pages.extend(
+            {
+                "slug": related_slug,
+                "label": pages[related_slug]["h1"],
+                "url": f"/{related_slug}",
+            }
+            for related_slug in data.get("related", [])
+            if related_slug in pages and related_slug != slug
+        )
         related_pages.extend(
             {
                 "slug": related_slug,
@@ -399,7 +413,14 @@ def _seo_related_pages(data, slug):
             for related_slug in fixed_slugs
             if related_slug in pages
         )
-        return related_pages[:10]
+        deduped = []
+        seen_urls = set()
+        for related_page in related_pages:
+            if related_page["url"] in seen_urls:
+                continue
+            seen_urls.add(related_page["url"])
+            deduped.append(related_page)
+        return deduped[:10]
 
     related_pages = []
     seen_urls = set()
@@ -456,6 +477,10 @@ def _dynamic_seo_query(filters):
 
     if filters.get("region") == "eu":
         query = query.filter(db.func.lower(Listing.platform).in_(REGION_PLATFORM_MAP["eu"]))
+
+    listing_types = [value.strip().lower() for value in filters.get("listing_types", []) if value.strip()]
+    if listing_types:
+        query = query.filter(db.func.lower(db.func.coalesce(Listing.listing_type, "")).in_(listing_types))
 
     if filters.get("mode") == "best":
         score_level = db.func.upper(db.func.coalesce(Listing.score_level, ""))
@@ -568,8 +593,10 @@ def dynamic_seo_lastmod(slug, today):
 
 def build_seo_page_context(slug):
     data = seo_page_data(slug)
-    snapshot = dynamic_seo_snapshot(dict(data, slug=slug))
+    listing_limit = min(max(int(data.get("listing_limit", 9)), 1), 20)
+    snapshot = dynamic_seo_snapshot(dict(data, slug=slug), listing_limit=listing_limit)
     show_live_listings = bool(data.get("show_live_listings") or slug in DYNAMIC_SEO_PAGES)
+    faqs = [dict(faq) for faq in data.get("faqs", SEO_DEFAULT_FAQS)]
     page = {
         "slug": slug,
         "title": data["title"],
@@ -578,23 +605,8 @@ def build_seo_page_context(slug):
         "intro": data["intro"],
         "sections": [dict(section) for section in data["sections"]],
         "related_pages": _seo_related_pages(data, slug),
-        "faqs": data.get(
-            "faqs",
-            [
-                {
-                    "question": "Where to find cheap Pokemon cards?",
-                    "answer": "Cheap Pokemon cards can appear on eBay, Vinted and EU marketplaces, especially in fresh listings, mixed lots and local-language posts. Always check condition, shipping, seller history and recent comparable prices before buying.",
-                },
-                {
-                    "question": "Are Pokemon deals worth it?",
-                    "answer": "Pokemon deals can be worth it when the item, condition, language, shipping and market value all make sense. Real-time alerts help you see listings earlier, but every purchase still needs manual review.",
-                },
-                {
-                    "question": "How often are these Pokemon deal pages updated?",
-                    "answer": "Dynamic pages read from the bot listing database at request time, so public deal previews and sitemap freshness can change as new listings are detected.",
-                },
-            ],
-        ),
+        "faqs": faqs,
+        "faq_schema": _seo_faq_schema(faqs),
         "is_dynamic": slug in DYNAMIC_SEO_PAGES,
         "show_live_listings": show_live_listings,
         "deal_section_title": data.get("deal_section_title", "Live deals from the bot"),
@@ -603,6 +615,26 @@ def build_seo_page_context(slug):
     }
     page["listings"] = snapshot["listings"] if show_live_listings else []
     return page
+
+
+def _seo_faq_schema(faqs):
+    if not faqs:
+        return None
+    return {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": faq["question"],
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": faq["answer"],
+                },
+            }
+            for faq in faqs
+        ],
+    }
 
 
 def render_seo_page(slug):

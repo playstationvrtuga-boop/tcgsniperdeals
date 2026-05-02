@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import tempfile
 import unittest
@@ -93,7 +94,9 @@ class DynamicSeoPagesTests(unittest.TestCase):
         self.assertIn("Related Pok&eacute;mon Deal Pages", body)
         self.assertIn("Charizard ex Pokemon card under 100", body)
         self.assertNotIn("Charizard PSA 10 premium listing", body)
-        self.assertIn("Where to find cheap Pokemon cards?", body)
+        self.assertIn("Where to find cheap Pok\u00e9mon cards in Europe?", body)
+        self.assertIn('"@type": "FAQPage"', body)
+        self.assertIn("Is Vinted good for Pok\\u00e9mon cards?", body)
         self.assertIn("Live Charizard listings under 100 EUR", body)
         self.assertNotIn("onrender.com", body)
 
@@ -186,6 +189,100 @@ class DynamicSeoPagesTests(unittest.TestCase):
             self.assertLessEqual(len(description), 160)
             for keyword in ("pokemon", "deals", "cheap", "eu", "today"):
                 self.assertIn(keyword, searchable_text)
+
+    def test_dynamic_seo_pages_include_valid_faq_schema(self):
+        response = self.client.get("/pokemon-deals-today")
+        body = response.get_data(as_text=True)
+        match = re.search(r'<script type="application/ld\+json">(.*?)</script>', body, re.S)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(match)
+        schema = json.loads(match.group(1))
+        visible_questions = re.findall(r"<h3>(.*?)</h3>", body)
+
+        self.assertEqual(schema["@type"], "FAQPage")
+        self.assertGreaterEqual(len(schema["mainEntity"]), 6)
+        self.assertIn("Where to find cheap Pok\u00e9mon cards in Europe?", visible_questions)
+        self.assertEqual(
+            schema["mainEntity"][0]["name"],
+            "Where to find cheap Pok\u00e9mon cards in Europe?",
+        )
+        self.assertEqual(
+            schema["mainEntity"][0]["acceptedAnswer"]["text"],
+            re.search(r"<h3>Where to find cheap Pok\u00e9mon cards in Europe\?</h3>\s*<p>(.*?)</p>", body, re.S).group(1),
+        )
+
+    def test_new_dynamic_category_routes_render_canonical_and_seo_copy(self):
+        new_routes = {
+            "/pokemon-deals-europe": "Pokemon Deals Europe",
+            "/pokemon-booster-box-deals-eu": "Pokemon Booster Box Deals EU",
+            "/pokemon-etb-deals-eu": "Pokemon ETB Deals EU",
+            "/pokemon-card-lot-deals": "Pokemon Card Lot Deals",
+            "/pokemon-graded-card-deals": "Pokemon Graded Card Deals",
+        }
+
+        for path, h1 in new_routes.items():
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                body = response.get_data(as_text=True)
+                copy_parts = re.findall(r'<p class="seo-intro">(.*?)</p>', body, re.S)
+                copy_parts.extend(re.findall(r'<article class="seo-section-card">.*?<p>(.*?)</p>', body, re.S))
+                copy_parts.extend(re.findall(r'<article class="seo-faq-item">.*?<p>(.*?)</p>', body, re.S))
+                visible_text = re.sub(r"<[^>]+>", " ", " ".join(copy_parts))
+
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(f"<h1>{h1}</h1>", body)
+                self.assertIn(f'<link rel="canonical" href="{OFFICIAL_URL}{path}">', body)
+                self.assertIn('href="/"', body)
+                self.assertIn("Related Pok&eacute;mon Deal Pages", body)
+                word_count = len(re.findall(r"\b\w+\b", visible_text))
+                self.assertGreaterEqual(word_count, 500)
+
+    def test_new_dynamic_category_pages_filter_real_listings_and_limit_to_20(self):
+        for index in range(22):
+            self._listing(
+                source="vinted",
+                external_id=f"seo-booster-{index}",
+                external_url=f"https://example.com/booster-{index}",
+                normalized_url=f"https://example.com/booster-{index}",
+                title=f"Pokemon booster box display EU deal {index}",
+                platform="Vinted",
+                listing_type="sealed_product",
+            )
+        self._listing(
+            source="vinted",
+            external_id="seo-booster-unrelated",
+            external_url="https://example.com/raw-card",
+            normalized_url="https://example.com/raw-card",
+            title="Pokemon raw card deal not sealed booster",
+            platform="Vinted",
+            listing_type="raw_card",
+        )
+
+        response = self.client.get("/pokemon-booster-box-deals-eu")
+        body = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(body.count('class="listing-card '), 20)
+        self.assertIn("Pokemon booster box display EU deal", body)
+        self.assertNotIn("Pokemon raw card deal not sealed booster", body)
+
+    def test_sitemap_includes_new_dynamic_seo_routes(self):
+        response = self.client.get("/sitemap.xml")
+        root = ElementTree.fromstring(response.get_data(as_text=True))
+        locs = {
+            node.find("sm:loc", SITEMAP_NS).text
+            for node in root.findall("sm:url", SITEMAP_NS)
+        }
+
+        for path in (
+            "/pokemon-deals-europe",
+            "/pokemon-booster-box-deals-eu",
+            "/pokemon-etb-deals-eu",
+            "/pokemon-card-lot-deals",
+            "/pokemon-graded-card-deals",
+        ):
+            self.assertIn(f"{OFFICIAL_URL}{path}", locs)
 
 
 if __name__ == "__main__":
