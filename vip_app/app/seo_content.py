@@ -11,6 +11,10 @@ SEO_PUBLIC_PATHS = [
     "/pokemon-etb-deals-eu",
     "/pokemon-card-lot-deals",
     "/pokemon-graded-card-deals",
+    "/where-to-find-cheap-pokemon-cards",
+    "/are-pokemon-cards-worth-buying",
+    "/best-place-to-buy-pokemon-cards-eu",
+    "/how-to-find-pokemon-deals",
     "/pokemon-deals",
     "/pokemon-card-deals",
     "/charizard-deals",
@@ -738,6 +742,361 @@ SEO_HOME_CONTENT = {
 
 
 SEO_PAGES = {
+    "where-to-find-cheap-pokemon-cards": {
+        "title": "Where to Find Cheap Pokémon Cards in Europe | EU Guide",
+        "meta_description": "Learn where to find cheap Pokémon cards in Europe using Vinted, eBay, EU prices, live deals and careful listing checks.",
+        "h1": "Where to find cheap Pokémon cards in Europe?",
+        "direct_answer": (
+            "You can find cheap Pokémon cards in Europe on Vinted, eBay, Wallapop and other EU marketplaces. "
+            "The best results usually come from watching fresh listings, comparing prices, and checking photos, condition, shipping and seller feedback before buying."
+        ),
+        "intro": (
+            "Finding cheap Pokémon cards in Europe is less about one perfect marketplace and more about knowing where different types of sellers list their cards. "
+            "Some EU sellers use Vinted for binder clear-outs and small lots, while eBay has more volume, more price history and more competition. "
+            "A good search process combines live deals, manual checks and realistic price comparison."
+        ),
+        "sections": [
+            {
+                "title": "Best places to look first",
+                "text": (
+                    "For most collectors, Vinted and eBay are the strongest starting points. Vinted can be useful because casual sellers often list Pokémon cards, bundles and older binder pages without researching every card. "
+                    "eBay is broader and easier to compare because recent sold prices can show whether a listing is actually cheap. "
+                    "Wallapop and local EU marketplaces can also be useful, especially for regional sellers, but they require more patience and careful communication."
+                ),
+                "items": [
+                    "Use Vinted for casual EU sellers, mixed lots and binder clear-outs.",
+                    "Use eBay for broader supply, sold-price checks and graded or sealed products.",
+                    "Use local marketplaces when shipping, language and seller location are clear.",
+                ],
+            },
+            {
+                "title": "How to check if a card is really cheap",
+                "text": (
+                    "A low price is only useful when the full purchase still makes sense. A card may be cheap because it is damaged, common, non-English, expensive to ship or shown in poor photos. "
+                    "Before buying, compare similar listings, check recent sold prices when available, and inspect the exact card version. "
+                    "The safest EU deals are listings where the card, condition, language, price and shipping are all clear enough to verify."
+                ),
+                "steps": [
+                    "Check the exact card name, set, number and language.",
+                    "Compare the listed price with recent eBay sold results or known market prices.",
+                    "Add shipping and platform fees before deciding whether it is still cheap.",
+                    "Review seller feedback and ask for clearer photos if needed.",
+                ],
+            },
+            {
+                "title": "Vinted vs eBay for cheap cards",
+                "text": (
+                    "Vinted and eBay are useful in different ways. Vinted can surface under-described EU listings before specialist buyers notice them, while eBay gives stronger price context and more predictable search tools. "
+                    "For cheap Pokémon cards, the best approach is often to monitor both: use Vinted for speed and casual listings, then use eBay to check whether the price is fair. "
+                    "Real-time deal pages help connect those signals with recent examples from the bot."
+                ),
+                "comparison": [
+                    {"label": "Vinted", "value": "Best for casual sellers, cheap lots and under-described EU listings."},
+                    {"label": "eBay", "value": "Best for price comparison, sold data and wider marketplace volume."},
+                    {"label": "Live deal pages", "value": "Best for seeing fresh examples without refreshing every search manually."},
+                ],
+            },
+            {
+                "title": "Useful pages for live examples",
+                "text": (
+                    "Static advice helps, but real listings make the process easier to understand. The public deal pages on TCG Sniper Deals show a limited snapshot of listings detected by the bot, including cards, lots, sealed products and graded cards when available. "
+                    "Use those pages as examples, then always open the marketplace and check the details yourself before buying."
+                ),
+                "items": [
+                    "See broad examples on /pokemon-deals.",
+                    "Check recent examples on /pokemon-deals-today.",
+                    "Compare budget-focused listings on /cheap-pokemon-cards-eu.",
+                ],
+            },
+        ],
+        "faqs": [
+            {
+                "question": "What is the cheapest place to buy Pokémon cards in Europe?",
+                "answer": "There is no single cheapest place every day. Vinted can be strong for casual EU sellers and mixed lots, while eBay is better for price comparison and wider supply. The cheapest real deal depends on condition, language, shipping, seller trust and whether the listing is still available.",
+            },
+            {
+                "question": "Are cheap Pokémon cards on Vinted safe to buy?",
+                "answer": "They can be safe, but buyers should check seller feedback, photos, card condition, language and shipping before paying. Vinted listings may be less detailed than eBay listings, so ask questions when something is unclear. A cheap price is useful only when the card can be verified.",
+            },
+            {
+                "question": "How can live deals help me find cheap cards?",
+                "answer": "Live deals help because strong listings can sell quickly. A real-time feed can show fresh Pokémon card listings from Vinted, eBay and EU marketplaces before a manual searcher sees them. You still need to inspect the listing, compare prices and confirm seller details before buying.",
+            },
+        ],
+        "filters": {"region": "eu", "max_price_eur": 50, "mode": "recent"},
+        "show_live_listings": True,
+        "listing_limit": 6,
+        "deal_section_title": "Real examples of cheap Pokémon card listings",
+        "empty_state": "No cheap public card examples are available right now. The section updates when the bot detects matching EU listings.",
+        "related": ["cheap-pokemon-cards-eu", "pokemon-deals-today", "pokemon-deals", "vinted-pokemon-deals", "ebay-pokemon-deals"],
+    },
+    "are-pokemon-cards-worth-buying": {
+        "title": "Are Pokémon Cards Worth Buying? Collector & EU Deal Guide",
+        "meta_description": "Understand whether Pokémon cards are worth buying by comparing EU prices, Vinted and eBay listings, condition, risk and live deals.",
+        "h1": "Are Pokémon cards worth buying?",
+        "direct_answer": (
+            "Pokémon cards can be worth buying when you understand the card, condition, price and seller risk. "
+            "They are not automatically a good investment, but EU collectors can find fair deals on Vinted, eBay and live listing feeds when they compare carefully."
+        ),
+        "intro": (
+            "Pokémon cards are worth buying for different reasons: collecting, nostalgia, completing a binder, playing the game or looking for underpriced listings. "
+            "The important question is not whether every card will rise in value, but whether a specific purchase makes sense at that price. "
+            "EU buyers should pay attention to language, shipping, marketplace protection and recent comparable prices."
+        ),
+        "sections": [
+            {
+                "title": "When Pokémon cards are worth buying",
+                "text": (
+                    "A Pokémon card is usually worth buying when the total context supports the price. That includes the exact version, set, language, condition, photos, seller reputation and shipping cost. "
+                    "For collectors, the card may be worth buying because it completes a personal goal. For deal hunters, it may be worth buying because the listing is cheaper than comparable Vinted or eBay prices. "
+                    "Both cases need a clear reason, not just excitement."
+                ),
+                "items": [
+                    "The card fits your collection or has clear demand.",
+                    "The condition and language match the price.",
+                    "Comparable EU prices support the purchase.",
+                    "Shipping and seller risk do not erase the value.",
+                ],
+            },
+            {
+                "title": "Risks to check before buying",
+                "text": (
+                    "The biggest mistake is treating every cheap listing as a good deal. Some cards are cheap because they are common, damaged, misidentified, fake, non-English or expensive to ship. "
+                    "Vinted listings can be casual and incomplete, while eBay listings may have more competition and stronger seller pricing. "
+                    "A useful buying process checks the downside first, then decides whether the upside is still attractive."
+                ),
+                "steps": [
+                    "Identify the exact card, set and number.",
+                    "Check photos for corners, surface, centering and damage.",
+                    "Compare with recent eBay sold prices or similar EU listings.",
+                    "Decide whether shipping, fees and seller trust still make it worthwhile.",
+                ],
+            },
+            {
+                "title": "Collector value vs resale value",
+                "text": (
+                    "Collector value and resale value are different. A card can be worth buying for your binder even if it has no obvious profit margin. "
+                    "A resale deal needs stricter price discipline because fees, delivery, grading costs and time can reduce the margin. "
+                    "Live deals are helpful because they reveal fresh marketplace opportunities, but they do not replace careful checking. The best purchases are the ones where your reason is clear before you pay."
+                ),
+                "comparison": [
+                    {"label": "Collector buy", "value": "Worth it when the card fits your taste, set goals and budget."},
+                    {"label": "Resale buy", "value": "Worth it only when comparable prices leave enough margin after costs."},
+                    {"label": "Speculative buy", "value": "Higher risk because future demand and prices are uncertain."},
+                ],
+            },
+            {
+                "title": "How the bot helps with examples",
+                "text": (
+                    "TCG Sniper Deals connects this decision process to real listings. Public deal pages show limited examples from the bot database, while the full app focuses on faster live review. "
+                    "Use the examples to see what kinds of cards, lots, slabs or sealed products are appearing, then check each marketplace listing directly before buying."
+                ),
+                "items": [
+                    "Use /best-pokemon-deals-today for stronger public deal examples.",
+                    "Use /charizard-deals-under-100 for focused Charizard examples.",
+                    "Use /pokemon-graded-card-deals for slab-style listings.",
+                ],
+            },
+        ],
+        "faqs": [
+            {
+                "question": "Are Pokémon cards a good investment?",
+                "answer": "Some Pokémon cards can increase in value, but they should not be treated as guaranteed investments. Prices depend on demand, condition, rarity, language, grading, market cycles and liquidity. Most buyers should focus on cards they understand and can afford rather than assuming every card will rise.",
+            },
+            {
+                "question": "Is it better to buy raw or graded Pokémon cards?",
+                "answer": "Raw cards can be cheaper and better for binders, but condition is harder to judge online. Graded cards are easier to compare because the grade is visible, yet they often cost more. EU buyers should compare Vinted and eBay prices, shipping and seller trust before choosing.",
+            },
+            {
+                "question": "Can live deals make buying Pokémon cards safer?",
+                "answer": "Live deals can help you see fresh listings earlier, but they do not make a purchase safe by themselves. You still need to check photos, condition, authenticity, seller feedback and total cost. Real-time discovery is a research tool, not a guarantee.",
+            },
+        ],
+        "filters": {"mode": "best"},
+        "show_live_listings": True,
+        "listing_limit": 6,
+        "deal_section_title": "Real examples of Pokémon deals to review",
+        "empty_state": "No public deal examples are available right now. The section updates when matching listings are detected.",
+        "related": ["best-pokemon-deals-today", "pokemon-deals", "pokemon-card-deals", "charizard-deals-under-100", "pokemon-graded-card-deals"],
+    },
+    "best-place-to-buy-pokemon-cards-eu": {
+        "title": "Best Place to Buy Pokémon Cards EU | Vinted vs eBay",
+        "meta_description": "Compare the best places to buy Pokémon cards in the EU, including Vinted, eBay, prices, live deals, shipping and buyer checks.",
+        "h1": "What is the best place to buy Pokémon cards in the EU?",
+        "direct_answer": (
+            "The best place to buy Pokémon cards in the EU depends on what you need. "
+            "Vinted is often useful for cheap casual listings and card lots, while eBay is stronger for comparison, graded cards, sealed products and broader supply."
+        ),
+        "intro": (
+            "EU buyers have several options for Pokémon cards, but each marketplace behaves differently. A platform that is good for cheap binder lots may not be best for graded cards or sealed booster boxes. "
+            "The best approach is to understand what each marketplace is good at, compare total prices, and use live deal examples to see how listings move in real time."
+        ),
+        "sections": [
+            {
+                "title": "Best marketplace by use case",
+                "text": (
+                    "Vinted is often the first place to check for casual sellers, cheap singles, binder pages and mixed lots. eBay is usually better when you need broader supply, stronger search tools and sold-price history. "
+                    "For sealed products, graded cards and higher-value purchases, eBay may offer more context, while Vinted may still produce occasional underpriced EU deals. "
+                    "Local marketplaces can work too, but buyer protection and shipping details vary."
+                ),
+                "comparison": [
+                    {"label": "Vinted", "value": "Good for cheap EU singles, lots and casual collection sales."},
+                    {"label": "eBay", "value": "Good for price comparison, graded cards, auctions and sealed products."},
+                    {"label": "Wallapop/local", "value": "Good for regional finds when shipping and seller details are clear."},
+                ],
+            },
+            {
+                "title": "How to compare EU prices",
+                "text": (
+                    "The listed price is only one part of the real cost. EU buyers should include shipping, marketplace fees, currency differences, language, condition and seller reliability. "
+                    "A Vinted card may look cheap until delivery is added, while an eBay listing may look expensive until you compare sold results and notice the exact grade or set. "
+                    "Good deals survive comparison after all costs are included."
+                ),
+                "steps": [
+                    "Search the exact card or product on eBay sold results.",
+                    "Compare active listings on Vinted and eBay in the same condition.",
+                    "Add shipping and fees to calculate the real landed price.",
+                    "Check whether language, photos and seller feedback match your expectations.",
+                ],
+            },
+            {
+                "title": "Where live deal tracking fits",
+                "text": (
+                    "Live deal tracking does not replace marketplace research; it makes the research faster. Instead of refreshing Vinted, eBay and several EU searches manually, a real-time feed can surface fresh candidates for review. "
+                    "That is useful because the best cheap listings often sell quickly. "
+                    "The public pages on TCG Sniper Deals show limited examples, while the full app is designed for faster monitoring and direct marketplace checks."
+                ),
+                "items": [
+                    "Use live pages to see fresh marketplace examples.",
+                    "Use Vinted and eBay directly to verify price, photos and seller details.",
+                    "Use comparison before buying, especially on higher-value cards.",
+                ],
+            },
+            {
+                "title": "Simple recommendation",
+                "text": (
+                    "For most EU collectors, the best answer is to use both Vinted and eBay. Vinted is useful for finding cheap Pokémon cards from casual sellers, and eBay is useful for confirming whether those prices are fair. "
+                    "When both platforms point to the same conclusion, the buying decision becomes clearer. If the listing is vague, rushed or hard to verify, it is better to wait for a stronger deal."
+                ),
+                "items": [
+                    "Start with Vinted for casual EU opportunities.",
+                    "Use eBay to check comparable prices.",
+                    "Use /pokemon-deals-europe and /cheap-pokemon-cards-eu for live examples.",
+                ],
+            },
+        ],
+        "faqs": [
+            {
+                "question": "Is Vinted or eBay better for Pokémon cards in Europe?",
+                "answer": "Vinted is often better for casual sellers, mixed lots and cheap EU listings. eBay is usually better for price comparison, sold history, graded cards and sealed products. Many buyers use both: Vinted for discovery and eBay for checking whether the price is fair.",
+            },
+            {
+                "question": "What should EU buyers check before buying?",
+                "answer": "EU buyers should check the exact card, condition, language, seller feedback, shipping cost, marketplace protection and recent comparable prices. A listing that looks cheap can become less attractive after shipping or if photos show damage.",
+            },
+            {
+                "question": "Can I use live deal pages instead of marketplace searches?",
+                "answer": "Live deal pages are best used as a discovery layer, not a replacement for marketplace checks. They can show fresh examples from the bot, but buyers should still open the original Vinted or eBay listing and verify every detail before buying.",
+            },
+        ],
+        "filters": {"region": "eu", "mode": "recent"},
+        "show_live_listings": True,
+        "listing_limit": 6,
+        "deal_section_title": "Real EU marketplace examples from the bot",
+        "empty_state": "No EU marketplace examples are available right now. The section updates when new listings are detected.",
+        "related": ["pokemon-deals-europe", "vinted-pokemon-deals", "ebay-pokemon-deals", "cheap-pokemon-cards-eu", "pokemon-deals"],
+    },
+    "how-to-find-pokemon-deals": {
+        "title": "How to Find Pokémon Deals | EU Vinted & eBay Guide",
+        "meta_description": "Learn how to find Pokémon deals using Vinted, eBay, EU price checks, live listings, simple steps and real marketplace examples.",
+        "h1": "How do you find Pokémon deals?",
+        "direct_answer": (
+            "To find Pokémon deals, watch fresh listings on Vinted, eBay and EU marketplaces, then compare the price against condition, shipping and recent sales. "
+            "The best deals are usually found by combining real-time discovery with careful verification."
+        ),
+        "intro": (
+            "Finding Pokémon deals is a repeatable process. You need a way to see new listings quickly, a checklist for deciding whether the price is actually good, and enough patience to skip weak offers. "
+            "Cheap listings appear every day, but only some are worth buying. The goal is to turn marketplace noise into a simple review workflow."
+        ),
+        "sections": [
+            {
+                "title": "A simple deal-finding workflow",
+                "text": (
+                    "The strongest workflow starts broad, then narrows quickly. Watch fresh Pokémon card listings on Vinted and eBay, look for prices that seem cheap compared with EU demand, and check whether the listing is clear enough to trust. "
+                    "Real-time alerts help with speed, but the decision should still be based on card identity, photos, condition, shipping and seller feedback. "
+                    "This keeps deal hunting practical instead of random."
+                ),
+                "steps": [
+                    "Find fresh listings from Vinted, eBay or live deal pages.",
+                    "Identify the exact card, sealed product, slab or lot.",
+                    "Compare price against recent sold data and similar EU listings.",
+                    "Check condition, language, seller feedback and shipping.",
+                    "Buy only if the total context still supports the deal.",
+                ],
+            },
+            {
+                "title": "Signals that a listing may be a deal",
+                "text": (
+                    "Good Pokémon deals often have small signals: a casual title, a binder photo, a mixed lot, an older card hidden inside a group listing, or a sealed product priced below recent examples. "
+                    "Vinted can be especially uneven because some sellers do not optimize titles. eBay has more structure but also more competition. "
+                    "The useful listings are not always obvious, which is why a checklist matters."
+                ),
+                "items": [
+                    "The price is below similar EU listings after shipping.",
+                    "The seller used a short or incomplete title.",
+                    "Photos show cards or products that the title does not fully describe.",
+                    "The listing is fresh and still available.",
+                ],
+            },
+            {
+                "title": "Comparing deal types",
+                "text": (
+                    "Different deal types need different checks. Raw cards depend heavily on condition and language. Graded cards need certification, grade and comparable slab prices. "
+                    "Sealed products require seal and box checks. Lots can hide value, but they also carry more uncertainty because photos may be incomplete. "
+                    "A real-time feed can show all of these, but each listing type needs its own review before buying."
+                ),
+                "comparison": [
+                    {"label": "Raw cards", "value": "Check condition, language, set, number and recent sales."},
+                    {"label": "Graded cards", "value": "Check certifier, grade, certification number and slab comps."},
+                    {"label": "Lots", "value": "Check visible cards, duplicates, risk and total shipping cost."},
+                    {"label": "Sealed products", "value": "Check seal, box condition, contents, language and market price."},
+                ],
+            },
+            {
+                "title": "Use real examples, then verify",
+                "text": (
+                    "Real examples make the process easier to learn. The public TCG Sniper Deals pages show a limited set of listings detected by the bot, which can include Vinted, eBay and EU marketplace examples. "
+                    "Use them to understand what fresh deals look like, then open the original listing and verify the details yourself. "
+                    "A deal-finding system is useful because it saves time, not because it removes judgment."
+                ),
+                "items": [
+                    "Use /pokemon-deals-today for fresh examples.",
+                    "Use /best-pokemon-deals-today for stronger deal signals.",
+                    "Use /pokemon-card-lot-deals for lot-style examples.",
+                ],
+            },
+        ],
+        "faqs": [
+            {
+                "question": "What is the fastest way to find Pokémon deals?",
+                "answer": "The fastest way is to monitor fresh listings across Vinted, eBay and EU marketplaces, then review promising results with a checklist. Real-time alerts can reduce the delay between a seller posting and a buyer seeing the listing, but verification is still required.",
+            },
+            {
+                "question": "What makes a Pokémon listing a deal?",
+                "answer": "A listing becomes a deal when the total price is attractive for the exact item, condition, language and seller risk. A cheap headline price is not enough. Shipping, photos, authenticity and recent comparable prices all matter.",
+            },
+            {
+                "question": "Should beginners buy every cheap Pokémon card?",
+                "answer": "No. Beginners should avoid buying every cheap card because many low-price cards are common, damaged or fairly priced. It is better to learn a few sets or card types, compare prices carefully and buy only when the listing is clear.",
+            },
+        ],
+        "filters": {"mode": "best"},
+        "show_live_listings": True,
+        "listing_limit": 6,
+        "deal_section_title": "Real Pokémon deal examples from the bot",
+        "empty_state": "No public deal examples are available right now. The section updates when the bot detects matching listings.",
+        "related": ["pokemon-deals-today", "best-pokemon-deals-today", "pokemon-card-lot-deals", "pokemon-deals", "cheap-pokemon-cards-eu"],
+    },
     "pokemon-deals": {
         "title": "Pok\u00e9mon Deals EU \u2013 Live Cheap Pok\u00e9mon Cards, Booster Boxes & Charizard Deals",
         "meta_description": "Track live Pok\u00e9mon deals across Europe. Find cheap cards, Charizard deals, ETBs and booster boxes from Vinted and eBay in real time.",

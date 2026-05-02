@@ -17,6 +17,9 @@
 {% if page.faqs and page.faq_schema %}
 <script type="application/ld+json">{{ page.faq_schema|tojson }}</script>
 {% endif %}
+{% if page.article_schema %}
+<script type="application/ld+json">{{ page.article_schema|tojson }}</script>
+{% endif %}
 {% endblock %}
 {% block content %}
 <section class="seo-page">
@@ -24,6 +27,9 @@
     <div class="seo-hero-copy">
       <span class="pill">VIP access</span>
       <h1>{{ page.h1 }}</h1>
+      {% if page.direct_answer %}
+      <p class="seo-direct-answer">{{ page.direct_answer }}</p>
+      {% endif %}
       <dl class="seo-freshness">
         <div>
           <dt>Last updated</dt>
@@ -74,10 +80,34 @@
 
   <section class="seo-sections">
     {% for section in page.sections %}
-    <article class="seo-section-card">
-      <h2>{{ section.title }}</h2>
-      <p>{{ section.text }}</p>
-    </article>
+      <article class="seo-section-card">
+        <h2>{{ section.title }}</h2>
+        <p>{{ section.text }}</p>
+        {% if section.get("items") %}
+        <ul class="seo-section-list">
+          {% for item in section.get("items") %}
+          <li>{{ item }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if section.get("steps") %}
+        <ol class="seo-section-list seo-section-steps">
+          {% for step in section.get("steps") %}
+          <li>{{ step }}</li>
+          {% endfor %}
+        </ol>
+        {% endif %}
+        {% if section.get("comparison") %}
+        <div class="seo-comparison-list">
+          {% for row in section.get("comparison") %}
+          <div class="seo-comparison-row">
+            <strong>{{ row.label }}</strong>
+            <span>{{ row.value }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </article>
     {% endfor %}
   </section>
 

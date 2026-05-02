@@ -604,6 +604,7 @@ def build_seo_page_context(slug):
         "title": data["title"],
         "meta_description": data["meta_description"],
         "h1": data["h1"],
+        "direct_answer": data.get("direct_answer", ""),
         "intro": data["intro"],
         "sections": sections,
         "related_pages": _seo_related_pages(data, slug),
@@ -639,12 +640,41 @@ def _seo_faq_schema(faqs):
     }
 
 
+def _seo_article_schema(page, canonical_url):
+    article_body_parts = [page.get("direct_answer", ""), page.get("intro", "")]
+    article_body_parts.extend(section.get("text", "") for section in page.get("sections", []))
+    return {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": page["h1"],
+        "description": page["meta_description"],
+        "url": canonical_url,
+        "mainEntityOfPage": canonical_url,
+        "author": {
+            "@type": "Organization",
+            "name": "TCG Sniper Deals",
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "TCG Sniper Deals",
+            "logo": {
+                "@type": "ImageObject",
+                "url": f"{site_root_url()}/static/icons/app-icon-512.png",
+            },
+        },
+        "articleSection": "Pokemon TCG deals",
+        "articleBody": " ".join(part for part in article_body_parts if part),
+    }
+
+
 def render_seo_page(slug):
     page = build_seo_page_context(slug)
+    canonical_url = canonical_for_path(f"/{slug}")
+    page["article_schema"] = _seo_article_schema(page, canonical_url)
     response = make_response(render_template(
         "seo_page.html",
         page=page,
-        canonical_url=canonical_for_path(f"/{slug}"),
+        canonical_url=canonical_url,
         vip_access_url=url_for("main.billing"),
         app_url=url_for("main.index"),
     ))

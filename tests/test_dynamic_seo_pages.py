@@ -249,6 +249,43 @@ class DynamicSeoPagesTests(unittest.TestCase):
                     for term in ("pokemon cards", "deals", "eu", "cheap", "vinted", "ebay", "real-time"):
                         self.assertIn(term, paragraph_lower)
 
+    def test_ai_answer_pages_render_direct_answers_article_schema_and_examples(self):
+        answer_pages = {
+            "/where-to-find-cheap-pokemon-cards": "Where to find cheap Pok\u00e9mon cards in Europe?",
+            "/are-pokemon-cards-worth-buying": "Are Pok\u00e9mon cards worth buying?",
+            "/best-place-to-buy-pokemon-cards-eu": "What is the best place to buy Pok\u00e9mon cards in the EU?",
+            "/how-to-find-pokemon-deals": "How do you find Pok\u00e9mon deals?",
+        }
+
+        for path, h1 in answer_pages.items():
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                body = response.get_data(as_text=True)
+                schema_blocks = [
+                    json.loads(match)
+                    for match in re.findall(r'<script type="application/ld\+json">(.*?)</script>', body, re.S)
+                ]
+                main_copy = " ".join(
+                    re.findall(r'<p class="seo-direct-answer">(.*?)</p>', body, re.S)
+                    + re.findall(r'<p class="seo-intro">(.*?)</p>', body, re.S)
+                    + re.findall(r'<article class="seo-section-card">.*?</article>', body, re.S)
+                )
+                visible_words = re.findall(r"\b\w+\b", re.sub(r"<[^>]+>", " ", main_copy))
+
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(f"<h1>{h1}</h1>", body)
+                self.assertEqual(len(re.findall(r"<h1(?: [^>]*)?>", body)), 1)
+                self.assertIn(f'<link rel="canonical" href="{OFFICIAL_URL}{path}">', body)
+                self.assertIn('class="seo-direct-answer"', body)
+                self.assertIn("<ul", body)
+                self.assertIn("<ol", body)
+                self.assertIn("seo-comparison-row", body)
+                self.assertIn("Real", body)
+                self.assertGreaterEqual(len(visible_words), 500)
+                self.assertLessEqual(len(visible_words), 800)
+                self.assertTrue(any(schema.get("@type") == "FAQPage" for schema in schema_blocks))
+                self.assertTrue(any(schema.get("@type") == "Article" for schema in schema_blocks))
+
     def test_new_dynamic_category_routes_render_canonical_and_seo_copy(self):
         new_routes = {
             "/pokemon-deals-europe": "Pokemon Deals Europe",
@@ -318,6 +355,10 @@ class DynamicSeoPagesTests(unittest.TestCase):
             "/pokemon-etb-deals-eu",
             "/pokemon-card-lot-deals",
             "/pokemon-graded-card-deals",
+            "/where-to-find-cheap-pokemon-cards",
+            "/are-pokemon-cards-worth-buying",
+            "/best-place-to-buy-pokemon-cards-eu",
+            "/how-to-find-pokemon-deals",
         ):
             self.assertIn(f"{OFFICIAL_URL}{path}", locs)
 
